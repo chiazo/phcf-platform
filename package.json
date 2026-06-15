@@ -1,0 +1,23 @@
+{
+  "name": "phcf-platform",
+  "version": "1.0.0",
+  "description": "a platform for phcf!",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chiazo/phcf-platform.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/chiazo/phcf-platform/issues"
+  },
+  "homepage": "https://github.com/chiazo/phcf-platform#readme",
+  "dependencies": {
+    "mongodb": "7.2"
+  }
+}
