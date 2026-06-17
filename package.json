@@ -2,6 +2,7 @@
   "name": "phcf-platform",
   "version": "1.0.0",
   "description": "a platform for phcf!",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -18,6 +19,9 @@
   },
   "homepage": "https://github.com/chiazo/phcf-platform#readme",
   "dependencies": {
-    "mongodb": "7.2"
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "mongodb": "7.2",
+    "morgan": "^1.11.0"
   }
 }
