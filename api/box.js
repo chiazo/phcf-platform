@@ -1,16 +1,12 @@
 const express = require("express");
 const router = express.Router();
 
-// "api/general-member/new"
+// "api/box/new"
 router.post("/new", async (req, res) => {
   try {
     /*
-    New document for MemberInfo Collection
-      - MemberType will be 2 (for General)
-      - State will be set to 1
-    New document for PersonalInfo Collection
-    Will also need to create a new document for MemberSnapshot
-    Will create a new document in the Member collection
+    Will create a new BoxState 
+    Create a new BoxInfo
     */
   } catch (err) {
     console.error(err);
@@ -18,12 +14,12 @@ router.post("/new", async (req, res) => {
   }
 });
 
-// "api/general-member/update-hours"
-router.patch("/update-hours", async (req, res) => {
+// "api/box/update"
+router.patch("/update", async (req, res) => {
   try {
     /*
-    Find specific Member -> MemberInfo -> Requirements -> ServiceRequirements
-    Update hours_completed
+    Can update any info in the box
+      - If there are conflicting boxes it needs to error out
     */
   } catch (err) {
     console.error(err);
@@ -31,11 +27,36 @@ router.patch("/update-hours", async (req, res) => {
   }
 });
 
-// "api/member/search-single"
-router.get("/search-single", async (req, res) => {
+// "api/box/inactive"
+router.patch("/inactive", async (req, res) => {
   try {
     /*
-    Find and return single member
+    Will make need to change the BoxState to 1 (invalid)
+    Need to update it so that no members are not connected to this Box
+    */
+  } catch (err) {
+    console.error(err);
+    res.sendStatus(500);
+  }
+});
+
+// "api/box/search-single"
+router.get("/search-number", async (req, res) => {
+  try {
+    /*
+    Find and return single box by it's number
+    */
+  } catch (err) {
+    console.error(err);
+    res.sendStatus(500);
+  }
+});
+
+// "api/box/search-single"
+router.get("/search-members", async (req, res) => {
+  try {
+    /*
+    Find and return single box by members associated by it
     */
   } catch (err) {
     console.error(err);
