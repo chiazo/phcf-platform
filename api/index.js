@@ -1,12 +1,13 @@
-const express = require("express");
+import express from "express";
+import memberRouter from "./member.js";
+import boxRouter from "./box.js";
+import workFormulaRouter from "./workFormula.js";
+
 const router = express.Router();
-const memberRouter = require("./member");
-const boxRouter = require("./box");
-const workFormulaRouter = require("./work-formula");
 
 //Mount the routes
 router.use("/member", memberRouter);
 router.use("/box", boxRouter);
-router.use("/work-formula", workFormulaRouter)
+router.use("/work-formula", workFormulaRouter);
 
-module.exports = router;
+export default router;

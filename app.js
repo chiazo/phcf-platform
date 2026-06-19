@@ -1,6 +1,7 @@
 import { MongoClient } from 'mongodb';
 import express from "express";
 import morgan from "morgan";
+import apiRouter from './api/index.js';
 // import cors from "cors";
 
 const app = express();
@@ -14,6 +15,9 @@ app.use(morgan("dev"));
 //     credentials: true,
 //   })
 // );
+
+// mount the api router at /api
+app.use("/api", apiRouter);
 
 
 const uri = 'mongodb+srv://phcf-database-user:phcfDatabaseUser01@phcf-db.wkn2lfe.mongodb.net/?appName=PHCF-DB';

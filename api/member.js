@@ -1,4 +1,5 @@
-const express = require("express");
+import express from "express";
+
 const router = express.Router();
 
 
@@ -100,4 +101,4 @@ router.get("/search-multiple", async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
