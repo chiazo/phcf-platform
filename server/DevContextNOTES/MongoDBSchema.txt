@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "_id",
+    "box_info",
+    "id",
+    "member_info",
+    "notes",
+    "personal_info",
+    "time_attr",
+    "updated_by"
+  ],
+  "properties": {
+    "_id": {
+      "$ref": "#/$defs/ObjectId"
+    },
+    "box_info": {
+      "type": "object",
+      "required": [
+        "box_id",
+        "box_state",
+        "change_requester",
+        "WaitlistInfo"
+      ],
+      "properties": {
+        "box_id": {
+          "type": "integer"
+        },
+        "box_state": {
+          "type": "integer"
+        },
+        "change_requester": {
+          "type": "string"
+        },
+        "WaitlistInfo": {
+          "type": "object",
+          "required": [
+            "joined_waitlist_at",
+            "waitlist_number"
+          ],
+          "properties": {
+            "joined_waitlist_at": {
+              "type": "integer"
+            },
+            "waitlist_number": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "id": {
+      "type": "integer"
+    },
+    "member_info": {
+      "type": "object",
+      "required": [
+        "Dues",
+        "MemberState",
+        "MemberType",
+        "OrientationDate",
+        "Requirements",
+        "Role"
+      ],
+      "properties": {
+        "Dues": {
+          "type": "object",
+          "required": [
+            "amount_paid",
+            "due_state",
+            "dues_paid_at",
+            "payment_type"
+          ],
+          "properties": {
+            "amount_paid": {
+              "type": "integer"
+            },
+            "due_state": {
+              "type": "integer"
+            },
+            "dues_paid_at": {
+              "type": "integer"
+            },
+            "payment_type": {
+              "type": "string"
+            }
+          }
+        },
+        "MemberState": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
+        "MemberType": {
+          "type": "string"
+        },
+        "OrientationDate": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
+        "Requirements": {
+          "type": "object",
+          "required": [
+            "meetings_completed",
+            "meetings_required",
+            "ServiceRequirement"
+          ],
+          "properties": {
+            "meetings_completed": {
+              "type": "integer"
+            },
+            "meetings_required": {
+              "type": "integer"
+            },
+            "ServiceRequirement": {
+              "type": "object",
+              "required": [
+                "hours_completed",
+                "work_formula_id"
+              ],
+              "properties": {
+                "hours_completed": {
+                  "type": "integer"
+                },
+                "work_formula_id": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "Role": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "personal_info": {
+      "type": "object",
+      "required": [
+        "Address",
+        "EmailInfo",
+        "firstname",
+        "lastname",
+        "PhoneInfo",
+        "pronouns"
+      ],
+      "properties": {
+        "Address": {
+          "type": "object",
+          "required": [
+            "city",
+            "line_1",
+            "line_2",
+            "zip_code"
+          ],
+          "properties": {
+            "city": {
+              "type": "string"
+            },
+            "line_1": {
+              "type": "string"
+            },
+            "line_2": {
+              "type": "string"
+            },
+            "zip_code": {
+              "type": "string"
+            }
+          }
+        },
+        "EmailInfo": {
+          "type": "object",
+          "required": [
+            "on_mailing_list",
+            "primary_email",
+            "secondary_email"
+          ],
+          "properties": {
+            "on_mailing_list": {
+              "type": "string"
+            },
+            "primary_email": {
+              "type": "string"
+            },
+            "secondary_email": {
+              "type": "string"
+            }
+          }
+        },
+        "firstname": {
+          "type": "string"
+        },
+        "lastname": {
+          "type": "string"
+        },
+        "PhoneInfo": {
+          "type": "object",
+          "required": [
+            "primary_phone_number",
+            "secondary_phone_number"
+          ],
+          "properties": {
+            "primary_phone_number": {
+              "type": "string"
+            },
+            "secondary_phone_number": {
+              "type": "string"
+            }
+          }
+        },
+        "pronouns": {
+          "type": "string"
+        }
+      }
+    },
+    "time_attr": {
+      "type": "object",
+      "required": [
+        "created_at",
+        "modified_at"
+      ],
+      "properties": {
+        "created_at": {
+          "type": "integer"
+        },
+        "modified_at": {
+          "type": "integer"
+        }
+      }
+    },
+    "updated_by": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "ObjectId": {
+      "type": "object",
+      "properties": {
+        "$oid": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{24}$"
+        }
+      },
+      "required": [
+        "$oid"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

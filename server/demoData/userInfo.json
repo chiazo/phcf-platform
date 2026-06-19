@@ -1,0 +1,118 @@
+[
+{  
+    "id":1,
+    "updated_by":"User1",
+    "notes":"Notes and Context.",
+    "personal_info":{
+        "firstname":"User",
+        "lastname":"Name",
+        "pronouns":"They/Them",
+        "Address": {
+            "line_1": "234 Main St",
+            "line_2": "Apt 1",
+            "city":"New York",
+            "zip_code":"10000"
+        },
+        "EmailInfo": {
+            "primary_email": "abd123@email.com",
+            "secondary_email": "123abd@email.com",
+            "on_mailing_list": "True"
+        },
+        "PhoneInfo":{
+            "primary_phone_number":"3003003000",
+            "secondary_phone_number":"3003003001"
+        }
+    },
+    "member_info":{
+        "MemberState": 2,
+        "Role": 0,
+        "MemberType": "GENERAL",
+        "OrientationDate":20260101,
+        "Dues":{
+            "due_state":1,
+            "dues_paid_at":0,
+            "amount_paid":0,
+            "payment_type":"NONE"
+        },
+        "Requirements":{
+            "meetings_required":5,
+            "meetings_completed":0,
+            "ServiceRequirement":{
+                "work_formula_id":"0000b",
+                "hours_completed":5
+            }
+        }
+    },
+    "box_info":{
+        "box_state": 0,
+        "box_id":1,
+        "change_requester":"User1",
+        "WaitlistInfo":{
+            "joined_waitlist_at":20260101,
+            "waitlist_number":3
+        }
+    },
+    "time_attr":{
+        "created_at": 20260101,
+        "modified_at": 20260501
+    }
+},
+{  
+    "id":2,
+    "updated_by":"User1",
+    "notes":"Additional Notes and Context.",
+    "personal_info":{
+        "firstname":"User2",
+        "lastname":"Name2",
+        "pronouns":"They/Them",
+        "Address": {
+            "line_1": "123 Main St",
+            "line_2": "Apt 2",
+            "city":"New York",
+            "zip_code":"10000"
+        },
+        "EmailInfo": {
+            "primary_email": "abc123@email.com",
+            "secondary_email": "123abc@email.com",
+            "on_mailing_list": "True"
+        },
+        "PhoneInfo":{
+            "primary_phone_number":"5005005000",
+            "secondary_phone_number":"5005005001"
+        }
+    },
+    "member_info":{
+        "MemberState": "2",
+        "Role": "2",
+        "MemberType": "BOARD",
+        "OrientationDate":"20250101",
+        "Dues":{
+            "due_state":3,
+            "dues_paid_at":20260101,
+            "amount_paid":1,
+            "payment_type":"VISA"
+        },
+        "Requirements":{
+            "meetings_required":2,
+            "meetings_completed":1,
+            "ServiceRequirement":{
+                "work_formula_id":"0000a",
+                "hours_completed":10
+            }
+        }
+    },
+    "box_info":{
+        "box_state": 1,
+        "box_id":2,
+        "change_requester":"User1",
+        "WaitlistInfo":{
+            "joined_waitlist_at":20260101,
+            "waitlist_number":2
+        }
+    },
+    "time_attr":{
+        "created_at": 20250101,
+        "modified_at": 20250201
+    }
+}
+]
