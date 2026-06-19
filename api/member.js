@@ -38,25 +38,12 @@ router.post("/new", async (req, res) => {
   }
 });
 
-// "api/member/update-hours"
-router.patch("/update-hours", async (req, res) => {
+// "api/member/update"
+router.patch("/update", async (req, res) => {
   try {
     /*
     Find specific Member -> MemberInfo -> Requirements -> ServiceRequirements
     Update hours_completed
-    */
-  } catch (err) {
-    console.error(err);
-    res.sendStatus(500);
-  }
-});
-
-// "api/member/update-dues"
-router.patch("/update-dues", async (req, res) => {
-  try {
-    /*
-    Find specific Member -> MemberInfo -> Dues
-    Update/Create Due document
     */
   } catch (err) {
     console.error(err);
@@ -77,8 +64,8 @@ router.patch("/inactive", async (req, res) => {
   }
 });
 
-// "api/member/search-single"
-router.get("/search-single", async (req, res) => {
+// "api/member/search"
+router.get("/search", async (req, res) => {
   try {
     /*
     Find and return single member
@@ -89,16 +76,5 @@ router.get("/search-single", async (req, res) => {
   }
 });
 
-// "api/member/search-multiple"
-router.get("/search-multiple", async (req, res) => {
-  try {
-    /*
-    Find and return multiple member
-    */
-  } catch (err) {
-    console.error(err);
-    res.sendStatus(500);
-  }
-});
 
 export default router;
