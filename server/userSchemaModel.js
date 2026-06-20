@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
+import MONGOPASSWORD from '.env';
+
 // the following imports are for if we switch from referential to embedded models
 // import TIMEATTR from './timeAttributeModel';
 // import PersonalInfo from './PersonalInfoModel';
@@ -79,7 +81,7 @@ module.exports.MemberSnapshotSchema = mongoose.model("MemberSnapshotSchema",Memb
 
 
 // connect to Mongo
-mongoose.connect("mongodb+srv://igracedaniel_db_user:SxbUXel4tOO83dyF@gardenuserdata.tqxcqrn.mongodb.net/", (err) => {
+mongoose.connect(`mongodb+srv://igracedaniel_db_user:${MONGOPASSWORD}@gardenuserdata.tqxcqrn.mongodb.net/`, (err) => {
     if (err){
         console.log(err);
     }
