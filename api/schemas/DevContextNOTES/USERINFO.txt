@@ -43,12 +43,12 @@ Information on MemberInfoSchema:
 -------------------------------
 OrientationDate     num for now, later will be a time and day
 Dues.dues_paid_at   num, 0 for invalid for now
-Dues.payment_type   str, for now: NONE and VISA but there will be many more
+Dues.payment_type   str
 
 
 Information on BoxInfoSchema:
 -------------------------------
-change_requester    FOR AUDIT, person who changed box ownership
+updated_by    FOR AUDIT, person who changed box ownership
 joined_waitlist_at  num for now, time and day later, box waitlist timestamp
 waitlist_number     num, total num people on waitlist
 

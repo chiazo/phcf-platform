@@ -1,22 +1,22 @@
 const PersonalInfoSchema = new Schema({
-    PersonalInfo:{
-        firstname:String,
-        lastname:String,
-        pronouns:String,
-        Address: {
+    personal_info:{
+        first_name: String,
+        last_name: String,
+        pronouns: String,
+        address: {
             line_1: String,
             line_2: String,
-            city:String,
-            zip_code:String,
+            city: String,
+            zip_code: String,
         },
-        EmailInfo: {
+        email_info: {
             primary_email: String,
             secondary_email: String,
             on_mailing_list: Boolean,
         },
-        PhoneInfo:{
-            primary_phone_number:String,
-            secondary_phone_number:String,
+        phone_info:{
+            primary_phone_number: String,
+            secondary_phone_number: String,
         },
     }
 
@@ -31,5 +31,5 @@ const PersonalInfoSchema = new Schema({
     // Role:Number,
     // ServiceType:Number,
 
-const PersonalInfo = mongoose.model('PersonalInfo', PersonalInfoSchema);
-export default PersonalInfo;
+const personal_info = mongoose.model('PersonalInfo', PersonalInfoSchema);
+export default personal_info;

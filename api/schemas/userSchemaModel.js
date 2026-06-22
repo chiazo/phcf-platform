@@ -5,34 +5,34 @@ import MONGOUSERNAME from '.env';
 import MONGOPASSWORD from '.env';
 
 // the following imports are for if we switch from referential to embedded models
-// import TIMEATTR from './timeAttributeModel';
-// import PersonalInfo from './PersonalInfoModel';
-// import MemberInfo from './MemberInfoModel';
-// import BoxInfo from './subschemas/BoxInfoModel';
+// import time_attr from './timeAttributeModel';
+// import personal_info from './PersonalInfoModel';
+// import member_info from './MemberInfoModel';
+// import box_info from './subschemas/BoxInfoModel';
 
 const MemberSnapshotSchema = new Schema({
-    id:Number,
+    id: Number,
     // member_id:Number,
-    updated_by:String,
-    notes:String,
+    updated_by: String,
+    notes: String,
     box_info:{
         box_state: Number,
-        box_id:Number,
-        change_requester:String,
+        box_id: Number,
+        change_requester: String,
         waitlist_info:{
-            joined_waitlist_at:Number,
-            waitlist_number:Number,
+            joined_waitlist_at: Number,
+            waitlist_number: Number,
         }
     },
     personal_info:{
-        first_name:String,
-        last_name:String,
-        pronouns:String,
+        first_name: String,
+        last_name: String,
+        pronouns: String,
         address: {
             line_1: String,
             line_2: String,
-            city:String,
-            zip_code:String,
+            city: String,
+            zip_code: String,
         },
         email_info: {
             primary_email: String,
@@ -40,27 +40,27 @@ const MemberSnapshotSchema = new Schema({
             on_mailing_list: Boolean,
         },
         phone_info:{
-            primary_phone_number:String,
-            secondary_phone_number:String,
+            primary_phone_number: String,
+            secondary_phone_number: String,
         },
     },
     member_info:{
         member_state: Number,
         role: Number,
         member_type: String,
-        orientation_date:Number,
+        orientation_date: Number,
         dues:{
-            due_state:Number,
-            dues_paid_at:Number,
-            amount_paid:Number,
-            payment_type:String,
+            due_state: Number,
+            dues_paid_at: Number,
+            amount_paid: Number,
+            payment_type: String,
         },
         requirements:{
-            meetings_required:Number,
-            meetings_completed:Number,
+            meetings_required: Number,
+            meetings_completed: Number,
             service_requirement:{
-                work_formula_id:String,
-                hours_completed:Number,
+                work_formula_id: String,
+                hours_completed: Number,
             }
     },
     time_attr:{
