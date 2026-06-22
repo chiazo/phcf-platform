@@ -51,19 +51,6 @@ router.patch("/update", async (req, res) => {
   }
 });
 
-// "api/member/inactive"
-router.patch("/inactive", async (req, res) => {
-  try {
-    /*
-    Find specific Member
-    Update their state to 3 (inactive) 
-    */
-  } catch (err) {
-    console.error(err);
-    res.sendStatus(500);
-  }
-});
-
 // "api/member/search"
 router.get("/search", async (req, res) => {
   try {
