@@ -19,46 +19,46 @@ const MemberSnapshotSchema = new Schema({
         box_state: Number,
         box_id:Number,
         change_requester:String,
-        WaitlistInfo:{
+        waitlist_info:{
             joined_waitlist_at:Number,
             waitlist_number:Number,
         }
     },
     personal_info:{
-        firstname:String,
-        lastname:String,
+        first_name:String,
+        last_name:String,
         pronouns:String,
-        Address: {
+        address: {
             line_1: String,
             line_2: String,
             city:String,
             zip_code:String,
         },
-        EmailInfo: {
+        email_info: {
             primary_email: String,
             secondary_email: String,
             on_mailing_list: Boolean,
         },
-        PhoneInfo:{
+        phone_info:{
             primary_phone_number:String,
             secondary_phone_number:String,
         },
     },
     member_info:{
-        MemberState: Number,
-        Role: Number,
-        MemberType: String,
-        OrientationDate:Number,
-        Dues:{
+        member_state: Number,
+        role: Number,
+        member_type: String,
+        orientation_date:Number,
+        dues:{
             due_state:Number,
             dues_paid_at:Number,
             amount_paid:Number,
             payment_type:String,
         },
-        Requirements:{
+        requirements:{
             meetings_required:Number,
             meetings_completed:Number,
-            ServiceRequirement:{
+            service_requirement:{
                 work_formula_id:String,
                 hours_completed:Number,
             }
