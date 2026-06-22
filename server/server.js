@@ -1,6 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const {MemberSnapshotSchema} = require("./userSchemaModel.js");
+const {MemberSnapshotSchema} = require("../api/schemas/userSchemaModel.js");
 console.log(MemberSnapshotSchema);
 const app = express();
 
