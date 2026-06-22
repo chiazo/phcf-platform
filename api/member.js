@@ -4,7 +4,7 @@ const router = express.Router();
 
 
 // "api/member/new-general"
-router.post("/new", async (req, res) => {
+router.post("/new-general", async (req, res) => {
   try {
     /*
     New document for MemberInfo Collection
@@ -21,7 +21,7 @@ router.post("/new", async (req, res) => {
 });
 
 // "api/member/new-admin"
-router.post("/new", async (req, res) => {
+router.post("/new-admin", async (req, res) => {
   try {
     /*
     New document for MemberInfo Collection
