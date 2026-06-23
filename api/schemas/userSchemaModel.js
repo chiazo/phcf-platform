@@ -15,15 +15,6 @@ const MemberSnapshotSchema = new Schema({
     // member_id:Number,
     updated_by: String,
     notes: String,
-    box_info:{
-        box_state: Number,
-        box_id: Number,
-        change_requester: String,
-        waitlist_info:{
-            joined_waitlist_at: Number,
-            waitlist_number: Number,
-        }
-    },
     personal_info:{
         first_name: String,
         last_name: String,
@@ -62,6 +53,15 @@ const MemberSnapshotSchema = new Schema({
                 work_formula_id: String,
                 hours_completed: Number,
             }
+    },
+    box_info:{
+        box_state: Number,
+        box_id: Number,
+        change_requester: String,
+        waitlist_info:{
+            joined_waitlist_at: Number,
+            waitlist_number: Number,
+        }
     },
     time_attr:{
         created_at: Number,
