@@ -21,7 +21,7 @@
         "box_id",
         "box_state",
         "change_requester",
-        "WaitlistInfo"
+        "waitlist_info"
       ],
       "properties": {
         "box_id": {
@@ -33,7 +33,7 @@
         "change_requester": {
           "type": "string"
         },
-        "WaitlistInfo": {
+        "waitlist_info": {
           "type": "object",
           "required": [
             "joined_waitlist_at",
@@ -56,15 +56,15 @@
     "member_info": {
       "type": "object",
       "required": [
-        "Dues",
-        "MemberState",
-        "MemberType",
-        "OrientationDate",
-        "Requirements",
-        "Role"
+        "dues",
+        "member_state",
+        "member_type",
+        "orientation_date",
+        "requirements",
+        "role"
       ],
       "properties": {
-        "Dues": {
+        "dues": {
           "type": "object",
           "required": [
             "amount_paid",
@@ -87,27 +87,27 @@
             }
           }
         },
-        "MemberState": {
+        "member_state": {
           "type": [
             "string",
             "integer"
           ]
         },
-        "MemberType": {
+        "member_type": {
           "type": "string"
         },
-        "OrientationDate": {
+        "orientation_date": {
           "type": [
             "string",
             "integer"
           ]
         },
-        "Requirements": {
+        "requirements": {
           "type": "object",
           "required": [
             "meetings_completed",
             "meetings_required",
-            "ServiceRequirement"
+            "service_requirement"
           ],
           "properties": {
             "meetings_completed": {
@@ -116,7 +116,7 @@
             "meetings_required": {
               "type": "integer"
             },
-            "ServiceRequirement": {
+            "service_requirement": {
               "type": "object",
               "required": [
                 "hours_completed",
@@ -133,7 +133,7 @@
             }
           }
         },
-        "Role": {
+        "role": {
           "type": [
             "string",
             "integer"
@@ -147,15 +147,15 @@
     "personal_info": {
       "type": "object",
       "required": [
-        "Address",
-        "EmailInfo",
-        "firstname",
-        "lastname",
-        "PhoneInfo",
+        "address",
+        "email_info",
+        "first_name",
+        "last_name",
+        "phone_info",
         "pronouns"
       ],
       "properties": {
-        "Address": {
+        "address": {
           "type": "object",
           "required": [
             "city",
@@ -178,7 +178,7 @@
             }
           }
         },
-        "EmailInfo": {
+        "email_info": {
           "type": "object",
           "required": [
             "on_mailing_list",
@@ -197,13 +197,13 @@
             }
           }
         },
-        "firstname": {
+        "first_name": {
           "type": "string"
         },
-        "lastname": {
+        "last_name": {
           "type": "string"
         },
-        "PhoneInfo": {
+        "phone_info": {
           "type": "object",
           "required": [
             "primary_phone_number",
