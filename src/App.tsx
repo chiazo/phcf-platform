@@ -4,16 +4,6 @@ import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
 import Navigation from './pages/NavigationPage'
 
-// function Navigation() {
-//   return (
-//     <nav>
-//       <Link to="/">Home</Link>
-//       <Link to="/login">Login</Link>
-//       <Link to="/admin">AdminDemo</Link>
-//     </nav>
-//   )
-// }
-
 function HomePage() {
   return (
     <>

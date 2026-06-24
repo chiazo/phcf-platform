@@ -5,7 +5,7 @@ function Navigation() {
     <nav>
       <Link to="/">Home</Link>
       <Link to="/login">Login</Link>
-      <Link to="/admin">AdminDemo</Link>
+      <Link to="/admin">Admin Demo</Link>
     </nav>
   )
 }
