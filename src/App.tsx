@@ -1,15 +1,18 @@
-import { Link, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import './App.css'
 import LoginPage from './pages/LoginPage'
+import AdminPage from './pages/AdminPage'
+import Navigation from './pages/NavigationPage'
 
-function Navigation() {
-  return (
-    <nav>
-      <Link to="/">Home</Link>
-      <Link to="/login">Login</Link>
-    </nav>
-  )
-}
+// function Navigation() {
+//   return (
+//     <nav>
+//       <Link to="/">Home</Link>
+//       <Link to="/login">Login</Link>
+//       <Link to="/admin">AdminDemo</Link>
+//     </nav>
+//   )
+// }
 
 function HomePage() {
   return (
@@ -24,15 +27,8 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
-      <Route
-        path="/login"
-        element={
-          <>
-            <Navigation />
-            <LoginPage />
-          </>
-        }
-      />
+      <Route path="/login" element={<> <Navigation /> <LoginPage /> </>}/>
+      <Route path="/admin" element={<><AdminPage/></>} />
     </Routes>
   )
 }
