@@ -71,3 +71,24 @@ export default defineConfig([
   },
 ])
 ```
+## Execution Instructions
+In the root of the directory, open command line and run using:
+```npm install```
+```npm run dev```
+
+This app requires Node.js version 20.19+ or 22.12+.
+
+To install the aforementioned Node version...
+
+Check your installed Node versions:
+```nvm ls```
+
+If the version is there:
+```nvm use 20.19```
+
+Else:
+```nvm install 20.19```
+```nvm use 20.19```
+
+After the proper Node version is installed, resume development with:
+```npm run dev```

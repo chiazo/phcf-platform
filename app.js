@@ -3,10 +3,14 @@ import express from "express";
 import morgan from "morgan";
 import apiRouter from './api/index.js';
 // import cors from "cors";
+import MONGOUSERNAME from '.env';
+import MONGOPASSWORD from '.env';
 
 const app = express();
 
 app.use(morgan("dev"));
+
+console.log('touched here');
 
 // // Allows requests from all hostname
 // app.use(
@@ -20,8 +24,7 @@ app.use(morgan("dev"));
 app.use("/api", apiRouter);
 
 
-const uri = 'mongodb+srv://phcf-database-user:phcfDatabaseUser01@phcf-db.wkn2lfe.mongodb.net/?appName=PHCF-DB';
-const client = new MongoClient(uri);
+const uri = `mongodb+srv://${MONGOUSERNAME}:${MONGOPASSWORD}@gardenuserdata.tqxcqrn.mongodb.net/`;const client = new MongoClient(uri);
 
 
 const runApp = async () => {
