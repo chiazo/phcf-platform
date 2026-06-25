@@ -1,12 +1,14 @@
 import { Link, Route, Routes } from 'react-router-dom'
 import './App.css'
 import LoginPage from './pages/LoginPage'
+import UserDataFullDisplay from './pages/userDataFullDisplay'
 
 function Navigation() {
   return (
     <nav>
       <Link to="/">Home</Link>
       <Link to="/login">Login</Link>
+      <Link to="/userData">All Users</Link>
     </nav>
   )
 }
@@ -30,6 +32,15 @@ function App() {
           <>
             <Navigation />
             <LoginPage />
+          </>
+        }
+      />
+      <Route
+        path="/userData"
+        element={
+          <>
+            <Navigation />
+            <UserDataFullDisplay />
           </>
         }
       />
