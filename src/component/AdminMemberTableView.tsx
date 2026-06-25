@@ -22,46 +22,47 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import { visuallyHidden } from '@mui/utils';
 
 interface Data {
-  id: number;
-  calories: number;
-  carbs: number;
-  fat: number;
-  name: string;
-  protein: number;
+  id: number; 
+  fullName: string; 
+  dueStatus: string; //DueState
+  amountPaid: number; //Amount Paid
+  meetingsRequired: number; //Meetings Required
+  meetingsCompleted: number;
+  openHoursRequired: number; //work or open hours
+  openHoursCompleted: number; //work or open hours
+  serviceHoursRequired: number; //hours completed
+  serviceHoursCompleted:number; //hours completed
 }
 
 function createData(
   id: number,
-  name: string,
-  calories: number,
-  fat: number,
-  carbs: number,
-  protein: number,
+  fullName: string, 
+  dueStatus: string, //DueState
+  amountPaid: number, //Amount Paid
+  meetingsRequired: number, //Meetings Required
+  meetingsCompleted: number,
+  openHoursRequired: number, //work or open hours
+  openHoursCompleted: number, //work or open hours
+  serviceHoursRequired: number, //hours completed
+  serviceHoursCompleted:number
 ): Data {
   return {
     id,
-    name,
-    calories,
-    fat,
-    carbs,
-    protein,
+    fullName, 
+    dueStatus, //DueState
+    amountPaid, //Amount Paid
+    meetingsRequired, //Meetings Required
+    meetingsCompleted,
+    openHoursRequired, //work or open hours
+    openHoursCompleted, //work or open hours
+    serviceHoursRequired, //hours completed
+    serviceHoursCompleted
   };
 }
 
 const rows = [
-  createData(1, 'Cupcake', 305, 3.7, 67, 4.3),
-  createData(2, 'Donut', 452, 25.0, 51, 4.9),
-  createData(3, 'Eclair', 262, 16.0, 24, 6.0),
-  createData(4, 'Frozen yoghurt', 159, 6.0, 24, 4.0),
-  createData(5, 'Gingerbread', 356, 16.0, 49, 3.9),
-  createData(6, 'Honeycomb', 408, 3.2, 87, 6.5),
-  createData(7, 'Ice cream sandwich', 237, 9.0, 37, 4.3),
-  createData(8, 'Jelly Bean', 375, 0.0, 94, 0.0),
-  createData(9, 'KitKat', 518, 26.0, 65, 7.0),
-  createData(10, 'Lollipop', 392, 0.2, 98, 0.0),
-  createData(11, 'Marshmallow', 318, 0, 81, 2.0),
-  createData(12, 'Nougat', 360, 19.0, 9, 37.0),
-  createData(13, 'Oreo', 437, 18.0, 63, 4.0),
+  createData(1, "User", 'Incomplete', 0, 5, 0, 3, 3, 5, 5),
+  createData(2, "User2", 'Complete', 3, 2, 1, 9, 4, 10, 9),
 ];
 
 function descendingComparator<T>(a: T, b: T, orderBy: keyof T) {
@@ -97,34 +98,58 @@ interface HeadCell {
 
 const headCells: readonly HeadCell[] = [
   {
-    id: 'name',
+    id: 'fullName',
     numeric: false,
     disablePadding: true,
-    label: 'Dessert (100g serving)',
+    label: 'Full Name',
   },
   {
-    id: 'calories',
+    id: 'dueStatus',
     numeric: true,
     disablePadding: false,
-    label: 'Calories',
+    label: 'Current Dues Status',
   },
   {
-    id: 'fat',
+    id: 'amountPaid',
     numeric: true,
     disablePadding: false,
-    label: 'Fat (g)',
+    label: 'Amount Paid',
   },
   {
-    id: 'carbs',
+    id: 'meetingsRequired',
     numeric: true,
     disablePadding: false,
-    label: 'Carbs (g)',
+    label: 'Meetings Required',
   },
   {
-    id: 'protein',
+    id: 'meetingsCompleted',
     numeric: true,
     disablePadding: false,
-    label: 'Protein (g)',
+    label: 'Meetings Completed',
+  },
+  {
+    id: 'openHoursRequired',
+    numeric: false,
+    disablePadding: false,
+    label: 'Open Hours Required',
+  },
+   {
+    id: 'openHoursCompleted',
+    numeric: false,
+    disablePadding: false,
+    label: 'Open Hours Completed',
+  },
+   {
+    id: 'serviceHoursRequired',
+    numeric: false,
+    disablePadding: false,
+    label: 'Service Hours Required',
+  },
+   {
+    id: 'serviceHoursCompleted',
+    numeric: false,
+    disablePadding: false,
+    label: 'Service Hours Completed',
   },
 ];
 
@@ -241,7 +266,7 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
 }
 export default function EnhancedTable() {
   const [order, setOrder] = React.useState<Order>('asc');
-  const [orderBy, setOrderBy] = React.useState<keyof Data>('calories');
+  const [orderBy, setOrderBy] = React.useState<keyof Data>('dueStatus');
   const [selected, setSelected] = React.useState<readonly number[]>([]);
   const [page, setPage] = React.useState(0);
   const [dense, setDense] = React.useState(false);
@@ -358,12 +383,16 @@ export default function EnhancedTable() {
                       scope="row"
                       padding="none"
                     >
-                      {row.name}
+                      {row.fullName}
                     </TableCell>
-                    <TableCell align="right">{row.calories}</TableCell>
-                    <TableCell align="right">{row.fat}</TableCell>
-                    <TableCell align="right">{row.carbs}</TableCell>
-                    <TableCell align="right">{row.protein}</TableCell>
+                    <TableCell align="center">{row.dueStatus}</TableCell>
+                    <TableCell align="center">{row.amountPaid}</TableCell>
+                    <TableCell align="center">{row.meetingsRequired}</TableCell>
+                    <TableCell align="center">{row.meetingsCompleted}</TableCell>
+                    <TableCell align="center">{row.openHoursRequired}</TableCell>
+                    <TableCell align="center">{row.openHoursCompleted}</TableCell>
+                    <TableCell align="center">{row.serviceHoursRequired}</TableCell>
+                    <TableCell align="center">{row.serviceHoursCompleted}</TableCell>
                   </TableRow>
                 );
               })}
