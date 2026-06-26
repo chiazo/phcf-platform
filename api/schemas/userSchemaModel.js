@@ -14,7 +14,7 @@ import MONGOPASSWORD from '.env';
 
 
 const MemberSnapshotSchema = new Schema({
-    id: Number,
+    id: String,
     updated_by: String,
     notes: String,
     personal_info:{
@@ -66,7 +66,7 @@ const MemberSnapshotSchema = new Schema({
 const BoxSchema = new Schema({
     box_id: String,
     box_state: Number,
-    change_requester: String,
+    updated_by: String,
     waitlist_info:{
         joined_waitlist_at: Number,
         waitlist_number: Number

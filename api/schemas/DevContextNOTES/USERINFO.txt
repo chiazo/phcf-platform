@@ -13,7 +13,7 @@ Information on 'MemberSnapshotSchema'
 This schema holds the attributes for personal_info, member_info, and time_attr.
 These categories are defined beneath the description for 'MemberSnapshotSchema'.
 -------------------------------
-id                  numerical iterator for unique id
+id                  string, unique id
                     PENDING_APPROVAL = 1;
                     ACTIVE = 2;
                     INACTIVE = 3;
@@ -89,21 +89,16 @@ modified_at         num, future will be time and day
 
 Information on BoxSchema:
 -------------------------------
-updated_by    FOR AUDIT, person who changed box ownership
-joined_waitlist_at  num for now, time and day later, box waitlist timestamp
-waitlist_number     num, total num people on waitlist
-
-
-
-Information on MemberSnapshotSchema:
--------------------------------
-member_id           num, pointer to member object, may cut this
-updated_by          string, FOR AUDIT, point to whoever updated the user's account
-notes               string, notes on the member, maybe in future make this a list so multiple notes could be stored at once or purged chronologically
-time_attr
-
-
-
+box_id              String
+box_state           Number
+                    BOX_STATE_INVALID = 0;
+                    WAITLIST = 1;
+                    ACTIVE = 2;
+                    INACTIVE = 3;
+updated_by          FOR AUDIT, String, person who changed box ownership
+----------------- waitlist_info -----------------
+.joined_waitlist_at  num for now, time and day later, box waitlist timestamp
+.waitlist_number     num, total num people on waitlist
 
 
 
