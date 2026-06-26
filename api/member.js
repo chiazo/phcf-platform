@@ -1,4 +1,7 @@
 import express from "express";
+const mongoose = require("mongoose");
+const {MemberSnapshotSchema} = require("./userSchemaModel.js");
+
 
 const router = express.Router();
 
@@ -57,6 +60,11 @@ router.get("/search", async (req, res) => {
     /*
     Find and return single member
     */
+  //   MemberSnapshotSchema.findOne({_id: "6a35a88e0dd9ad510cc3151d"},(err, results, count)=>{
+  //     console.log(results);
+  //     res.status(200).json(results);
+  // });
+   
   } catch (err) {
     console.error(err);
     res.sendStatus(500);
