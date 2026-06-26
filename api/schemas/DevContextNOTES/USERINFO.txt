@@ -1,32 +1,54 @@
 An explanation for the schemas defined in userSchemaModel.js
 
-Information on 'TimeAttributeSchema':
--------------------------------
-Used to store time stamps for creation and updates. 
--------------------------------
-created_at          num, future will be time and day
-modified_at         num, future will be time and day
+The primary schema being referenced by MongoDB is as follow:
+const GardenData = new Schema({
+    users:[MemberSnapshotSchema],
+    boxes:[BoxSchema]
+})
+Where users[] is a list of MemberSnapshotSchema objects and boxes[] is the same for BoxSchema.
 
 
-
-Information on 'personalInfoSchema'
+Information on 'MemberSnapshotSchema'
 -------------------------------
-This schema holds the attributes for both Member and PersonalInfo
+This schema holds the attributes for personal_info, member_info, and time_attr.
+These categories are defined beneath the description for 'MemberSnapshotSchema'.
 -------------------------------
 id                  numerical iterator for unique id
-member_snapshot_id  num, pointer to member snapshot which contains
-MemberType          str INVALID GENERAL BOARD ADMIN
-MemberState         MEMBER_STATE_INVALID = 0;
                     PENDING_APPROVAL = 1;
                     ACTIVE = 2;
                     INACTIVE = 3;
-BoxState            MAYBE, DEF NEED A BOX NUM
-DueState            NUM, whether member has paid their dues,
-                    DUE_STATE_INVALID = 0;
-                    INCOMPLETE = 1;
-                    PENDING = 2;
-                    COMPLETE = 3;
-Role                roles for board members
+updated_by          FOR AUDIT, string, person who changed box ownership
+notes               String for now, maybe a list of strings later
+box_ID              str, points to the ID of the box object for which they are either in line or of which they are a partial owner or NULL if none
+
+
+
+
+Information on 'personal_info':
+-------------------------------
+first_name          String
+last_name           String
+pronouns            String
+----------------- address -----------------
+line_1              String
+line_2              String
+city                String
+zip_code            String
+----------------- email_info -----------------
+primary_email       String
+secondary_email     String
+on_mailing_list     Boolean
+----------------- phone_info -----------------
+primary_phone_number    String
+secondary_phone_number  String
+
+
+
+
+Information on member_info:
+-------------------------------
+member_state        MEMBER_STATE_INVALID = 0;
+role                roles for board members
                     ROLE_INVALID = 0; //non-board members
                     SECRETARY = 1;
                     TREASURER = 2;
@@ -35,18 +57,37 @@ Role                roles for board members
                     COMPOST_COORDINATOR = 5;
                     SERVICE_HOUR_COORDINATOR = 6;
                     BOX_COORDINATOR = 7;
+member_type         str INVALID GENERAL BOARD ADMIN
+orientation_date     num for now, later will be a time and day
+----------------- dues -----------------
+dues.due_state      NUM, whether member has paid their dues,
+                    DUE_STATE_INVALID = 0;
+                    INCOMPLETE = 1;
+                    PENDING = 2;
+                    COMPLETE = 3;
+dues.dues_paid_at   number, change to date later
+dues.amount_paid    number
+dues.payment_type   String
+----------------- requirements --------------
+.meetings_required  number
+.meetings_completed number
+----------------- requirements.service_requirement -----------------
+.work_formula_id    String
+.hours_completed    number
 
 
 
 
-Information on MemberInfoSchema:
+Information on 'time_attr':
 -------------------------------
-OrientationDate     num for now, later will be a time and day
-Dues.dues_paid_at   num, 0 for invalid for now
-Dues.payment_type   str
+Used to store time stamps for creation and updates. 
+-------------------------------
+created_at          num, future will be time and day
+modified_at         num, future will be time and day
 
 
-Information on BoxInfoSchema:
+
+Information on BoxSchema:
 -------------------------------
 updated_by    FOR AUDIT, person who changed box ownership
 joined_waitlist_at  num for now, time and day later, box waitlist timestamp
@@ -60,6 +101,11 @@ member_id           num, pointer to member object, may cut this
 updated_by          string, FOR AUDIT, point to whoever updated the user's account
 notes               string, notes on the member, maybe in future make this a list so multiple notes could be stored at once or purged chronologically
 time_attr
+
+
+
+
+
 
 
 Other Information:
