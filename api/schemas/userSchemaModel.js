@@ -10,9 +10,11 @@ import MONGOPASSWORD from '.env';
 // import member_info from './MemberInfoModel';
 // import box_info from './subschemas/BoxInfoModel';
 
+
+
+
 const MemberSnapshotSchema = new Schema({
     id: Number,
-    // member_id:Number,
     updated_by: String,
     notes: String,
     personal_info:{
@@ -69,8 +71,21 @@ const MemberSnapshotSchema = new Schema({
     }}
 })
 
+const BoxSchema = new Schema({
+    box_id: Number,
+    box_state: Number,
+    change_requester: String,
+    waitlist_info:{
+        joined_waitlist_at: Number,
+        waitlist_number: Number
+    }
+})
 
 
+const GardenData = new Schema({
+    users:[MemberSnapshotSchema],
+    boxes:[BoxSchema]
+})
 
 // export modules
 // version 1

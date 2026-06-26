@@ -1,7 +1,7 @@
 [
     {
-        "box_state": 1,
         "box_id":1,
+        "box_state": 1,
         "change_requester":"User1",
         "waitlist_info":{
             "joined_waitlist_at":20260101,
@@ -9,8 +9,8 @@
         }
     },
     {
-        "box_state": 1,
         "box_id":2,
+        "box_state": 1,
         "change_requester":"User1",
         "waitlist_info":{
             "joined_waitlist_at":20260201,
