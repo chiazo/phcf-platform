@@ -44,6 +44,10 @@
         }
     },
     "box_ID":"aaa1",
+    "waitlist_info":{
+        "joined_waitlist_at":"20260105",
+        "waitlist_number":3
+    },
     "time_attr":{
         "created_at": 20260101,
         "modified_at": 20260501
@@ -94,6 +98,10 @@
         }
     },
     "box_ID":"aaa2",
+    "waitlist_info":{
+        "joined_waitlist_at":"20260101",
+        "waitlist_number":2
+    },
     "time_attr":{
         "created_at": 20250101,
         "modified_at": 20250201

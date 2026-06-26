@@ -19,9 +19,13 @@ id                  string, unique id
                     INACTIVE = 3;
 updated_by          FOR AUDIT, string, person who changed box ownership
 notes               String for now, maybe a list of strings later
+personal_info       SEE "Information on 'personal_info'" below
+member_info         SEE "Information on 'member_info'" below
 box_ID              str, points to the ID of the box object for which they are either in line or of which they are a partial owner or NULL if none
-
-
+----------------- waitlist_info -----------------
+.joined_waitlist_at  string, box waitlist timestamp, NULL when not in a waitlist
+.waitlist_number     num, current queue position on waitlist
+time_attr           SEE "Information on 'time_attr'" below
 
 
 Information on 'personal_info':
@@ -96,9 +100,6 @@ box_state           Number
                     ACTIVE = 2;
                     INACTIVE = 3;
 updated_by          FOR AUDIT, String, person who changed box ownership
------------------ waitlist_info -----------------
-.joined_waitlist_at  num for now, time and day later, box waitlist timestamp
-.waitlist_number     num, total num people on waitlist
 
 
 
