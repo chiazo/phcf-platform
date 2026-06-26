@@ -245,7 +245,7 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
           id="tableTitle"
           component="div"
         >
-          Nutrition
+          Prospect Heights Community Farm Members 
         </Typography>
       )}
       {numSelected > 0 ? (
