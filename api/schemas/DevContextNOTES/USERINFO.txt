@@ -103,10 +103,18 @@ updated_by          FOR AUDIT, String, person who changed box ownership
 
 
 
+Information on 'WorkFormula':
+-------------------------------
+_id                 String
+service_type        Number
+name                Number
+hours_required      Number
+
 
 Other Information:
 -------------------------------
-ServiceType         types of service
+service_type        types of service
+                    param of WorkFormula model
                     SERVICE_TYPE_INVALID = 0;
                     OPEN_HOURS = 1;
                     WORK_HOURS = 2;

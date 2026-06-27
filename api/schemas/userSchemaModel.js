@@ -73,10 +73,18 @@ const BoxSchema = new Schema({
     updated_by: String,
 })
 
+const WorkFormula = new Schema({
+    _id: String,
+    service_type: Number,
+    name: Number,
+    hours_required: Number
+})
+
 
 const GardenData = new Schema({
     users:[MemberSnapshotSchema],
-    boxes:[BoxSchema]
+    boxes:[BoxSchema],
+    work_formulas:[WorkFormula]
 })
 
 // export modules
