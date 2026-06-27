@@ -62,14 +62,14 @@ role                roles for board members
                     SERVICE_HOUR_COORDINATOR = 6;
                     BOX_COORDINATOR = 7;
 member_type         str INVALID GENERAL BOARD ADMIN
-orientation_date     num for now, later will be a time and day
+orientation_date    str for now, later will be a time and day
 ----------------- dues -----------------
 dues.due_state      NUM, whether member has paid their dues,
                     DUE_STATE_INVALID = 0;
                     INCOMPLETE = 1;
                     PENDING = 2;
                     COMPLETE = 3;
-dues.dues_paid_at   number, change to date later
+dues.dues_paid_at   str, change to date later
 dues.amount_paid    number
 dues.payment_type   String
 ----------------- requirements --------------
@@ -86,8 +86,8 @@ Information on 'time_attr':
 -------------------------------
 Used to store time stamps for creation and updates. 
 -------------------------------
-created_at          num, future will be time and day
-modified_at         num, future will be time and day
+created_at          str, future will be time and day
+modified_at         str, future will be time and day
 
 
 

@@ -27,10 +27,10 @@
         "member_state": 2,
         "role": 0,
         "member_type": "GENERAL",
-        "orientation_date":20260101,
+        "orientation_date":"20260101",
         "dues":{
             "due_state":1,
-            "dues_paid_at":0,
+            "dues_paid_at":"20260101",
             "amount_paid":0,
             "payment_type":"NONE"
         },
@@ -49,8 +49,8 @@
         "waitlist_number":3
     },
     "time_attr":{
-        "created_at": 20260101,
-        "modified_at": 20260501
+        "created_at": "20260101",
+        "modified_at": "20260501"
     }
 },
 {  
@@ -81,10 +81,10 @@
         "member_state": 2,
         "role": 2,
         "member_type": "BOARD",
-        "orientation_date":20250101,
+        "orientation_date":"20250101",
         "dues":{
             "due_state":3,
-            "dues_paid_at":20260101,
+            "dues_paid_at":"20260101",
             "amount_paid":1,
             "payment_type":"NONE"
         },
@@ -103,8 +103,8 @@
         "waitlist_number":2
     },
     "time_attr":{
-        "created_at": 20250101,
-        "modified_at": 20250201
+        "created_at": "20250101",
+        "modified_at": "20250201"
     }
 }
 ]
