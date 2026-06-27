@@ -1,4 +1,6 @@
 import mongoose from 'mongoose';
+import DictField from 'mongoengine'; 
+
 const { Schema } = mongoose;
 
 import MONGOUSERNAME from '.env';
@@ -73,18 +75,18 @@ const BoxSchema = new Schema({
     updated_by: String,
 })
 
-const WorkFormula = new Schema({
+const WorkFormulaSchema = new Schema({
     _id: String,
     service_type: Number,
     name: Number,
     hours_required: Number
 })
 
-
 const GardenData = new Schema({
-    users:[MemberSnapshotSchema],
+    // DictField: {_id, [MemberSnapshotSchema]}
+    user_snapshots: DictField(),
     boxes:[BoxSchema],
-    work_formulas:[WorkFormula]
+    work_formulas:[WorkFormulaSchema]
 })
 
 // export modules

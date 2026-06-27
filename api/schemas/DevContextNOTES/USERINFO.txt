@@ -2,8 +2,9 @@ An explanation for the schemas defined in userSchemaModel.js
 
 The primary schema being referenced by MongoDB is as follow:
 const GardenData = new Schema({
-    users:[MemberSnapshotSchema],
+    user_snapshots: DictField(), // each dict obj is {_id, [MemberSnapshotSchema]}, see MemberSnapshotSchema def below
     boxes:[BoxSchema]
+    work_formulas:[WorkFormulaSchema],
 })
 Where users[] is a list of MemberSnapshotSchema objects and boxes[] is the same for BoxSchema.
 
