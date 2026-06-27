@@ -1,0 +1,12 @@
+[
+    {
+        "box_id":"aaa1",
+        "box_state": 1,
+        "updated_by":"User1"
+    },
+    {
+        "box_id":"aaa2",
+        "box_state": 1,
+        "updated_by":"User1"
+    }
+]

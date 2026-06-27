@@ -1,4 +1,6 @@
 import mongoose from 'mongoose';
+import DictField from 'mongoengine'; 
+
 const { Schema } = mongoose;
 
 import MONGOUSERNAME from '.env';
@@ -10,9 +12,11 @@ import MONGOPASSWORD from '.env';
 // import member_info from './MemberInfoModel';
 // import box_info from './subschemas/BoxInfoModel';
 
+
+
+
 const MemberSnapshotSchema = new Schema({
-    id: Number,
-    // member_id:Number,
+    _id: String,
     updated_by: String,
     notes: String,
     personal_info:{
@@ -39,10 +43,10 @@ const MemberSnapshotSchema = new Schema({
         member_state: Number,
         role: Number,
         member_type: String,
-        orientation_date: Number,
+        orientation_date: String,
         dues:{
             due_state: Number,
-            dues_paid_at: Number,
+            dues_paid_at: String,
             amount_paid: Number,
             payment_type: String,
         },
@@ -54,23 +58,36 @@ const MemberSnapshotSchema = new Schema({
                 hours_completed: Number,
             }
     },
-    box_info:{
-        box_state: Number,
-        box_id: Number,
-        change_requester: String,
-        waitlist_info:{
-            joined_waitlist_at: Number,
-            waitlist_number: Number,
-        }
+    box_ID: String,
+    waitlist_info:{
+        joined_waitlist_at: String,
+        waitlist_number: Number
     },
     time_attr:{
-        created_at: Number,
-        modified_at: Number,
+        created_at: String,
+        modified_at: String,
     }}
 })
 
+const BoxSchema = new Schema({
+    box_id: String,
+    box_state: Number,
+    updated_by: String,
+})
 
+const WorkFormulaSchema = new Schema({
+    _id: String,
+    service_type: Number,
+    name: Number,
+    hours_required: Number
+})
 
+const GardenData = new Schema({
+    // DictField: {_id, [MemberSnapshotSchema]}
+    user_snapshots: DictField(),
+    boxes:[BoxSchema],
+    work_formulas:[WorkFormulaSchema]
+})
 
 // export modules
 // version 1
