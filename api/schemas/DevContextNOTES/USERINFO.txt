@@ -13,7 +13,7 @@ Information on 'MemberSnapshotSchema'
 This schema holds the attributes for personal_info, member_info, and time_attr.
 These categories are defined beneath the description for 'MemberSnapshotSchema'.
 -------------------------------
-id                  string, unique id
+_id                  string, unique id
                     PENDING_APPROVAL = 1;
                     ACTIVE = 2;
                     INACTIVE = 3;

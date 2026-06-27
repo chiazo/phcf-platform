@@ -14,7 +14,7 @@ import MONGOPASSWORD from '.env';
 
 
 const MemberSnapshotSchema = new Schema({
-    id: String,
+    _id: String,
     updated_by: String,
     notes: String,
     personal_info:{
