@@ -5,8 +5,14 @@ import InputLabel from '@mui/material/InputLabel';
 import InputAdornment from '@mui/material/InputAdornment';
 import FormControl from '@mui/material/FormControl';
 import SearchIcon from '@mui/icons-material/Search';
+import Table from './AdminMemberTableView';
 
-export default function InputAdornments() {
+// async function getMembersFromSearch(){
+//   console.log
+// }
+
+export default function InputAdornments()  {
+  const [serachedMembers, setSearchedMembers] = React.useState<String[]>([]);
   const outlinedAmountId = React.useId();
 
   return (
@@ -21,6 +27,8 @@ export default function InputAdornments() {
           />
         </FormControl>
       </div>
+      <Table members = {serachedMembers}/>
     </Box>
   );
 }
+

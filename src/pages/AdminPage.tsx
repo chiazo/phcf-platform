@@ -1,4 +1,4 @@
-import Table from '../component/AdminMemberTableView'
+// import Table from '../component/AdminMemberTableView'
 import Navigation from './NavigationPage'
 import SearchBar from '../component/SearchBar'
 
@@ -7,7 +7,6 @@ function AdminPage () {
         <>
         <Navigation/>
         <SearchBar/>
-        <Table/>
         </>
     );
 

@@ -23,7 +23,8 @@ import { visuallyHidden } from '@mui/utils';
 
 interface Data {
   id: number; 
-  fullName: string; 
+  firstName: string; 
+  lastName: string;
   dueStatus: string; //DueState
   amountPaid: number; //Amount Paid
   meetingsRequired: number; //Meetings Required
@@ -36,7 +37,8 @@ interface Data {
 
 function createData(
   id: number,
-  fullName: string, 
+  firstName: string,
+  lastName: string, 
   dueStatus: string, //DueState
   amountPaid: number, //Amount Paid
   meetingsRequired: number, //Meetings Required
@@ -48,7 +50,8 @@ function createData(
 ): Data {
   return {
     id,
-    fullName, 
+    firstName,
+    lastName, 
     dueStatus, //DueState
     amountPaid, //Amount Paid
     meetingsRequired, //Meetings Required
@@ -61,8 +64,8 @@ function createData(
 }
 
 const rows = [
-  createData(1, "User", 'Incomplete', 0, 5, 0, 3, 3, 5, 5),
-  createData(2, "User2", 'Complete', 3, 2, 1, 9, 4, 10, 9),
+  createData(1, "User", "Buser", 'Incomplete', 0, 5, 0, 3, 3, 5, 5),
+  createData(2, "User2", "Duser", 'Complete', 3, 2, 1, 9, 4, 10, 9),
 ];
 
 function descendingComparator<T>(a: T, b: T, orderBy: keyof T) {
@@ -98,10 +101,16 @@ interface HeadCell {
 
 const headCells: readonly HeadCell[] = [
   {
-    id: 'fullName',
+    id: 'firstName',
     numeric: false,
     disablePadding: true,
-    label: 'Full Name',
+    label: 'First Name',
+  },
+  {
+    id: 'lastName',
+    numeric: false,
+    disablePadding: true,
+    label: 'Last Name',
   },
   {
     id: 'dueStatus',
@@ -264,13 +273,19 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
     </Toolbar>
   );
 }
-export default function EnhancedTable() {
+export default function EnhancedTable({ members }: { members: String[] } ) {
   const [order, setOrder] = React.useState<Order>('asc');
   const [orderBy, setOrderBy] = React.useState<keyof Data>('dueStatus');
   const [selected, setSelected] = React.useState<readonly number[]>([]);
   const [page, setPage] = React.useState(0);
   const [dense, setDense] = React.useState(false);
   const [rowsPerPage, setRowsPerPage] = React.useState(5);
+
+  React.useEffect(() => {
+    if (members.length !== 0){
+      console.log(members) 
+    }
+  })
 
   const handleRequestSort = (
     event: React.MouseEvent<unknown>,
@@ -383,7 +398,7 @@ export default function EnhancedTable() {
                       scope="row"
                       padding="none"
                     >
-                      {row.fullName}
+                      {row.firstName}
                     </TableCell>
                     <TableCell align="center">{row.dueStatus}</TableCell>
                     <TableCell align="center">{row.amountPaid}</TableCell>
