@@ -273,7 +273,7 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
     </Toolbar>
   );
 }
-export default function EnhancedTable({ members }: { members: String[] } ) {
+export default function EnhancedTable({ members }: { members: string } ) {
   const [order, setOrder] = React.useState<Order>('asc');
   const [orderBy, setOrderBy] = React.useState<keyof Data>('dueStatus');
   const [selected, setSelected] = React.useState<readonly number[]>([]);
@@ -281,11 +281,7 @@ export default function EnhancedTable({ members }: { members: String[] } ) {
   const [dense, setDense] = React.useState(false);
   const [rowsPerPage, setRowsPerPage] = React.useState(5);
 
-  React.useEffect(() => {
-    if (members.length !== 0){
-      console.log(members) 
-    }
-  })
+  
 
   const handleRequestSort = (
     event: React.MouseEvent<unknown>,

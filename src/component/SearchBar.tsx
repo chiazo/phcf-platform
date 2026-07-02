@@ -11,9 +11,17 @@ import Table from './AdminMemberTableView';
 //   console.log
 // }
 
+
+
 export default function InputAdornments()  {
-  const [serachedMembers, setSearchedMembers] = React.useState<String[]>([]);
+  const [searchedMembers, setSearchedMembers] = React.useState("")
+  const [currSearchedMem, setCurrSearchedMem] = React.useState("")
+  const [text, setText] = React.useState<string>()
   const outlinedAmountId = React.useId();
+
+  React.useEffect(()=>{
+   
+  },[currSearchedMem])
 
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', bgcolor: 'primary' }}>
@@ -24,10 +32,12 @@ export default function InputAdornments()  {
             id={`${outlinedAmountId}-input`}
             startAdornment={<InputAdornment position="start"><SearchIcon/></InputAdornment>}
             label="Search"
+            onKeyDown={ (e) => {if (e.code === "Enter"){setCurrSearchedMem(text!)}}}
+            onChange={(e)=> {setText((e.target.value))}}
           />
         </FormControl>
       </div>
-      <Table members = {serachedMembers}/>
+      <Table members = {searchedMembers}/>
     </Box>
   );
 }
