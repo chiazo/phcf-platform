@@ -63,10 +63,33 @@ function createData(
   };
 }
 
-const rows = [
-  createData(1, "User", "Buser", 'Incomplete', 0, 5, 0, 3, 3, 5, 5),
-  createData(2, "User2", "Duser", 'Complete', 3, 2, 1, 9, 4, 10, 9),
-];
+const dummyData = [
+  { "id": 1, 
+    "firstName": "User", 
+    "lastName": "Buser", 
+    "dueStatus": 'Incomplete', 
+    "amountPaid": 1, 
+    "meetingsRequired": 2, 
+    "meetingsCompleted": 3, 
+    "openHoursRequired": 4, 
+    "openHoursCompleted": 5,
+    "serviceHoursRequired": 6,
+    "serviceHoursCompleted": 7
+  },
+  { "id": 2, 
+    "firstName": "User", 
+    "lastName": "Buser", 
+    "dueStatus": 'Incomplete', 
+    "amountPaid": 8, 
+    "meetingsRequired": 9, 
+    "meetingsCompleted": 10, 
+    "openHoursRequired": 11, 
+    "openHoursCompleted": 12,
+    "serviceHoursRequired": 13,
+    "serviceHoursCompleted": 14
+  },
+]
+
 
 function descendingComparator<T>(a: T, b: T, orderBy: keyof T) {
   if (b[orderBy] < a[orderBy]) {
@@ -281,7 +304,37 @@ export default function EnhancedTable({ members }: { members: string } ) {
   const [dense, setDense] = React.useState(false);
   const [rowsPerPage, setRowsPerPage] = React.useState(5);
 
-  
+  const dummyData = [
+  { "id": 1, 
+    "firstName": "User", 
+    "lastName": "Buser", 
+    "dueStatus": 'Incomplete', 
+    "amountPaid": 1, 
+    "meetingsRequired": 2, 
+    "meetingsCompleted": 3, 
+    "openHoursRequired": 4, 
+    "openHoursCompleted": 5,
+    "serviceHoursRequired": 6,
+    "serviceHoursCompleted": 7
+  },
+  { "id": 2, 
+    "firstName": "User", 
+    "lastName": "Buser", 
+    "dueStatus": 'Incomplete', 
+    "amountPaid": 8, 
+    "meetingsRequired": 9, 
+    "meetingsCompleted": 10, 
+    "openHoursRequired": 11, 
+    "openHoursCompleted": 12,
+    "serviceHoursRequired": 13,
+    "serviceHoursCompleted": 14
+  },
+]
+
+  const [rows, setRows] = React.useState<Data[]>([
+  createData(1, dummyData[0]["firstName"], "Duser", "Complete", 3, 4, 5, 6, 7, 8, 8),
+  createData(2, "User2", "Buser", "Incomplete", 9, 10, 11, 12, 13, 14, 15)
+  ])
 
   const handleRequestSort = (
     event: React.MouseEvent<unknown>,
@@ -395,6 +448,14 @@ export default function EnhancedTable({ members }: { members: string } ) {
                       padding="none"
                     >
                       {row.firstName}
+                    </TableCell>
+                    <TableCell
+                      component="th"
+                      id={labelId}
+                      scope="row"
+                      padding="none"
+                    >
+                      {row.lastName}
                     </TableCell>
                     <TableCell align="center">{row.dueStatus}</TableCell>
                     <TableCell align="center">{row.amountPaid}</TableCell>
