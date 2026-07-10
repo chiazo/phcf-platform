@@ -1,0 +1,13 @@
+# Overview
+
+This is an overview of how to run this single page application, backed by pocketbase.
+
+## Run Locally
+
+- Dev: `./run.sh`
+
+## Deploy
+
+- Frontend: `./deploy.sh frontend`
+- Backend: `./deploy.sh backend`
+  
