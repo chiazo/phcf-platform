@@ -5,7 +5,7 @@ This is an overview of how to run this single page application, backed by pocket
 ## Run Locally
 
 Complete local installs
-Node>22
+Node>22: ```nvm use 24.5.0 ```
 Install Vite
 delete node_modules and package-lock
 ```
