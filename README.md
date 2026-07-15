@@ -20,6 +20,15 @@ npm i
 cd ..
 ```
 ## Setting up PocketBase and Go
+NEW:
+```
+cd server
+go mod tidy
+go run main.go serve
+````
+
+
+OLD, !! hold onto until confirmed pocketbase pull isn't needed:
 ```
 cd server
 go mod init app
@@ -38,4 +47,4 @@ For all subsequent development, you can start the app with:
 
 ## View App
 Navigate to the view on local at the link:
-http://127.0.0.1:8090/_/#/collections?collection=users 
+http://localhost:8090/_/#/collections?collection=member
