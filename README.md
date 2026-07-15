@@ -11,6 +11,9 @@ delete node_modules and package-lock
 ```
 npm i
 cd www
+```
+Check if node_modules exists within the /www/ directory. If so, delete before reinstalling.
+```
 npm i
 cd ..
 ```
