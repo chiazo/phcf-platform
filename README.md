@@ -22,9 +22,6 @@ cd ..
 ## Setting up PocketBase and Go
 ```
 cd server
-go mod tidy                     <-- cut for redundancy
-go run main.go serve            <-- cut this bc we're gonna run build+run.sh.
-go mod init app                 <-- may be able to cut this w extent main.go file.
 go get github.com/pocketbase/pocketbase
 go mod tidy
 cd ..
