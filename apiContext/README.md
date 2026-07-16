@@ -9,3 +9,5 @@ apiContext/schemas/userSchema.js --> Overview of main 'member_snapshot' schema s
 apiContext/schemas/DevContextNOTES/USERINFO.txt --> Explanation of schema parameter names
 
 apiContext/schemas/subschemas/ --> Folder of additional subschema's used in userSchema.js
+
+apiContext/schemas/demoData/samplePocketbaseData.json --> Sample data mirroring PB schema for dev/testing.
