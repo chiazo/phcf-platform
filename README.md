@@ -64,3 +64,13 @@ Summary:
 Upload user information from files in the fixtures/ directory after signing in with superuser auth. The following command load sample data from fixtures/member_snapshot_import.json into the member_snapshot collection on Pocketbase.
 ```cd scripts```
 ```node pb-import.mjs fixtures/member_snapshot_import.json```
+
+
+### use case to test later:
+```
+# non-interactive (e.g. CI), targeting a different collection
+POCKETBASE_URL=http://127.0.0.1:8090 \
+POCKETBASE_SUPERUSER_EMAIL=... \
+POCKETBASE_SUPERUSER_PASSWORD=... \
+node pb-import.mjs ./data.json --collection member --match-field email --mode upsert
+```
