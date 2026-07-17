@@ -84,7 +84,7 @@ cd scripts
 node pb-import.mjs fixtures/member_snapshot_import.json
 ```
 
-You can view added boxes in the boxes collection on PB: http://localhost:8090/_/#/collections?collection=member_snapshot
+You can view added member snapshots in the member_snapshot collection on PB: http://localhost:8090/_/#/collections?collection=member_snapshot
 
 
 ## Box Info Upload and Testing
