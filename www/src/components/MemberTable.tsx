@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Link } from "react-router-dom";
 import { alpha } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Table from '@mui/material/Table';
@@ -23,8 +24,7 @@ import { visuallyHidden } from '@mui/utils';
 
 interface Data {
   id: string;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   dueStatus: string; //DueState
   amountPaid: number; //Amount Paid
   meetingsRequired: number; //Meetings Required
@@ -41,11 +41,13 @@ function toRow(member: Record<string, any>): Data {
   const dues = memberInfo.dues ?? {};
   const requirements = memberInfo.requirements ?? {};
   const serviceRequirements = requirements.serviceRequirements ?? [];
+  const firstName = personalInfo.firstName ?? ''
+  const lastName = personalInfo.lastName ?? ''
+  const fullName = firstName + ' ' + lastName
 
   return createData(
     member.id,
-    personalInfo.firstName ?? '',
-    personalInfo.lastName ?? '',
+    fullName,
     dues.dueState ?? '',
     dues.amountPaid ?? 0,
     requirements.meetingsRequired ?? 0,
@@ -60,8 +62,7 @@ function toRow(member: Record<string, any>): Data {
 
 function createData(
   id: string,
-  firstName: string,
-  lastName: string, 
+  fullName: string,
   dueStatus: string, //DueState
   amountPaid: number, //Amount Paid
   meetingsRequired: number, //Meetings Required
@@ -71,8 +72,7 @@ function createData(
 ): Data {
   return {
     id,
-    firstName,
-    lastName, 
+    fullName,
     dueStatus, //DueState
     amountPaid, //Amount Paid
     meetingsRequired, //Meetings Required
@@ -116,16 +116,10 @@ interface HeadCell {
 
 const headCells: readonly HeadCell[] = [
   {
-    id: 'firstName',
+    id: 'fullName',
     numeric: false,
     disablePadding: true,
-    label: 'First Name',
-  },
-  {
-    id: 'lastName',
-    numeric: false,
-    disablePadding: true,
-    label: 'Last Name',
+    label: 'Full Name',
   },
   {
     id: 'dueStatus',
@@ -397,15 +391,9 @@ export default function EnhancedTable({ members }: { members: Array<Record<strin
                       scope="row"
                       padding="none"
                     >
-                      {row.firstName}
-                    </TableCell>
-                    <TableCell
-                      component="th"
-                      id={labelId}
-                      scope="row"
-                      padding="none"
-                    >
-                      {row.lastName}
+                       <Link to={`/snapshot/${row.id}`}>
+                        {row.fullName}
+                        </Link>
                     </TableCell>
                     <TableCell align="center">{row.dueStatus}</TableCell>
                     <TableCell align="center">{row.amountPaid}</TableCell>

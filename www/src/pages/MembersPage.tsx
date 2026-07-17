@@ -111,7 +111,7 @@ export default function MembersPage() {
 
       <MemberTable members={items}/>
 
-      <ul>
+      {/* <ul>
         {items.map((record) => (
           <li key={record.id}>
             <Link to={`/snapshot/${record.id}`}>
@@ -119,7 +119,7 @@ export default function MembersPage() {
             </Link>
           </li>
         ))}
-      </ul>
+      </ul> */}
       <br />
 
       <a
