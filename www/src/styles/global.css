@@ -59,6 +59,14 @@ main {
     margin: 0 auto;
 }
 
+.page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
 a {
     color: var(--primary);
     text-decoration: none;
@@ -116,6 +124,99 @@ section {
     margin-bottom: 1.5rem;
 
     box-shadow: var(--shadow);
+}
+
+.auth-panel {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.form-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.two-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.full-width {
+    grid-column: 1 / -1;
+}
+
+label {
+    display: grid;
+    gap: .4rem;
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .75rem .85rem;
+    font: inherit;
+    color: var(--text);
+    background: white;
+}
+
+input:focus {
+    border-color: var(--primary);
+    outline: 3px solid #dbeafe;
+}
+
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+
+.checkbox-row input {
+    width: auto;
+}
+
+button,
+.button-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--primary);
+    border-radius: 8px;
+    padding: .75rem 1rem;
+    font: inherit;
+    font-weight: 700;
+    color: white;
+    background: var(--primary);
+    cursor: pointer;
+}
+
+button:hover,
+.button-link:hover {
+    text-decoration: none;
+    filter: brightness(.96);
+}
+
+button:disabled {
+    cursor: not-allowed;
+    opacity: .7;
+}
+
+button.secondary,
+.button-link.secondary {
+    color: var(--primary);
+    background: white;
+}
+
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+}
+
+.error {
+    color: #b91c1c;
+    font-weight: 600;
 }
 
 /* ===========================================
@@ -216,6 +317,16 @@ th {
 @media (max-width: 700px) {
     body {
         padding: 1rem;
+    }
+
+    .page-header,
+    .button-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .two-column {
+        grid-template-columns: 1fr;
     }
 
     h1 {
