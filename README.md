@@ -76,6 +76,18 @@ node pb-import.mjs ./data.json --collection member --match-field email --mode up
 ```
 
 
-### Test case for box info upload from JSON
+### Dry Run Test case for box info upload from JSON
 ```cd scripts```
 ```node pb-import.mjs fixtures/box_info_import.json --collection boxes --dry-run```
+
+### Box info upload from JSON
+```cd scripts```
+```node pb-import.mjs fixtures/box_info_import.json --collection boxes```
+
+### Process for creating new collections and uploading data
+Start up the local dev environment using the instructions above. From the PB UI, select "+ New Collection". Add the new collection name and well as the parameters of the collection, be caredul to use exact spelling.
+
+Create JSON data from sample data or CSV conversion from google input. Store that JSON data in scripts/fixtures/FILENAME.json.
+
+```cd scripts```
+```node pb-import.mjs fixtures/FILENAME.json --collection COLLECTION_NAME_ON_PB```
