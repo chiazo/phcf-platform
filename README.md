@@ -74,3 +74,8 @@ POCKETBASE_SUPERUSER_EMAIL=... \
 POCKETBASE_SUPERUSER_PASSWORD=... \
 node pb-import.mjs ./data.json --collection member --match-field email --mode upsert
 ```
+
+
+### Test case for box info upload from JSON
+```cd scripts```
+```node pb-import.mjs fixtures/box_info_import.json --collection boxes --dry-run```
