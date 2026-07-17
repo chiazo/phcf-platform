@@ -1,4 +1,50 @@
-/node_modules
-/package-lock.json
-pb_data/
-/www/package-lock.json
+# Dependencies
+node_modules/
+**/node_modules/
+package-lock.json
+
+# Build output
+dist/
+www/dist/
+server/dist/
+
+# Vite / frontend cache
+.vite/
+www/.vite/
+
+# Go build artifacts
+server/app
+*.exe
+*.test
+*.out
+
+# PocketBase local runtime data
+server/pb_data/
+server/pb_data*/
+*.db
+*.db-shm
+*.db-wal
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Coverage / test output
+coverage/
+.nyc_output/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
