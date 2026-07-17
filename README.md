@@ -38,6 +38,7 @@ For all subsequent development, you can start the app with:
 ## View App
 Navigate to the view on local at the link:
 http://localhost:8090/_/#/collections?collection=member_snapshot
+http://localhost:8090/_/#/collections?collection=member_snapshot
 
 
 
