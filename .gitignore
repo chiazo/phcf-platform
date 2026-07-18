@@ -1,7 +1,8 @@
 # Dependencies
 node_modules/
 **/node_modules/
-package-lock.json
+/package-lock.json
+/www/package-lock.json
 
 # Build output
 dist/
@@ -24,6 +25,7 @@ server/pb_data*/
 *.db
 *.db-shm
 *.db-wal
+pb_data/
 
 # Env / secrets
 .env
