@@ -98,7 +98,7 @@ list_superusers () {
     set -e
     docker stop pocketbase || true
     docker run --rm \
-      -v $VOLUME_PATH:/app/pb_data \
+      -v $VOLUME_PATH:/server/pb_data \
       $IMAGE \
       /app/app superuser list
     docker start pocketbase
