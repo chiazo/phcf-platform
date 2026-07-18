@@ -67,6 +67,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
 
   const nowInSeconds = Math.floor(Date.now() / 1000);
   const snapshot = await pb.collection("member_snapshot").create({
+    user_id: user.id,
     member_id: user.id,
     updated_by: name || input.email,
     notes: "Created from member registration.",
@@ -117,6 +118,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
   });
 
   await pb.collection("member").create({
+    user_id: user.id,
     member_snapshot_id: snapshot.id,
   });
 

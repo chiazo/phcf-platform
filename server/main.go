@@ -69,6 +69,16 @@ func ensureUsersCollectionRules(app core.App) error {
 func ensureMemberSnapshotCollection(app core.App) (*core.Collection, error) {
 	existing, err := app.FindCollectionByNameOrId("member_snapshot")
 	if err == nil {
+		users, err := app.FindCollectionByNameOrId("users")
+		if err != nil {
+			return nil, err
+		}
+
+		configureMemberSnapshotCollection(existing, users.Id)
+		if err := app.Save(existing); err != nil {
+			return nil, err
+		}
+
 		return existing, nil
 	}
 
@@ -77,20 +87,29 @@ func ensureMemberSnapshotCollection(app core.App) (*core.Collection, error) {
 		return nil, err
 	}
 
+	collection := core.NewBaseCollection("member_snapshot")
+	configureMemberSnapshotCollection(collection, users.Id)
+
+	if err := app.Save(collection); err != nil {
+		return nil, err
+	}
+
+	return collection, nil
+}
+
+func configureMemberSnapshotCollection(collection *core.Collection, usersCollectionId string) {
 	authenticatedRule := "@request.auth.id != ''"
 	ownerRule := "user_id = @request.auth.id"
 
-	collection := core.NewBaseCollection("member_snapshot")
 	collection.ListRule = types.Pointer(authenticatedRule)
 	collection.ViewRule = types.Pointer(authenticatedRule)
 	collection.CreateRule = types.Pointer(ownerRule)
 	collection.UpdateRule = types.Pointer(ownerRule)
 	collection.DeleteRule = types.Pointer(ownerRule)
-
 	collection.Fields.Add(
 		&core.RelationField{
 			Name:         "user_id",
-			CollectionId: users.Id,
+			CollectionId: usersCollectionId,
 			Required:     true,
 		},
 		&core.TextField{Name: "member_id"},
@@ -100,17 +119,17 @@ func ensureMemberSnapshotCollection(app core.App) (*core.Collection, error) {
 		&core.JSONField{Name: "member_info", Required: true},
 		&core.JSONField{Name: "box_info", Required: true},
 	)
-
-	if err := app.Save(collection); err != nil {
-		return nil, err
-	}
-
-	return collection, nil
 }
 
 func ensureMemberCollection(app core.App, snapshotCollectionId string) error {
-	if _, err := app.FindCollectionByNameOrId("member"); err == nil {
-		return nil
+	if existing, err := app.FindCollectionByNameOrId("member"); err == nil {
+		users, err := app.FindCollectionByNameOrId("users")
+		if err != nil {
+			return err
+		}
+
+		configureMemberCollection(existing, users.Id, snapshotCollectionId)
+		return app.Save(existing)
 	}
 
 	users, err := app.FindCollectionByNameOrId("users")
@@ -118,10 +137,16 @@ func ensureMemberCollection(app core.App, snapshotCollectionId string) error {
 		return err
 	}
 
+	collection := core.NewBaseCollection("member")
+	configureMemberCollection(collection, users.Id, snapshotCollectionId)
+
+	return app.Save(collection)
+}
+
+func configureMemberCollection(collection *core.Collection, usersCollectionId string, snapshotCollectionId string) {
 	authenticatedRule := "@request.auth.id != ''"
 	ownerRule := "user_id = @request.auth.id"
 
-	collection := core.NewBaseCollection("member")
 	collection.ListRule = types.Pointer(authenticatedRule)
 	collection.ViewRule = types.Pointer(authenticatedRule)
 	collection.CreateRule = types.Pointer(ownerRule)
@@ -131,7 +156,7 @@ func ensureMemberCollection(app core.App, snapshotCollectionId string) error {
 	collection.Fields.Add(
 		&core.RelationField{
 			Name:         "user_id",
-			CollectionId: users.Id,
+			CollectionId: usersCollectionId,
 			Required:     true,
 		},
 		&core.RelationField{
@@ -140,6 +165,4 @@ func ensureMemberCollection(app core.App, snapshotCollectionId string) error {
 			Required:     true,
 		},
 	)
-
-	return app.Save(collection)
 }
