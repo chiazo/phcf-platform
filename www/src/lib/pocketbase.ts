@@ -1,6 +1,26 @@
 import PocketBase from "pocketbase";
+import {SubmitHandler } from "react-hook-form";
 
 import { config } from "./config";
+
+import {MemberType, DueState, MemberState, PaymentType, MemberRole} from "../models/enums";
+import MemberSnapshot from "../models/MemberSnapshot";
+
+
+interface IFormInput {
+  pronouns: string
+  memberType: MemberType
+  dueState: DueState
+  memberState: MemberState
+  primaryEmail: string
+  primaryPhoneNumber: string
+  paymentType: PaymentType
+  memberRole: MemberRole
+  amountPaid: number
+  line1: string
+  city: string
+  zipCode: string
+}
 
 export const pb = new PocketBase(config.pbUrl);
 
@@ -163,6 +183,37 @@ export async function getSingleMember(name: string) {
   return await pb.collection("member_snapshot").getFirstListItem(
     `personal_info.firstName = "${name}"`
   );
+}
+
+export async function updateMemberInfo (data: IFormInput, oldMemberInfo :MemberSnapshot | null){
+  const newRecord = 
+  {
+    "address": {
+      "city": "Brooklyn",
+      "line1": "123 Dih Road",
+      "line2": "",
+      "zipCode": "19387"
+    },
+    "emailInfo": {
+      "onMailingList": true,
+      "primaryEmail": "jenn@example.com",
+      "secondaryEmail": ""
+    },
+    "firstName": "Jenn",
+    "lastName": "Smith",
+    "phoneInfo": {
+      "primaryPhoneNumber": "555-123-4567",
+      "secondaryPhoneNumber": ""
+    },
+    "pronouns": "she/they"
+  }
+  if (oldMemberInfo){
+    console.log(`${oldMemberInfo.memberId}`)
+    const record = await pb.collection('member_snapshot').update(`${oldMemberInfo.memberId}`, {
+    personal_info: newRecord
+    });
+    console.log(record)
+  }
 }
 
 //gets the full list of boxes from the boxes collection
