@@ -13,15 +13,18 @@ import (
 	// registers this app's migrations (side-effect import — required for
 	// the migration files' init() functions to run)
 	_ "app/migrations"
+	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 func main() {
 	app := pocketbase.New()
 
-	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
-		// auto-generate a migration file whenever a collection is changed
-		// via the Dashboard/API — only while running with `go run`
-		Automigrate: osutils.IsProbablyGoRun(),
+	app.OnBootstrap().BindFunc(func(e *core.BootstrapEvent) error {
+		if err := e.Next(); err != nil {
+			return err
+		}
+
+		return ensureAppCollections(app)
 	})
 
 	app.OnBootstrap().BindFunc(func(e *core.BootstrapEvent) error {
