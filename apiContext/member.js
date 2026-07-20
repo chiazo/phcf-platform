@@ -1,6 +1,6 @@
 import express from "express";
 const mongoose = require("mongoose");
-const {MemberSnapshotSchema} = require("./userSchemaModel.js");
+const {MemberSnapshotSchema} = require("./userSchemaModel.js.js.js.js");
 
 
 const router = express.Router();
