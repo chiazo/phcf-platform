@@ -3,6 +3,7 @@ package migrations
 import (
 	"github.com/pocketbase/pocketbase/core"
 	m "github.com/pocketbase/pocketbase/migrations"
+	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 func init() {
@@ -15,14 +16,29 @@ func init() {
 		// -----------------------------------------------------------------
 		snapshot := core.NewBaseCollection("member_snapshot")
 
-		// dev-friendly rules — tighten these before deploying anywhere real
-		snapshot.ListRule = nil
-		snapshot.ViewRule = nil
-		snapshot.CreateRule = nil
-		snapshot.UpdateRule = nil
-		snapshot.DeleteRule = nil
+		users, err := app.FindCollectionByNameOrId("users")
+		if err != nil {
+			return err
+		}
+
+		authenticatedRule := "@request.auth.id != ''"
+		ownerRule := "user_id = @request.auth.id"
+
+		snapshot.ListRule = types.Pointer(authenticatedRule)
+		snapshot.ViewRule = types.Pointer(authenticatedRule)
+		snapshot.CreateRule = types.Pointer(ownerRule)
+		snapshot.UpdateRule = types.Pointer(ownerRule)
+		snapshot.DeleteRule = types.Pointer(ownerRule)
 
 		snapshot.Fields.Add(
+			&core.RelationField{
+				Name:         "user_id",
+				CollectionId: users.Id,
+				Required:     true,
+			},
+			&core.TextField{
+				Name: "member_id",
+			},
 			&core.TextField{
 				Name: "updated_by",
 				Max:  255,
@@ -64,13 +80,18 @@ func init() {
 		// -----------------------------------------------------------------
 		member := core.NewBaseCollection("member")
 
-		member.ListRule = nil
-		member.ViewRule = nil
-		member.CreateRule = nil
-		member.UpdateRule = nil
-		member.DeleteRule = nil
+		member.ListRule = types.Pointer(authenticatedRule)
+		member.ViewRule = types.Pointer(authenticatedRule)
+		member.CreateRule = types.Pointer(ownerRule)
+		member.UpdateRule = types.Pointer(ownerRule)
+		member.DeleteRule = types.Pointer(ownerRule)
 
 		member.Fields.Add(
+			&core.RelationField{
+				Name:         "user_id",
+				CollectionId: users.Id,
+				Required:     true,
+			},
 			&core.RelationField{
 				Name:          "member_snapshot_id",
 				CollectionId:  snapshot.Id,
