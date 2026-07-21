@@ -6,11 +6,26 @@ import (
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/plugins/migratecmd"
+	"github.com/pocketbase/pocketbase/tools/osutils"
+	"github.com/pocketbase/pocketbase/tools/types"
+
+	// registers this app's migrations (side-effect import — required for
+	// the migration files' init() functions to run)
+	_ "app/migrations"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 func main() {
 	app := pocketbase.New()
+
+	app.OnBootstrap().BindFunc(func(e *core.BootstrapEvent) error {
+		if err := e.Next(); err != nil {
+			return err
+		}
+
+		return ensureAppCollections(app)
+	})
 
 	app.OnBootstrap().BindFunc(func(e *core.BootstrapEvent) error {
 		if err := e.Next(); err != nil {

@@ -8,7 +8,7 @@ Update NodeJS to a more recent version, requires >Node18: ```nvm use 24.5.0 ```
 
 Install Vite: ```npm i vite```
 
-Delete node_modules and package-lock, then reinstall a fresh version:```npm i```
+Delete node_modules and package-lock, then reinstall a fresh version: ```npm i```
 
 
 ## Node installs in /www directory
@@ -37,15 +37,32 @@ For all subsequent development, you can start the app with:
 
 ## View App
 Navigate to the view on local at the link:
-http://localhost:8090/_/#/collections?collection=member
+http://localhost:8090/_/#/collections?collection=member_snapshot
+http://localhost:8090/_/#/collections?collection=member_snapshot
 
 
 
-# Development Instructions for Adding User Data
-## Dry run to test upload pipeline
-Before testing the data upload, the application must already be running at: http://127.0.0.1:8090.
-```cd scripts```
-```node pb-import.mjs fixtures/member_snapshot_import.json --dry-run```
+# Development Instructions for creating new collections and uploading data
+Start up the local dev environment using the instructions above. From the PB UI, select "+ New Collection". Add the new collection name ("COLLECTION_NAME_ON_PB") and well as the parameters of the collection, be careful to use exact spelling.
+
+Create JSON data from sample data or CSV conversion from google input. Store that JSON data in scripts/fixtures/FILENAME.json.
+
+```
+cd scripts
+node pb-import.mjs fixtures/FILENAME.json --collection COLLECTION_NAME_ON_PB
+```
+
+
+## Adding User Data
+The default collection is member_snapshot. If adding to member_snapshot, the collection name doesn't need to be specified.
+
+### Dry Run to Test User Data Upload Pipeline
+Before testing the member_snapshot data upload, the application must already be running at: http://127.0.0.1:8090.
+
+```
+cd scripts
+node pb-import.mjs fixtures/member_snapshot_import.json --dry-run
+```
 
 Test adding data to collections using the demo json data. Test should return a similar structure to the following, where the number of new users added is NUM_USERS:
 
@@ -58,9 +75,33 @@ Importing (batch size NUM_USERS)...
 
 Summary:
   would-create: NUM_USERS
-  ```
+```
 
-## Connect to Pocketbase with Auth
+### Connect to Pocketbase with Auth to Upload New User Data
 Upload user information from files in the fixtures/ directory after signing in with superuser auth. The following command load sample data from fixtures/member_snapshot_import.json into the member_snapshot collection on Pocketbase.
-```cd scripts```
-```node pb-import.mjs fixtures/member_snapshot_import.json```
+
+```
+cd scripts
+node pb-import.mjs fixtures/member_snapshot_import.json
+```
+
+You can view added member snapshots in the member_snapshot collection on PB: http://localhost:8090/_/#/collections?collection=member_snapshot
+
+
+## Box Info Upload and Testing
+### Dry Run Test case for box info upload from JSON
+```
+cd scripts
+node pb-import.mjs fixtures/box_info_import.json --collection boxes --dry-run
+```
+
+### Box info upload from JSON
+```
+cd scripts
+node pb-import.mjs fixtures/box_info_import.json --collection boxes
+```
+
+You can view added boxes in the boxes collection on PB: http://localhost:8090/_/#/collections?collection=boxes
+
+
+
