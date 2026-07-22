@@ -1,5 +1,4 @@
 import PocketBase from "pocketbase";
-import {SubmitHandler } from "react-hook-form";
 
 import { config } from "./config";
 
@@ -190,7 +189,7 @@ export async function updateMemberInfo (data: IFormInput, oldMemberInfo :MemberS
   {
     "address": {
       "city": "Brooklyn",
-      "line1": "123 Dih Road",
+      "line1": "123 Deed Road",
       "line2": "",
       "zipCode": "19387"
     },
@@ -209,10 +208,17 @@ export async function updateMemberInfo (data: IFormInput, oldMemberInfo :MemberS
   }
   if (oldMemberInfo){
     console.log(`${oldMemberInfo.memberId}`)
-    const record = await pb.collection('member_snapshot').update(`${oldMemberInfo.memberId}`, {
-    personal_info: newRecord
-    });
-    console.log(record)
+    //find the member through the member_id on the member_snapshot table
+    const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
+    `member_id = "${oldMemberInfo.memberId}"`
+  );
+    console.log(currentMemberSnapshot)
+
+    //update the info in the member table
+    const record = await pb.collection('member_snapshot').update(`${currentMemberSnapshot.id}`, {
+    personal_info: newRecord,
+    }); 
+     console.log(record)
   }
 }
 
