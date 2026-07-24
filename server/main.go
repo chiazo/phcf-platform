@@ -6,26 +6,11 @@ import (
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/plugins/migratecmd"
-	"github.com/pocketbase/pocketbase/tools/osutils"
-	"github.com/pocketbase/pocketbase/tools/types"
-
-	// registers this app's migrations (side-effect import — required for
-	// the migration files' init() functions to run)
-	_ "app/migrations"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 func main() {
 	app := pocketbase.New()
-
-	app.OnBootstrap().BindFunc(func(e *core.BootstrapEvent) error {
-		if err := e.Next(); err != nil {
-			return err
-		}
-
-		return ensureAppCollections(app)
-	})
 
 	app.OnBootstrap().BindFunc(func(e *core.BootstrapEvent) error {
 		if err := e.Next(); err != nil {
@@ -51,7 +36,12 @@ func ensureAppCollections(app core.App) error {
 		return err
 	}
 
-	return ensureMemberCollection(app, snapshotCollection.Id)
+	if err := ensureMemberCollection(app, snapshotCollection.Id); err != nil {
+		return err
+	}
+
+	_, err = ensureBoxesCollection(app)
+	return err
 }
 
 func ensureUsersCollectionRules(app core.App) error {
@@ -167,5 +157,40 @@ func configureMemberCollection(collection *core.Collection, usersCollectionId st
 			CollectionId: snapshotCollectionId,
 			Required:     true,
 		},
+	)
+}
+
+// ensureBoxesCollection ports the schema originally captured by the
+// auto-generated 1784314870_created_boxes.go / 1784315056_updated_boxes.go
+// migrations into the same idempotent find-or-create pattern used above.
+// No access rules were ever configured on this collection (dashboard
+// defaults to superuser-only), so none are set here either.
+func ensureBoxesCollection(app core.App) (*core.Collection, error) {
+	if existing, err := app.FindCollectionByNameOrId("boxes"); err == nil {
+		configureBoxesCollection(existing)
+		if err := app.Save(existing); err != nil {
+			return nil, err
+		}
+
+		return existing, nil
+	}
+
+	collection := core.NewBaseCollection("boxes")
+	configureBoxesCollection(collection)
+
+	if err := app.Save(collection); err != nil {
+		return nil, err
+	}
+
+	return collection, nil
+}
+
+func configureBoxesCollection(collection *core.Collection) {
+	collection.Fields.Add(
+		&core.NumberField{Name: "box_state"},
+		&core.TextField{Name: "updated_by"},
+		&core.JSONField{Name: "box_member_s"},
+		&core.JSONField{Name: "waitlist_list"},
+		&core.TextField{Name: "notes"},
 	)
 }
