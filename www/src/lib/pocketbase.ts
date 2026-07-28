@@ -184,28 +184,8 @@ export async function getSingleMember(name: string) {
   );
 }
 
-export async function updateMemberInfo (data: IFormInput, oldMemberInfo :MemberSnapshot | null){
-  const newRecord = 
-  {
-    "address": {
-      "city": "Brooklyn",
-      "line1": "123 Deed Road",
-      "line2": "",
-      "zipCode": "19387"
-    },
-    "emailInfo": {
-      "onMailingList": true,
-      "primaryEmail": "jenn@example.com",
-      "secondaryEmail": ""
-    },
-    "firstName": "Jenn",
-    "lastName": "Smith",
-    "phoneInfo": {
-      "primaryPhoneNumber": "555-123-4567",
-      "secondaryPhoneNumber": ""
-    },
-    "pronouns": "she/they"
-  }
+export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newRecord: string){
+  
   if (oldMemberInfo){
     console.log(`${oldMemberInfo.memberId}`)
     //find the member through the member_id on the member_snapshot table
@@ -214,13 +194,60 @@ export async function updateMemberInfo (data: IFormInput, oldMemberInfo :MemberS
   );
     console.log(currentMemberSnapshot)
 
-    //update the info in the member table
+    // update the info in the member table
     const record = await pb.collection('member_snapshot').update(`${currentMemberSnapshot.id}`, {
-    personal_info: newRecord,
+    personal_info : newRecord,
     }); 
-     console.log(record)
+
+    console.log(record)
   }
 }
+
+// export async function newUpdate (oldMemberInfo: MemberSnapshot | null, ){
+//   const snapshot = await pb.collection("member_snapshot").create({
+//     user_id: oldMemberInfo?.memberId,
+//     member_id: oldMemberInfo?.memberId,
+//     updated_by: name || input.email,
+//     notes: "Updated on their profile sheet.",
+//     personal_info: {
+//       firstName: oldMemberInfo?.personalInfo.,
+//       lastName: input.lastName,
+//       pronouns: input.pronouns ?? "",
+//       address: {
+//         line1: input.addressLine1 ?? "",
+//         city: input.city ?? "",
+//         zipCode: input.zipCode ?? "",
+//       },
+//       emailInfo: {
+//         primaryEmail: input.email,
+//         onMailingList: input.onMailingList,
+//       },
+//       phoneInfo: {
+//         primaryPhoneNumber: input.phone ?? "",
+//       },
+//     },
+//     member_info: {
+//       orientationDate: nowInSeconds,
+//       memberState: "PENDING",
+//       role: "ROLE_INVALID",
+//       memberType: "GENERAL",
+//       dues: {
+//         amountPaid: 0,
+//         dueState: "UNPAID",
+//         paymentType: "",
+//         duesPaidAt: 0,
+//       },
+//       requirements: {
+//         meetingsCompleted: 0,
+//         meetingsRequired: 0,
+//         serviceHoursRequired: 0,
+//         serviceRequirements: [],
+//       },
+//     },
+//     box_info: oldMemberInfo?.boxInfo,
+//     ,
+//   });
+// }
 
 //gets the full list of boxes from the boxes collection
 export async function listBoxes() {

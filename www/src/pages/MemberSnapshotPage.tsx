@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useForm, SubmitHandler } from "react-hook-form"
 import Button from '@mui/material/Button';
 
-import { getMemberSnapshot, updateMemberInfo } from "../lib/pocketbase";
+import { getMemberSnapshot, updatePronouns } from "../lib/pocketbase";
 
 import MemberSnapshot from "../models/MemberSnapshot";
 
@@ -13,6 +13,8 @@ import {MemberType, DueState, MemberState, PaymentType, MemberRole} from "../mod
 
 interface IFormInput {
   //personal_info
+  firstName: string
+  lastName: string
   pronouns: string
   primaryEmail: string
   primaryPhoneNumber: string
@@ -36,11 +38,6 @@ export default function MemberSnapshotPage() {
   const [editMode, setEditMode] = useState(false);
 
   const { register, handleSubmit } = useForm<IFormInput>()
-  const onSubmit: SubmitHandler<IFormInput> = ((data) => {
-     //check all of the inputs
-    //if any are incorrect check add it to the patch
-    updateMemberInfo(data, member)
-  })
 
   useEffect(() => {
     if (!id) return;
@@ -93,6 +90,64 @@ export default function MemberSnapshotPage() {
     meetingsRequired = 0,
   } = requirements;
 
+    const onSubmit: SubmitHandler<IFormInput> = ((data) => {
+     //check all of the inputs
+    //if any are incorrect check add it to the patch
+
+    if (data.pronouns !== pronouns){
+      const newPersonalData = 
+       {
+      "address": {
+        "city": city,
+        "line1": line1,
+        "line2": "",
+        "zipCode": zipCode
+      },
+      "emailInfo": {
+        "onMailingList": true,
+        "primaryEmail": primaryEmail,
+        "secondaryEmail": ""
+      },
+      "firstName": firstName,
+      "lastName": lastName,
+      "phoneInfo": {
+        "primaryPhoneNumber": primaryPhoneNumber,
+        "secondaryPhoneNumber": ""
+      },
+      "pronouns": `${data.pronouns}`
+      }
+
+      const newPersonalInfo = JSON.stringify(newPersonalData)
+
+      updatePronouns(member, newPersonalInfo)
+      
+    } else {
+
+      const newPersonalRecord = 
+      {
+      "address": {
+        "city": city,
+        "line1": line1,
+        "line2": "",
+        "zipCode": zipCode
+      },
+      "emailInfo": {
+        "onMailingList": true,
+        "primaryEmail": primaryEmail,
+        "secondaryEmail": ""
+      },
+      "firstName": firstName,
+      "lastName": lastName,
+      "phoneInfo": {
+        "primaryPhoneNumber": primaryPhoneNumber,
+        "secondaryPhoneNumber": ""
+      },
+      "pronouns": `${data.pronouns}`
+    }
+    }
+
+  })
+
   return (
     <>
       <Link to="/">← Back to Members</Link>
@@ -113,6 +168,14 @@ export default function MemberSnapshotPage() {
           <p>
             <strong>Member ID</strong>
             {memberId}
+          </p>
+          <p>
+            <strong>First Name</strong>
+            <input {...register("firstName")} defaultValue={firstName}/>
+          </p>
+          <p>
+            <strong>Last Name</strong>
+            <input {...register("lastName")} defaultValue={lastName}/>
           </p>
           <p>
             <strong>Pronouns</strong>
