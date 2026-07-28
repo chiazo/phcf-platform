@@ -78,7 +78,14 @@ time_attr
 
 Work Formula Infomation:
 -------------------------------
+member_id       string, store which user is associated with this formula
 hours_required  ----work_hours_required, integer
                 ----open_hours_required, integer
 hours_completed ----work_hours_completed, integer
                 ----open_hours_completed, integer
+
+{member_id:String,
+work_hours_required:integer,
+open_hours_required:integer,
+work_hours_completed:integer,
+open_hours_completed:integer}
