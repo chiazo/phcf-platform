@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 import { currentUser, isLoggedIn, listWorkFormulas, logout } from "../lib/pocketbase";
 
-export default function BoxInfoPage() {
+export default function WorkFormulaPage() {
   const [allFormulas, setAllFormulas] = useState<Array<Record<string, any>>>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -22,8 +22,8 @@ export default function BoxInfoPage() {
         setLoadError(null);
       })
       .catch((err) => {
-        console.error("box fetch error:", err);
-        setLoadError("Could not load boxes.");
+        console.error("WF fetch error:", err);
+        setLoadError("Could not load formulas.");
         setAllFormulas([]);
       });
   }, [isAuthenticated]);

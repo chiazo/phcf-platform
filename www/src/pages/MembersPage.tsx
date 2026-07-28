@@ -83,8 +83,11 @@ export default function MembersPage() {
           <p className="muted">Signed in as {currentUser()?.email}</p>
         </div>
         <div id='navigation-buttons'>
-          <Link className="button-link secondary" to="/boxInfo">
+          <Link className="button-link secondary" to="/box-info">
             Box Info
+          </Link>
+          <Link className="button-link secondary" to="/work-formula">
+            Work Formulas
           </Link>
           <button className="secondary" onClick={handleLogout} type="button">
             Log out
