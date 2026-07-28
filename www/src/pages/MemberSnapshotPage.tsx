@@ -18,7 +18,6 @@ interface IFormInput {
   pronouns: string
   primaryEmail: string
   primaryPhoneNumber: string
-  paymentType: PaymentType
   line1: string
   city: string
   zipCode: string
@@ -27,6 +26,7 @@ interface IFormInput {
   memberState: MemberState
   memberRole: MemberRole
   amountPaid: number
+  paymentType: PaymentType
   //box_info
   dueState: DueState
 }
@@ -62,7 +62,6 @@ export default function MemberSnapshotPage() {
     if (member) {
       document.title = `${member.personalInfo.firstName} ${member.personalInfo.lastName}`;
     }
-    console.log(member)
   }, [member]);
 
   if (notFound) return <p>Not found</p>;
@@ -94,6 +93,8 @@ export default function MemberSnapshotPage() {
      //check all of the inputs
     //if any are incorrect check add it to the patch
 
+    console.log(data)
+
     if (data.pronouns !== pronouns){
       const newPersonalData = 
        {
@@ -121,30 +122,49 @@ export default function MemberSnapshotPage() {
 
       updatePronouns(member, newPersonalInfo)
       
-    } else {
-
-      const newPersonalRecord = 
-      {
+    }
+    
+    const needsApprovalPersonal = 
+       {
       "address": {
-        "city": city,
-        "line1": line1,
+        "city": `${data.city}`,
+        "line1": `${data.line1}`,
         "line2": "",
-        "zipCode": zipCode
+        "zipCode": `${data.zipCode}`
       },
       "emailInfo": {
         "onMailingList": true,
-        "primaryEmail": primaryEmail,
+        "primaryEmail": `${data.primaryEmail}`,
         "secondaryEmail": ""
       },
-      "firstName": firstName,
-      "lastName": lastName,
+      "firstName": `${data.firstName}`,
+      "lastName": `${data.lastName}`,
       "phoneInfo": {
-        "primaryPhoneNumber": primaryPhoneNumber,
+        "primaryPhoneNumber": `${data.primaryPhoneNumber}`,
         "secondaryPhoneNumber": ""
       },
       "pronouns": `${data.pronouns}`
-    }
-    }
+      }
+
+      const needsApprovalMember = 
+      {
+        "dues": {
+          "amountPaid": `${data.amountPaid}`,
+          "dueState": "UNPAID",
+          "duesPaidAt": 0,
+          "paymentType": `${data.paymentType}`
+        },
+        "memberState": `${data.memberState}`,
+        "memberType": `${data.memberType}`,
+        "orientationDate": 1784751272,
+        "requirements": {
+          "meetingsCompleted": 0,
+          "meetingsRequired": 0,
+          "serviceHoursRequired": 0,
+          "serviceRequirements": []
+        },
+        "role": `${data.memberRole}`
+      }
 
   })
 
