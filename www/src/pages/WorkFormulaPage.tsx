@@ -58,12 +58,15 @@ export default function WorkFormulaPage() {
           <h1>Work Formula Info</h1>
           <p className="muted">Signed in as {currentUser()?.email}</p>
         </div>
-        <div className="button-row">
+        <div id='navigation-buttons'>
             <Link className="button-link secondary" to="/">
-            ← Back to Members
+                ← Back to Members
+            </Link>
+            <Link className="button-link secondary" to="/box-info">
+                Box Info
             </Link>
             <button className="secondary" onClick={handleLogout} type="button">
-            Log out
+                Log out
             </button>
         </div>
       </div>

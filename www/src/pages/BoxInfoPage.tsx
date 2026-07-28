@@ -65,12 +65,15 @@ export default function BoxInfoPage() {
           <h1>Box Info</h1>
           <p className="muted">Signed in as {currentUser()?.email}</p>
         </div>
-        <div className="button-row">
+        <div id='navigation-buttons'>
             <Link className="button-link secondary" to="/">
-            ← Back to Members
+                ← Back to Members
+            </Link>
+            <Link className="button-link secondary" to="/work-formula">
+                Work Formulas
             </Link>
             <button className="secondary" onClick={handleLogout} type="button">
-            Log out
+                Log out
             </button>
         </div>
       </div>

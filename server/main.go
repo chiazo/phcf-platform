@@ -225,8 +225,8 @@ func configureWorkFormulaCollection(collection *core.Collection) {
 	collection.Fields.Add(
 		&core.TextField{Name: "member_id"},
 		&core.NumberField{Name: "work_hours_required", OnlyInt: true},
-		&core.NumberField{Name: "open_hours_required", OnlyInt: true},
 		&core.NumberField{Name: "work_hours_completed", OnlyInt: true},
+		&core.NumberField{Name: "open_hours_required", OnlyInt: true},
 		&core.NumberField{Name: "open_hours_completed", OnlyInt: true},
 	)
 }
