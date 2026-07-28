@@ -28,6 +28,8 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import Button from '@mui/material/Button';
 
+import {listApprovalUpdates} from "../lib/pocketbase";
+
 interface Data {
   id: string;
   fullName: string;
@@ -269,7 +271,7 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
           </IconButton>
         </Tooltip>
       ) : (
-        <Tooltip title="Filter list">
+        <Tooltip title="Filter list" onClick={listApprovalUpdates}>
           <IconButton >
             <FilterListIcon />
           </IconButton>

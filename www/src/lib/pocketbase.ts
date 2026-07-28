@@ -217,3 +217,14 @@ export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newP
 
   console.log(snapshot)
 }
+
+export async function listApprovalUpdates() {
+  pb.autoCancellation(false);
+
+  // fetch a paginated records list
+  const resultList = await pb.collection('member_snapshot').getList(1, 50, {
+      filter: 'notes = "Update needs approval by an admin." ',
+  });
+
+  console.log(resultList)
+}
