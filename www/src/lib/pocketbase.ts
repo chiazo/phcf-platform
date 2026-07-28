@@ -204,48 +204,16 @@ export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newR
   }
 }
 
-// export async function newUpdate (oldMemberInfo: MemberSnapshot | null, ){
-//   const snapshot = await pb.collection("member_snapshot").create({
-//     user_id: oldMemberInfo?.memberId,
-//     member_id: oldMemberInfo?.memberId,
-//     updated_by: name || input.email,
-//     notes: "Updated on their profile sheet.",
-//     personal_info: {
-//       firstName: oldMemberInfo?.personalInfo.,
-//       lastName: input.lastName,
-//       pronouns: input.pronouns ?? "",
-//       address: {
-//         line1: input.addressLine1 ?? "",
-//         city: input.city ?? "",
-//         zipCode: input.zipCode ?? "",
-//       },
-//       emailInfo: {
-//         primaryEmail: input.email,
-//         onMailingList: input.onMailingList,
-//       },
-//       phoneInfo: {
-//         primaryPhoneNumber: input.phone ?? "",
-//       },
-//     },
-//     member_info: {
-//       orientationDate: nowInSeconds,
-//       memberState: "PENDING",
-//       role: "ROLE_INVALID",
-//       memberType: "GENERAL",
-//       dues: {
-//         amountPaid: 0,
-//         dueState: "UNPAID",
-//         paymentType: "",
-//         duesPaidAt: 0,
-//       },
-//       requirements: {
-//         meetingsCompleted: 0,
-//         meetingsRequired: 0,
-//         serviceHoursRequired: 0,
-//         serviceRequirements: [],
-//       },
-//     },
-//     box_info: oldMemberInfo?.boxInfo,
-//     ,
-//   });
-// }
+export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newPersonalData: string, newMemberData: string){
+  const snapshot = await pb.collection("member_snapshot").create({
+    user_id: oldMemberInfo?.memberId,
+    member_id: oldMemberInfo?.memberId,
+    updated_by: oldMemberInfo?.fullName,
+    notes: "Update needs approval by an admin.",
+    personal_info: newPersonalData,
+    member_info: newMemberData,
+    box_info: oldMemberInfo?.boxInfo,
+  });
+
+  console.log(snapshot)
+}

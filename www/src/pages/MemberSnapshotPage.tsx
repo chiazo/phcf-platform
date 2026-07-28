@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useForm, SubmitHandler } from "react-hook-form"
 import Button from '@mui/material/Button';
 
-import { getMemberSnapshot, updatePronouns } from "../lib/pocketbase";
+import { getMemberSnapshot, updatePronouns, newFormUpdate} from "../lib/pocketbase";
 
 import MemberSnapshot from "../models/MemberSnapshot";
 
@@ -166,6 +166,7 @@ export default function MemberSnapshotPage() {
         "role": `${data.memberRole}`
       }
 
+      newFormUpdate(member, JSON.stringify(needsApprovalPersonal), JSON.stringify(needsApprovalMember))
   })
 
   return (
