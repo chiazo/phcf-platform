@@ -164,3 +164,9 @@ export async function getSingleMember(name: string) {
     `personal_info.firstName = "${name}"`
   );
 }
+
+//gets the full list of boxes from the boxes collection
+export async function listBoxes() {
+  pb.autoCancellation(false);
+  return await pb.collection("boxes").getList(1, 50, { sort: "-created" });
+}

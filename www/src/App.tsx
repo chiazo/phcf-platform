@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 
+import BoxInfoPage from "./pages/BoxInfoPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import LoginPage from "./pages/LoginPage";
 import MembersPage from "./pages/MembersPage";
@@ -12,6 +13,7 @@ export default function App() {
     <main>
       <Routes>
         <Route path="/" element={<MembersPage />} />
+        <Route path="/boxInfo" element={<BoxInfoPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

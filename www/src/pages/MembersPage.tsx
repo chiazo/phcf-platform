@@ -82,9 +82,14 @@ export default function MembersPage() {
           <h1>Members</h1>
           <p className="muted">Signed in as {currentUser()?.email}</p>
         </div>
-        <button className="secondary" onClick={handleLogout} type="button">
-          Log out
-        </button>
+        <div id='navigation-buttons'>
+          <Link className="button-link secondary" to="/boxInfo">
+            Box Info
+          </Link>
+          <button className="secondary" onClick={handleLogout} type="button">
+            Log out
+          </button>
+        </div>
       </div>
 
        <Box sx={{ display: 'flex', flexWrap: 'wrap', bgcolor: 'primary' }}>
