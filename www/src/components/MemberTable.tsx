@@ -174,16 +174,6 @@ interface EnhancedTableProps {
   rowCount: number;
 }
 
-  const [open, setOpen] = React.useState(false);
-
-  const handleClickOpen = () => {
-    setOpen(true);
-  };
-
-  const handleClose = () => {
-    setOpen(false);
-  };
-
 function EnhancedTableHead(props: EnhancedTableProps) {
   const { onSelectAllClick, order, orderBy, numSelected, rowCount, onRequestSort } =
     props;
@@ -280,7 +270,7 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
         </Tooltip>
       ) : (
         <Tooltip title="Filter list">
-          <IconButton onClick={handleClickOpen}>
+          <IconButton >
             <FilterListIcon />
           </IconButton>
         </Tooltip>
@@ -441,7 +431,7 @@ export default function EnhancedTable({ members }: { members: Array<Record<strin
           />
         </Paper>
       </Box>
-      <Dialog
+      {/* <Dialog
         fullWidth={true}
         maxWidth={'lg'}
         open={open}
@@ -467,7 +457,7 @@ export default function EnhancedTable({ members }: { members: Array<Record<strin
         <DialogActions>
           <Button onClick={handleClose}>Close</Button>
         </DialogActions>
-      </Dialog>
+      </Dialog> */}
     </React.Fragment>
   );
 }

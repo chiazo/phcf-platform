@@ -13,8 +13,6 @@ import SearchIcon from '@mui/icons-material/Search';
 
 import MemberTable from "../components/MemberTable";
 
-export const [needsApproval, setNeedsApproval] = useState([]);
-
 export default function MembersPage() {
   //holds all of the members fetched from the server
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
