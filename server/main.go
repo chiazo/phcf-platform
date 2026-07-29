@@ -167,8 +167,6 @@ func configureMemberCollection(collection *core.Collection, usersCollectionId st
 // ensureBoxesCollection ports the schema originally captured by the
 // auto-generated 1784314870_created_boxes.go / 1784315056_updated_boxes.go
 // migrations into the same idempotent find-or-create pattern used above.
-// No access rules were ever configured on this collection (dashboard
-// defaults to superuser-only), so none are set here either.
 func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 	if existing, err := app.FindCollectionByNameOrId("boxes"); err == nil {
 		configureBoxesCollection(existing)
@@ -190,6 +188,16 @@ func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 }
 
 func configureBoxesCollection(collection *core.Collection) {
+	authenticatedRule := "@request.auth.id != ''"
+
+	// Any signed-in user can view box assignments. Boxes have no owning
+	// user (unlike member/member_snapshot), so create/update/delete are
+	// intentionally left superuser-only (nil) rather than open to members —
+	// managing box assignments is an administrative action, not
+	// self-service. Tighten further (e.g. to a specific role) if needed.
+	collection.ListRule = types.Pointer(authenticatedRule)
+	collection.ViewRule = types.Pointer(authenticatedRule)
+
 	collection.Fields.Add(
 		&core.NumberField{Name: "box_state"},
 		&core.TextField{Name: "updated_by"},
