@@ -227,3 +227,14 @@ export async function listApprovalUpdates() {
 
   console.log(resultList)
 }
+
+export async function typeCheckUser(){
+  const signedInUser = pb.authStore.record;
+
+  const userMemberSnapshot = await pb.collection("member_snapshot").getList(1, 1, {
+    filter:  `personal_info.emailInfo.primaryEmail = "${signedInUser?.email}" || personal_info.emailInfo.secondaryEmail = "${signedInUser?.email}"`,
+  });
+
+  return userMemberSnapshot.items[0].member_info.memberType
+
+}

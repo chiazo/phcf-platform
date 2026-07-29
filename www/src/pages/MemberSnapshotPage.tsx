@@ -3,12 +3,13 @@ import { Link, useParams } from "react-router-dom";
 import { useForm, SubmitHandler } from "react-hook-form"
 import Button from '@mui/material/Button';
 
-import { getMemberSnapshot, updatePronouns, newFormUpdate} from "../lib/pocketbase";
+import { getMemberSnapshot, updatePronouns, newFormUpdate, typeCheckUser} from "../lib/pocketbase";
 
 import MemberSnapshot from "../models/MemberSnapshot";
 
 
 import {MemberType, DueState, MemberState, PaymentType, MemberRole} from "../models/enums";
+import { AuthRecord } from "pocketbase";
 
 
 interface IFormInput {
@@ -36,6 +37,7 @@ export default function MemberSnapshotPage() {
   const [member, setMember] = useState<MemberSnapshot | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [isCurrentUserAdmin, setIsCurrentUserAdmin] = useState(false);
 
   const { register, handleSubmit } = useForm<IFormInput>()
 
@@ -51,6 +53,14 @@ export default function MemberSnapshotPage() {
         }
 
         setMember(new MemberSnapshot(raw as any));
+        typeCheckUser()
+        .then(type => {
+          if (type === "ADMIN"){
+            setIsCurrentUserAdmin(true)
+          }
+        })
+
+
       })
       .catch((err) => {
         console.error("member snapshot fetch error:", err);
@@ -179,17 +189,16 @@ export default function MemberSnapshotPage() {
           {firstName} {lastName}
         </h1>
 
-        <Button variant="contained" onClick={() => setEditMode(!editMode)}>Edit File</Button>
+        <Button variant="contained" onClick={() => setEditMode(!editMode)}>Edit Status</Button>
       </div>
       <div className="grid">
         {/* General */}
         <section>
           <h2>General</h2>
-
-          <p>
-            <strong>Member ID</strong>
-            {memberId}
-          </p>
+          {isCurrentUserAdmin 
+            ? <p><strong>Member ID</strong>{memberId}</p>
+            : <p></p>
+          }
           <p>
             <strong>First Name</strong>
             <input {...register("firstName")} defaultValue={firstName}/>
@@ -356,7 +365,7 @@ export default function MemberSnapshotPage() {
           </p>
         </section>
 
-      <input type="submit"/>
+      <input type="submit" value={"Submit Changes"}/>
       </div>
       </form>
     </>
