@@ -40,7 +40,11 @@ func ensureAppCollections(app core.App) error {
 		return err
 	}
 
-	_, err = ensureBoxesCollection(app)
+	if _, err := ensureBoxesCollection(app); err != nil {
+		return err
+	}
+
+	_, err = ensureWorkFormulaCollection(app)
 	return err
 }
 
@@ -192,5 +196,37 @@ func configureBoxesCollection(collection *core.Collection) {
 		&core.JSONField{Name: "box_member_s"},
 		&core.JSONField{Name: "waitlist_list"},
 		&core.TextField{Name: "notes"},
+	)
+}
+
+// ensureWorkFormulaCollection creates/updates the work_formula collection,
+// tracking each member's required vs. completed work and open hours.
+func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
+	if existing, err := app.FindCollectionByNameOrId("work_formula"); err == nil {
+		configureWorkFormulaCollection(existing)
+		if err := app.Save(existing); err != nil {
+			return nil, err
+		}
+
+		return existing, nil
+	}
+
+	collection := core.NewBaseCollection("work_formula")
+	configureWorkFormulaCollection(collection)
+
+	if err := app.Save(collection); err != nil {
+		return nil, err
+	}
+
+	return collection, nil
+}
+
+func configureWorkFormulaCollection(collection *core.Collection) {
+	collection.Fields.Add(
+		&core.TextField{Name: "member_id"},
+		&core.NumberField{Name: "work_hours_required", OnlyInt: true},
+		&core.NumberField{Name: "work_hours_completed", OnlyInt: true},
+		&core.NumberField{Name: "open_hours_required", OnlyInt: true},
+		&core.NumberField{Name: "open_hours_completed", OnlyInt: true},
 	)
 }
