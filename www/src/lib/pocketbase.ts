@@ -29,6 +29,7 @@ export interface RegisterFarmMemberInput {
   firstName: string;
   lastName: string;
   pronouns?: string;
+  orientationDate: string;
   phone?: string;
   addressLine1?: string;
   city?: string;
@@ -129,6 +130,15 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
   await login(input.email, input.password);
 
   const nowInSeconds = Math.floor(Date.now() / 1000);
+  const orientationDateMs = new Date(
+    `${input.orientationDate}T00:00:00`,
+  ).getTime();
+
+  if (Number.isNaN(orientationDateMs)) {
+    throw new Error("Invalid orientation date");
+  }
+
+  const orientationDateInSeconds = Math.floor(orientationDateMs / 1000);
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: user.id,
     member_id: user.id,
@@ -152,7 +162,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
       },
     },
     member_info: {
-      orientationDate: nowInSeconds,
+      orientationDate: orientationDateInSeconds,
       memberState: "PENDING",
       role: "ROLE_INVALID",
       memberType: "GENERAL",

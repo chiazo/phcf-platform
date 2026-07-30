@@ -161,6 +161,8 @@ label {
 
 input,
 select {
+input,
+select {
     width: 100%;
     border: 1px solid var(--border);
     border-radius: 8px;
