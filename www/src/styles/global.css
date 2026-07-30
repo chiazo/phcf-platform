@@ -159,7 +159,8 @@ label {
     color: var(--text-light);
 }
 
-input {
+input,
+select {
     width: 100%;
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -169,7 +170,8 @@ input {
     background: white;
 }
 
-input:focus {
+input:focus,
+select:focus {
     border-color: var(--primary);
     outline: 3px solid #dbeafe;
 }

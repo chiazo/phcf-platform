@@ -7,21 +7,43 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pronounsSelection, setPronounsSelection] = useState("");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    setIsSubmitting(true);
 
     const form = new FormData(event.currentTarget);
+    const email = String(form.get("email") ?? "").trim();
+    const pronouns =
+      pronounsSelection === "other"
+        ? String(form.get("pronounsOther") ?? "").trim()
+        : pronounsSelection;
+    const orientationDate = String(form.get("orientationDate") ?? "");
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+
+    if (
+      !orientationDate ||
+      Number.isNaN(new Date(`${orientationDate}T00:00:00`).getTime())
+    ) {
+      setError("Enter a valid orientation date.");
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       await registerFarmMember({
-        email: String(form.get("email") ?? ""),
+        email,
         password: String(form.get("password") ?? ""),
         firstName: String(form.get("firstName") ?? ""),
         lastName: String(form.get("lastName") ?? ""),
-        pronouns: String(form.get("pronouns") ?? ""),
+        pronouns,
+        orientationDate,
         phone: String(form.get("phone") ?? ""),
         addressLine1: String(form.get("addressLine1") ?? ""),
         city: String(form.get("city") ?? ""),
@@ -58,7 +80,13 @@ export default function RegisterPage() {
 
         <label>
           Email
-          <input autoComplete="email" name="email" required type="email" />
+          <input
+            autoComplete="email"
+            name="email"
+            pattern="^[^\s@]+@[^\s@]+\.[^\s@]+$"
+            required
+            type="email"
+          />
         </label>
 
         <label>
@@ -74,7 +102,29 @@ export default function RegisterPage() {
 
         <label>
           Pronouns
-          <input name="pronouns" type="text" />
+          <select
+            name="pronouns"
+            onChange={(event) => setPronounsSelection(event.target.value)}
+            value={pronounsSelection}
+          >
+            <option value="">Select pronouns</option>
+            <option value="he/him">he/him</option>
+            <option value="she/her">she/her</option>
+            <option value="they/them">they/them</option>
+            <option value="other">other</option>
+          </select>
+        </label>
+
+        {pronounsSelection === "other" && (
+          <label>
+            Other pronouns
+            <input name="pronounsOther" required type="text" />
+          </label>
+        )}
+
+        <label>
+          Orientation date
+          <input name="orientationDate" required type="date" />
         </label>
 
         <label>
