@@ -1,124 +1,203 @@
 #!/bin/bash
 set -e
 
-# ---------------------------------------
-# Load env
-# ---------------------------------------
-set -a
-source ./www/.env
-set +a
-
-PROJECT_ID=$(gcloud config get-value project)
-REGION=${REGION:-us-east1}
-REPO="phcf-scratch-pad"
-
-ASTRO_SERVICE="astro-frontend"
-PB_SERVICE="pocketbase"
+if [ -f ./.env ]; then
+  set -a
+  source ./.env
+  set +a
+fi
 
 TARGET=${1:-auto}
+PROVIDER_OVERRIDE=$2   # optional: ./deploy.sh backend gcp
 
-echo "🚀 Deploy mode: $TARGET"
+BACKEND_PROVIDER=${PROVIDER_OVERRIDE:-${BACKEND_PROVIDER:-fly}}
+DEPLOY_SHA_FILE=".last-deploy-sha"
+
+echo "🚀 Deploy mode: $TARGET (backend: $BACKEND_PROVIDER)"
 
 # ---------------------------------------
 # Helpers
 # ---------------------------------------
+last_deploy_sha () {
+  if [ -f "$DEPLOY_SHA_FILE" ]; then
+    cat "$DEPLOY_SHA_FILE"
+  else
+    git rev-list --max-parents=0 HEAD | tail -1
+  fi
+}
+
 changed_www () {
-  git diff --name-only origin/main...HEAD | grep -q "^www/"
+  git diff --name-only "$(last_deploy_sha)"...HEAD | grep -q "^www/"
 }
 
 changed_server () {
-  git diff --name-only origin/main...HEAD | grep -q "^server/"
+  git diff --name-only "$(last_deploy_sha)"...HEAD | grep -q "^server/"
 }
 
+record_deploy () {
+  git rev-parse HEAD > "$DEPLOY_SHA_FILE"
+}
+
+# ---------------------------------------
+# Backend URL resolution
+# ---------------------------------------
+get_backend_url () {
+  if [ "$BACKEND_PROVIDER" = "fly" ]; then
+    echo "https://${FLY_APP}.fly.dev"
+  elif [ "$BACKEND_PROVIDER" = "gcp" ]; then
+    local IP
+    IP=$(gcloud compute addresses describe pocketbase-ip --region=us-east1 --format="value(address)")
+    echo "https://${IP}.nip.io"
+  fi
+}
+
+# ---------------------------------------
+# Frontend (Vercel) — always points at whichever backend is active
+# ---------------------------------------
 deploy_frontend () {
-  echo "📦 Building Astro frontend..."
+  local PB_URL
+  PB_URL=$(get_backend_url)
+  echo "📦 Deploying Astro frontend to Vercel (backend: $BACKEND_PROVIDER → $PB_URL)..."
 
-  ASTRO_IMAGE="us-docker.pkg.dev/$PROJECT_ID/$REPO/astro-frontend"
-
-  echo "🐳 Building Astro image..."
-  gcloud builds submit ./www \
-    --config ./www/cloudbuild.yaml \
-    --substitutions=_PUBLIC_PB_URL=$PROD_PUBLIC_PB_URL,_IMAGE=$ASTRO_IMAGE
-
-  echo "☁️ Deploying Astro..."
-  gcloud run deploy $ASTRO_SERVICE \
-  --image $ASTRO_IMAGE \
-  --region $REGION \
-  --allow-unauthenticated \
-  --set-env-vars PUBLIC_PB_URL=$PROD_PUBLIC_PB_URL,PUBLIC_API_URL=$PROD_PUBLIC_API_URL
+  (
+    cd www
+    vercel env rm PUBLIC_PB_URL production --yes >/dev/null 2>&1 || true
+    echo "$PB_URL" | vercel env add PUBLIC_PB_URL production
+    vercel --prod
+  )
 }
 
+# ---------------------------------------
+# Backend — dispatches to fly or gcp
+# ---------------------------------------
 deploy_backend () {
-  echo "📦 Building PocketBase..."
+  if [ "$BACKEND_PROVIDER" = "fly" ]; then
+    deploy_backend_fly
+  elif [ "$BACKEND_PROVIDER" = "gcp" ]; then
+    deploy_backend_gcp
+  else
+    echo "❌ Unknown BACKEND_PROVIDER: $BACKEND_PROVIDER"
+    exit 1
+  fi
+}
 
-  PB_IMAGE="us-docker.pkg.dev/$PROJECT_ID/$REPO/pocketbase"
+deploy_backend_fly () {
+  echo "📦 Deploying PocketBase to Fly.io..."
+  (cd server && fly deploy)
+}
 
-  gcloud builds submit ./server \
-    --tag $PB_IMAGE
+deploy_backend_gcp () {
+  if [ ! -f ./server/Dockerfile ]; then
+    echo "❌ server/Dockerfile is missing — cannot build GCP image."
+    exit 1
+  fi
 
-  echo "☁️ Deploying PocketBase..."
-  gcloud run deploy $PB_SERVICE \
-    --image $PB_IMAGE \
-    --region $REGION \
-    --allow-unauthenticated \
-    --add-volume name=pb-data,type=cloud-storage,bucket=phcf-pocketbase-data \
-    --add-volume-mount volume=pb-data,mount-path=/app/pb_data \
-    --min-instances=1 \
-    --max-instances=1
+  echo "📦 Deploying PocketBase to GCP VM..."
+
+  PROJECT_ID=$(gcloud config get-value project)
+  REPO="phcf-scratch-pad"
+  IMAGE="us-docker.pkg.dev/$PROJECT_ID/$REPO/pocketbase"
+
+  echo "🐳 Building and pushing image..."
+  gcloud builds submit ./server --tag "$IMAGE"
+
+  echo "☁️ Deploying to $GCP_VM_NAME..."
+  gcloud compute ssh "$GCP_VM_NAME" --zone="$GCP_ZONE" --command="
+    set -e
+    docker pull $IMAGE
+    docker stop pocketbase || true
+    docker rm pocketbase || true
+    docker run -d \
+      --name pocketbase \
+      -p 8080:8080 \
+      -v \$HOME/pb_data:/app/pb_data \
+      --restart unless-stopped \
+      $IMAGE
+    sleep 2
+    docker logs --tail 20 pocketbase
+  "
 }
 
 # ---------------------------------------
-# Decide what to deploy
+# Superuser — dispatches to fly or gcp
 # ---------------------------------------
-if [ "$TARGET" = "frontend" ]; then
-  deploy_frontend
-  exit 0
-fi
+superuser () {
+  local EMAIL=${1:-$SUPERUSER_EMAIL}
+  local PASS=${2:-$SUPERUSER_PASSWORD}
 
-if [ "$TARGET" = "backend" ]; then
-  deploy_backend
-  exit 0
-fi
+  if [ -z "$EMAIL" ] || [ -z "$PASS" ]; then
+    echo "❌ No superuser credentials found. Set SUPERUSER_EMAIL / SUPERUSER_PASSWORD in .env, or pass them as arguments."
+    exit 1
+  fi
 
-if [ "$TARGET" = "all" ]; then
-  deploy_frontend
-  deploy_backend
-  exit 0
-fi
+  echo "🔑 Upserting superuser $EMAIL on $BACKEND_PROVIDER backend..."
 
-# AUTO MODE (smart detection)
-echo "🔍 Detecting changes..."
+  if [ "$BACKEND_PROVIDER" = "fly" ]; then
+    fly ssh console -a "$FLY_APP" -C "/app/app superuser upsert $EMAIL $PASS"
+  elif [ "$BACKEND_PROVIDER" = "gcp" ]; then
+    gcloud compute ssh "$GCP_VM_NAME" --zone="$GCP_ZONE" --command="
+      docker stop pocketbase || true
+      docker run --rm -v \$HOME/pb_data:/app/pb_data \
+        us-docker.pkg.dev/\$(gcloud config get-value project)/phcf-scratch-pad/pocketbase \
+        /app/app superuser upsert $EMAIL $PASS
+      docker start pocketbase
+    "
+  fi
+}
 
-# Make sure we have git remote reference
-git fetch origin main >/dev/null 2>&1 || true
+# ---------------------------------------
+# Dispatch
+# ---------------------------------------
+case "$TARGET" in
+  frontend)
+    deploy_frontend
+    record_deploy
+    ;;
+  backend)
+    deploy_backend
+    record_deploy
+    ;;
+  all)
+    deploy_backend
+    deploy_frontend
+    record_deploy
+    ;;
+  superuser)
+    superuser "$3" "$4"
+    ;;
+  auto)
+    echo "🔍 Detecting changes since last deploy..."
 
-WWW_CHANGED=false
-SERVER_CHANGED=false
+    WWW_CHANGED=false
+    SERVER_CHANGED=false
 
-if changed_www; then
-  WWW_CHANGED=true
-fi
+    changed_www && WWW_CHANGED=true
+    changed_server && SERVER_CHANGED=true
 
-if changed_server; then
-  SERVER_CHANGED=true
-fi
+    if $SERVER_CHANGED; then
+      echo "📦 /server changed → deploying backend"
+      deploy_backend
+    else
+      echo "✅ /server unchanged"
+    fi
 
-if $WWW_CHANGED; then
-  echo "📦 /www changed → deploying frontend"
-  deploy_frontend
-else
-  echo "✅ /www unchanged"
-fi
+    if $WWW_CHANGED; then
+      echo "📦 /www changed → deploying frontend"
+      deploy_frontend
+    else
+      echo "✅ /www unchanged"
+    fi
 
-if $SERVER_CHANGED; then
-  echo "📦 /server changed → deploying backend"
-  deploy_backend
-else
-  echo "✅ /server unchanged"
-fi
-
-if ! $WWW_CHANGED && ! $SERVER_CHANGED; then
-  echo "🟡 No changes detected — skipping deploy"
-fi
+    if $WWW_CHANGED || $SERVER_CHANGED; then
+      record_deploy
+    else
+      echo "🟡 No changes detected — skipping deploy"
+    fi
+    ;;
+  *)
+    echo "Unknown target: $TARGET"
+    exit 1
+    ;;
+esac
 
 echo "✅ Done!"
