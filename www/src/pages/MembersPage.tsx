@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useId } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isLoggedIn, listMemberSnapshots, logout } from "../lib/pocketbase";
+import { currentUser, isAdmin, isLoggedIn, listMemberSnapshots, logout } from "../lib/pocketbase";
 import { config } from "../lib/config";
 
 import Box from '@mui/material/Box';
@@ -11,6 +11,7 @@ import InputAdornment from '@mui/material/InputAdornment';
 import FormControl from '@mui/material/FormControl';
 import SearchIcon from '@mui/icons-material/Search';
 
+import AdminStatusButton from "../components/AdminStatusButton";
 import MemberTable from "../components/MemberTable";
 
 export default function MembersPage() {
@@ -80,7 +81,10 @@ export default function MembersPage() {
       <div className="page-header">
         <div>
           <h1>Members</h1>
-          <p className="muted">Signed in as {currentUser()?.email}</p>
+          <p className="muted signed-in-line">
+            Signed in as {currentUser()?.email}
+            <AdminStatusButton />
+          </p>
         </div>
         <div id='navigation-buttons'>
           <Link className="button-link secondary" to="/box-info">
@@ -89,6 +93,11 @@ export default function MembersPage() {
           <Link className="button-link secondary" to="/work-formula">
             Work Formulas
           </Link>
+          {isAdmin() && (
+            <Link className="button-link secondary" to="/admin">
+              Admin access
+            </Link>
+          )}
           <button className="secondary" onClick={handleLogout} type="button">
             Log out
           </button>

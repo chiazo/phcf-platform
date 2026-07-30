@@ -10,6 +10,7 @@ export interface RegisterFarmMemberInput {
   firstName: string;
   lastName: string;
   pronouns?: string;
+  orientationDate: string;
   phone?: string;
   addressLine1?: string;
   city?: string;
@@ -25,9 +26,24 @@ export function isLoggedIn() {
   return pb.authStore.isValid;
 }
 
+export function isAdmin() {
+  const record = currentUser();
+  return (
+    record?.collectionName === "_superusers" ||
+    record?.is_admin === true ||
+    record?.is_admin === "true"
+  );
+}
+
 export async function login(email: string, password: string) {
   pb.autoCancellation(false);
-  return await pb.collection("users").authWithPassword(email, password);
+  const response = await pb.send("/api/app/login", {
+    method: "POST",
+    body: { email, password },
+  });
+
+  pb.authStore.save(response.token, response.record);
+  return response;
 }
 
 export async function requestPasswordReset(email: string) {
@@ -50,6 +66,35 @@ export function logout() {
   pb.authStore.clear();
 }
 
+export interface AdminUser {
+  id: string;
+  email: string;
+  name?: string;
+  is_admin: boolean;
+  is_superuser: boolean;
+}
+
+export async function listAdminUsers() {
+  pb.autoCancellation(false);
+  return await pb.send<{ items: AdminUser[] }>("/api/app/admin/users", {
+    method: "GET",
+  });
+}
+
+export async function promoteUserToAdmin(id: string) {
+  pb.autoCancellation(false);
+  return await pb.send<AdminUser>(`/api/app/admin/users/${id}/promote`, {
+    method: "POST",
+  });
+}
+
+export async function demoteUserFromAdmin(id: string) {
+  pb.autoCancellation(false);
+  return await pb.send<AdminUser>(`/api/app/admin/users/${id}/demote`, {
+    method: "POST",
+  });
+}
+
 export async function registerFarmMember(input: RegisterFarmMemberInput) {
   pb.autoCancellation(false);
 
@@ -66,6 +111,15 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
   await login(input.email, input.password);
 
   const nowInSeconds = Math.floor(Date.now() / 1000);
+  const orientationDateMs = new Date(
+    `${input.orientationDate}T00:00:00`,
+  ).getTime();
+
+  if (Number.isNaN(orientationDateMs)) {
+    throw new Error("Invalid orientation date");
+  }
+
+  const orientationDateInSeconds = Math.floor(orientationDateMs / 1000);
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: user.id,
     member_id: user.id,
@@ -89,7 +143,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
       },
     },
     member_info: {
-      orientationDate: nowInSeconds,
+      orientationDate: orientationDateInSeconds,
       memberState: "PENDING",
       role: "ROLE_INVALID",
       memberType: "GENERAL",
@@ -175,5 +229,5 @@ export async function listBoxes() {
 //gets the full list of work formulas from their collection
 export async function listWorkFormulas() {
   pb.autoCancellation(false);
-  return await pb.collection("work_formula").getList(1, 50);
+  return await pb.collection("work_formula").getList(1, 50, { sort: "-created" });
 }

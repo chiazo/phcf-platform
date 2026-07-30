@@ -67,6 +67,14 @@ main {
     margin-bottom: 2rem;
 }
 
+.signed-in-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: -.75rem;
+}
+
 a {
     color: var(--primary);
     text-decoration: none;
@@ -151,7 +159,8 @@ label {
     color: var(--text-light);
 }
 
-input {
+input,
+select {
     width: 100%;
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -161,7 +170,8 @@ input {
     background: white;
 }
 
-input:focus {
+input:focus,
+select:focus {
     border-color: var(--primary);
     outline: 3px solid #dbeafe;
 }
@@ -210,6 +220,29 @@ button.secondary,
 .button-link.secondary {
     color: var(--primary);
     background: white;
+}
+
+.admin-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .3rem;
+    border: 1px solid var(--border);
+    border-color: var(--border);
+    border-radius: 999px;
+    padding: .25rem .55rem;
+    font-size: .8rem;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--text-light);
+    background: #f9fafb;
+    cursor: default;
+}
+
+.admin-status.active {
+    border-color: var(--success);
+    color: white;
+    background: var(--success);
 }
 
 .button-row {
