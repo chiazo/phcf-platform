@@ -36,7 +36,16 @@ func ensureAppCollections(app core.App) error {
 		return err
 	}
 
-	return ensureMemberCollection(app, snapshotCollection.Id)
+	if err := ensureMemberCollection(app, snapshotCollection.Id); err != nil {
+		return err
+	}
+
+	if _, err := ensureBoxesCollection(app); err != nil {
+		return err
+	}
+
+	_, err = ensureWorkFormulaCollection(app)
+	return err
 }
 
 func ensureUsersCollectionRules(app core.App) error {
@@ -152,5 +161,72 @@ func configureMemberCollection(collection *core.Collection, usersCollectionId st
 			CollectionId: snapshotCollectionId,
 			Required:     true,
 		},
+	)
+}
+
+// ensureBoxesCollection ports the schema originally captured by the
+// auto-generated 1784314870_created_boxes.go / 1784315056_updated_boxes.go
+// migrations into the same idempotent find-or-create pattern used above.
+// No access rules were ever configured on this collection (dashboard
+// defaults to superuser-only), so none are set here either.
+func ensureBoxesCollection(app core.App) (*core.Collection, error) {
+	if existing, err := app.FindCollectionByNameOrId("boxes"); err == nil {
+		configureBoxesCollection(existing)
+		if err := app.Save(existing); err != nil {
+			return nil, err
+		}
+
+		return existing, nil
+	}
+
+	collection := core.NewBaseCollection("boxes")
+	configureBoxesCollection(collection)
+
+	if err := app.Save(collection); err != nil {
+		return nil, err
+	}
+
+	return collection, nil
+}
+
+func configureBoxesCollection(collection *core.Collection) {
+	collection.Fields.Add(
+		&core.NumberField{Name: "box_state"},
+		&core.TextField{Name: "updated_by"},
+		&core.JSONField{Name: "box_member_s"},
+		&core.JSONField{Name: "waitlist_list"},
+		&core.TextField{Name: "notes"},
+	)
+}
+
+// ensureWorkFormulaCollection creates/updates the work_formula collection,
+// tracking each member's required vs. completed work and open hours.
+func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
+	if existing, err := app.FindCollectionByNameOrId("work_formula"); err == nil {
+		configureWorkFormulaCollection(existing)
+		if err := app.Save(existing); err != nil {
+			return nil, err
+		}
+
+		return existing, nil
+	}
+
+	collection := core.NewBaseCollection("work_formula")
+	configureWorkFormulaCollection(collection)
+
+	if err := app.Save(collection); err != nil {
+		return nil, err
+	}
+
+	return collection, nil
+}
+
+func configureWorkFormulaCollection(collection *core.Collection) {
+	collection.Fields.Add(
+		&core.TextField{Name: "member_id"},
+		&core.NumberField{Name: "work_hours_required", OnlyInt: true},
+		&core.NumberField{Name: "work_hours_completed", OnlyInt: true},
+		&core.NumberField{Name: "open_hours_required", OnlyInt: true},
+		&core.NumberField{Name: "open_hours_completed", OnlyInt: true},
 	)
 }

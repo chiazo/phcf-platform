@@ -187,6 +187,10 @@ select:focus {
     width: auto;
 }
 
+.button-row{
+    color: red;
+}
+
 button,
 .button-link {
     display: inline-flex;

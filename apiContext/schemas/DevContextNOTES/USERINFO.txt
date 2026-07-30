@@ -20,7 +20,11 @@ MemberState         MEMBER_STATE_INVALID = 0;
                     PENDING_APPROVAL = 1;
                     ACTIVE = 2;
                     INACTIVE = 3;
-BoxState            MAYBE, DEF NEED A BOX NUM
+box_state           NUM, represents if box is active or inactive.
+                    INACTIVE = 0;
+                    ACTIVE = 1;
+
+
 DueState            NUM, whether member has paid their dues,
                     DUE_STATE_INVALID = 0;
                     INCOMPLETE = 1;
@@ -52,6 +56,16 @@ updated_by    FOR AUDIT, person who changed box ownership
 joined_waitlist_at  num for now, time and day later, box waitlist timestamp
 waitlist_number     num, total num people on waitlist
 
+Information on box_info_import.json:
+-------------------------------
+"box_state":            NUM, represents if box is active or inactive.
+                        INACTIVE = 0;
+                        ACTIVE = 1;
+"updated_by"            STR
+"box_member_s":         LIST OF STRINGS e.g. ["User1","User2"],
+"waitlist_list":        LIST OF STRINGS e.g. ["User3","User4"],
+"notes":                STR, context and info on the box
+
 
 
 Information on MemberSnapshotSchema:
@@ -62,9 +76,16 @@ notes               string, notes on the member, maybe in future make this a lis
 time_attr
 
 
-Other Information:
+Work Formula Infomation:
 -------------------------------
-ServiceType         types of service
-                    SERVICE_TYPE_INVALID = 0;
-                    OPEN_HOURS = 1;
-                    WORK_HOURS = 2;
+member_id       string, store which user is associated with this formula
+hours_required  ----work_hours_required, integer
+                ----open_hours_required, integer
+hours_completed ----work_hours_completed, integer
+                ----open_hours_completed, integer
+
+{member_id:String,
+work_hours_required:integer,
+open_hours_required:integer,
+work_hours_completed:integer,
+open_hours_completed:integer}
