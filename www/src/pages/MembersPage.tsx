@@ -117,18 +117,10 @@ export default function MembersPage() {
         </FormControl>
       </div>
     </Box>
+    
 
       <MemberTable members={items}/>
 
-      <ul>
-        {items.map((record) => (
-          <li key={record.id}>
-            <Link to={`/snapshot/${record.id}`}>
-              {record.personal_info?.firstName} {record.personal_info?.lastName}
-            </Link>
-          </li>
-        ))}
-      </ul>
       <br />
 
       <a

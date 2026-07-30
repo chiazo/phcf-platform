@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Link } from "react-router-dom";
 import { alpha } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Table from '@mui/material/Table';
@@ -20,11 +21,18 @@ import Switch from '@mui/material/Switch';
 import DeleteIcon from '@mui/icons-material/Delete';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import { visuallyHidden } from '@mui/utils';
+import Dialog, { DialogProps } from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
+import Button from '@mui/material/Button';
+
+import {listApprovalUpdates} from "../lib/pocketbase";
 
 interface Data {
   id: string;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   dueStatus: string; //DueState
   amountPaid: number; //Amount Paid
   meetingsRequired: number; //Meetings Required
@@ -41,11 +49,13 @@ function toRow(member: Record<string, any>): Data {
   const dues = memberInfo.dues ?? {};
   const requirements = memberInfo.requirements ?? {};
   const serviceRequirements = requirements.serviceRequirements ?? [];
+  const firstName = personalInfo.firstName ?? ''
+  const lastName = personalInfo.lastName ?? ''
+  const fullName = firstName + ' ' + lastName
 
   return createData(
     member.id,
-    personalInfo.firstName ?? '',
-    personalInfo.lastName ?? '',
+    fullName,
     dues.dueState ?? '',
     dues.amountPaid ?? 0,
     requirements.meetingsRequired ?? 0,
@@ -60,8 +70,7 @@ function toRow(member: Record<string, any>): Data {
 
 function createData(
   id: string,
-  firstName: string,
-  lastName: string, 
+  fullName: string,
   dueStatus: string, //DueState
   amountPaid: number, //Amount Paid
   meetingsRequired: number, //Meetings Required
@@ -71,8 +80,7 @@ function createData(
 ): Data {
   return {
     id,
-    firstName,
-    lastName, 
+    fullName,
     dueStatus, //DueState
     amountPaid, //Amount Paid
     meetingsRequired, //Meetings Required
@@ -116,16 +124,10 @@ interface HeadCell {
 
 const headCells: readonly HeadCell[] = [
   {
-    id: 'firstName',
+    id: 'fullName',
     numeric: false,
     disablePadding: true,
-    label: 'First Name',
-  },
-  {
-    id: 'lastName',
-    numeric: false,
-    disablePadding: true,
-    label: 'Last Name',
+    label: 'Full Name',
   },
   {
     id: 'dueStatus',
@@ -224,8 +226,10 @@ function EnhancedTableHead(props: EnhancedTableProps) {
 interface EnhancedTableToolbarProps {
   numSelected: number;
 }
+
 function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
   const { numSelected } = props;
+
   return (
     <Toolbar
       sx={[
@@ -267,8 +271,8 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
           </IconButton>
         </Tooltip>
       ) : (
-        <Tooltip title="Filter list">
-          <IconButton>
+        <Tooltip title="Filter list" onClick={listApprovalUpdates}>
+          <IconButton >
             <FilterListIcon />
           </IconButton>
         </Tooltip>
@@ -281,7 +285,6 @@ export default function EnhancedTable({ members }: { members: Array<Record<strin
   const [orderBy, setOrderBy] = React.useState<keyof Data>('dueStatus');
   const [selected, setSelected] = React.useState<readonly string[]>([]);
   const [page, setPage] = React.useState(0);
-  const [dense, setDense] = React.useState(false);
   const [rowsPerPage, setRowsPerPage] = React.useState(5);
 
 
@@ -331,10 +334,6 @@ export default function EnhancedTable({ members }: { members: Array<Record<strin
     setPage(0);
   };
 
-  const handleChangeDense = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setDense(event.target.checked);
-  };
-
   // Avoid a layout jump when reaching the last page with empty rows.
   const emptyRows =
     page > 0 ? Math.max(0, (1 + page) * rowsPerPage - members.length) : 0;
@@ -349,99 +348,118 @@ export default function EnhancedTable({ members }: { members: Array<Record<strin
   );
 
   return (
-    <Box sx={{ width: '100%' }}>
-      <Paper sx={{ width: '100%', mb: 2 }}>
-        <EnhancedTableToolbar numSelected={selected.length} />
-        <TableContainer>
-          <Table
-            sx={{ minWidth: 750 }}
-            aria-labelledby="tableTitle"
-            size={dense ? 'small' : 'medium'}
-          >
-            <EnhancedTableHead
-              numSelected={selected.length}
-              order={order}
-              orderBy={orderBy}
-              onSelectAllClick={handleSelectAllClick}
-              onRequestSort={handleRequestSort}
-              rowCount={members.length}
-            />
-            <TableBody>
-              {visibleRows.map((row, index) => {
-                const isItemSelected = selected.includes(row.id);
-                const labelId = `enhanced-table-checkbox-${index}`;
+    <React.Fragment>
+      <Box sx={{ width: '100%' }}>
+        <Paper sx={{ width: '100%', mb: 2 }}>
+          <EnhancedTableToolbar numSelected={selected.length} />
+          <TableContainer>
+            <Table
+              sx={{ minWidth: 750 }}
+              aria-labelledby="tableTitle"
+              size="medium"
+            >
+              <EnhancedTableHead
+                numSelected={selected.length}
+                order={order}
+                orderBy={orderBy}
+                onSelectAllClick={handleSelectAllClick}
+                onRequestSort={handleRequestSort}
+                rowCount={members.length}
+              />
+              <TableBody>
+                {visibleRows.map((row, index) => {
+                  const isItemSelected = selected.includes(row.id);
+                  const labelId = `enhanced-table-checkbox-${index}`;
 
-                return (
+                  return (
+                    <TableRow
+                      hover
+                      onClick={(event) => handleClick(event, row.id)}
+                      role="checkbox"
+                      aria-checked={isItemSelected}
+                      tabIndex={-1}
+                      key={row.id}
+                      selected={isItemSelected}
+                      sx={{ cursor: 'pointer' }}
+                    >
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          color="primary"
+                          checked={isItemSelected}
+                          slotProps={{
+                            input: { 'aria-labelledby': labelId },
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell
+                        component="th"
+                        id={labelId}
+                        scope="row"
+                        padding="none"
+                      >
+                        <Link to={`/snapshot/${row.id}`}>
+                          {row.fullName}
+                          </Link>
+                      </TableCell>
+                      <TableCell align="center">{row.dueStatus}</TableCell>
+                      <TableCell align="center">{row.amountPaid}</TableCell>
+                      <TableCell align="center">{row.meetingsRequired}</TableCell>
+                      <TableCell align="center">{row.meetingsCompleted}</TableCell>
+                      <TableCell align="center">{row.serviceHoursRequired}</TableCell>
+                      <TableCell align="center">{row.serviceHoursCompleted}</TableCell>
+                    </TableRow>
+                  );
+                })}
+                {emptyRows > 0 && (
                   <TableRow
-                    hover
-                    onClick={(event) => handleClick(event, row.id)}
-                    role="checkbox"
-                    aria-checked={isItemSelected}
-                    tabIndex={-1}
-                    key={row.id}
-                    selected={isItemSelected}
-                    sx={{ cursor: 'pointer' }}
+                    style={{
+                      height: 53 * emptyRows,
+                    }}
                   >
-                    <TableCell padding="checkbox">
-                      <Checkbox
-                        color="primary"
-                        checked={isItemSelected}
-                        slotProps={{
-                          input: { 'aria-labelledby': labelId },
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell
-                      component="th"
-                      id={labelId}
-                      scope="row"
-                      padding="none"
-                    >
-                      {row.firstName}
-                    </TableCell>
-                    <TableCell
-                      component="th"
-                      id={labelId}
-                      scope="row"
-                      padding="none"
-                    >
-                      {row.lastName}
-                    </TableCell>
-                    <TableCell align="center">{row.dueStatus}</TableCell>
-                    <TableCell align="center">{row.amountPaid}</TableCell>
-                    <TableCell align="center">{row.meetingsRequired}</TableCell>
-                    <TableCell align="center">{row.meetingsCompleted}</TableCell>
-                    <TableCell align="center">{row.serviceHoursRequired}</TableCell>
-                    <TableCell align="center">{row.serviceHoursCompleted}</TableCell>
+                    <TableCell colSpan={9} />
                   </TableRow>
-                );
-              })}
-              {emptyRows > 0 && (
-                <TableRow
-                  style={{
-                    height: (dense ? 33 : 53) * emptyRows,
-                  }}
-                >
-                  <TableCell colSpan={9} />
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <TablePagination
-          rowsPerPageOptions={[5, 10, 25]}
-          component="div"
-          count={members.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-        />
-      </Paper>
-      <FormControlLabel
-        control={<Switch checked={dense} onChange={handleChangeDense} />}
-        label="Dense padding"
-      />
-    </Box>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25]}
+            component="div"
+            count={members.length}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
+        </Paper>
+      </Box>
+      {/* <Dialog
+        fullWidth={true}
+        maxWidth={'lg'}
+        open={open}
+        onClose={handleClose}
+      >
+        <DialogTitle>Optional sizes</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            You can set my maximum width and whether to adapt or not.
+          </DialogContentText>
+          <Box
+            noValidate
+            component="form"
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              m: 'auto',
+              width: 'fit-content',
+            }}
+          >
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClose}>Close</Button>
+        </DialogActions>
+      </Dialog> */}
+    </React.Fragment>
   );
 }
