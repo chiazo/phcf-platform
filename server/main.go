@@ -188,15 +188,27 @@ func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 }
 
 func configureBoxesCollection(collection *core.Collection) {
-	authenticatedRule := "@request.auth.id != ''"
+	// Superusers always bypass API rules entirely (see PocketBase docs), so
+	// they can already list/view/edit every box without any rule needed
+	// here. This rule only governs everyone else: a regular authenticated
+	// user may list/view a box only if there's a member_snapshot they own
+	// (user_id = them) whose member_id shows up in that box's
+	// box_member_s list. @collection.* is used because boxes has no direct
+	// relation field to member_snapshot — both conditions reference the
+	// same @collection.member_snapshot alias, so they constrain the same
+	// joined row rather than being independent checks.
+	//
+	// NOTE: this assumes box_member_s is a JSON array of member_id strings
+	// (e.g. ["m_123", "m_456"]). If it's structured differently (e.g. an
+	// array of objects), this filter will need to change accordingly.
+	memberOfBoxRule := "@request.auth.id != '' && " +
+		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
+		"@collection.member_snapshot.member_id ?= box_member_s"
 
-	// Any signed-in user can view box assignments. Boxes have no owning
-	// user (unlike member/member_snapshot), so create/update/delete are
-	// intentionally left superuser-only (nil) rather than open to members —
-	// managing box assignments is an administrative action, not
-	// self-service. Tighten further (e.g. to a specific role) if needed.
-	collection.ListRule = types.Pointer(authenticatedRule)
-	collection.ViewRule = types.Pointer(authenticatedRule)
+	collection.ListRule = types.Pointer(memberOfBoxRule)
+	collection.ViewRule = types.Pointer(memberOfBoxRule)
+	// create/update/delete stay unset (nil = superuser-only): editing box
+	// assignments is an administrative action, not self-service.
 
 	collection.Fields.Add(
 		&core.NumberField{Name: "box_state"},
