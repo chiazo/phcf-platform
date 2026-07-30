@@ -351,19 +351,41 @@ func configureMemberSnapshotCollection(collection *core.Collection, usersCollect
 	collection.CreateRule = types.Pointer(ownerRule)
 	collection.UpdateRule = types.Pointer(ownerRule)
 	collection.DeleteRule = types.Pointer(ownerRule)
-	collection.Fields.Add(
-		&core.RelationField{
-			Name:         "user_id",
-			CollectionId: usersCollectionId,
-			Required:     true,
-		},
-		&core.TextField{Name: "member_id"},
-		&core.TextField{Name: "updated_by"},
-		&core.TextField{Name: "notes"},
-		&core.JSONField{Name: "personal_info", Required: true},
-		&core.JSONField{Name: "member_info", Required: true},
-		&core.JSONField{Name: "box_info", Required: true},
-	)
+	addTimeAttributeFields(collection)
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "user_id",
+		CollectionId: usersCollectionId,
+		Required:     true,
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "member_id",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "updated_by",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "notes",
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "personal_info",
+		Required: true,
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "member_info",
+		Required: true,
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "box_info",
+		Required: true,
+	})
+
 }
 
 func ensureMemberCollection(app core.App, snapshotCollectionId string) error {
@@ -392,30 +414,33 @@ func configureMemberCollection(collection *core.Collection, usersCollectionId st
 	authenticatedRule := "@request.auth.id != ''"
 	ownerRule := "user_id = @request.auth.id"
 
-	collection.ListRule = types.Pointer(authenticatedRule)
-	collection.ViewRule = types.Pointer(authenticatedRule)
-	collection.CreateRule = types.Pointer(ownerRule)
+	collection.ListRule = types.Pointer(ownerRule)
+	collection.ViewRule = types.Pointer(ownerRule)
+	collection.CreateRule = types.Pointer(authenticatedRule)
 	collection.UpdateRule = types.Pointer(ownerRule)
 	collection.DeleteRule = types.Pointer(ownerRule)
 
-	collection.Fields.Add(
-		&core.RelationField{
-			Name:         "user_id",
-			CollectionId: usersCollectionId,
-			Required:     true,
-		},
-		&core.RelationField{
-			Name:         "member_snapshot_id",
-			CollectionId: snapshotCollectionId,
-			Required:     true,
-		},
-	)
+	addTimeAttributeFields(collection)
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "user_id",
+		CollectionId: usersCollectionId,
+		Required:     true,
+	})
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "member_snapshot_id",
+		CollectionId: snapshotCollectionId,
+		Required:     true,
+	})
 }
 
 // ensureBoxesCollection ports the schema originally captured by the
 // auto-generated 1784314870_created_boxes.go / 1784315056_updated_boxes.go
 // migrations into the same idempotent find-or-create pattern used above.
 func ensureBoxesCollection(app core.App) (*core.Collection, error) {
+	log.Println("ensureBoxesCollection running")
+
 	if existing, err := app.FindCollectionByNameOrId("boxes"); err == nil {
 		configureBoxesCollection(existing)
 		if err := app.Save(existing); err != nil {
@@ -470,6 +495,8 @@ func configureBoxesCollection(collection *core.Collection) {
 // ensureWorkFormulaCollection creates/updates the work_formula collection,
 // tracking each member's required vs. completed work and open hours.
 func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
+	log.Println("ensureWorkFormulaCollection running")
+
 	if existing, err := app.FindCollectionByNameOrId("work_formula"); err == nil {
 		configureWorkFormulaCollection(existing)
 		if err := app.Save(existing); err != nil {

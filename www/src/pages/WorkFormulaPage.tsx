@@ -5,7 +5,9 @@ import { currentUser, isAdmin, isLoggedIn, listWorkFormulas, logout } from "../l
 import AdminStatusButton from "../components/AdminStatusButton";
 
 export default function WorkFormulaPage() {
-  const [allFormulas, setAllFormulas] = useState<Array<Record<string, any>>>([]);
+  const [allFormulas, setAllFormulas] = useState<Array<Record<string, any>>>(
+    [],
+  );
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -13,7 +15,7 @@ export default function WorkFormulaPage() {
     document.title = "Work Formula Info";
 
     if (!isAuthenticated) {
-        setAllFormulas([]);
+      setAllFormulas([]);
       return;
     }
 
@@ -24,6 +26,7 @@ export default function WorkFormulaPage() {
       })
       .catch((err) => {
         console.error("WF fetch error:", err);
+        console.error("WF error data:", err?.data);
         setLoadError("Could not load formulas.");
         setAllFormulas([]);
       });
@@ -33,7 +36,6 @@ export default function WorkFormulaPage() {
     logout();
     setIsAuthenticated(false);
   }
-
 
   if (!isAuthenticated) {
     return (
@@ -62,21 +64,21 @@ export default function WorkFormulaPage() {
             <AdminStatusButton />
           </p>
         </div>
-        <div id='navigation-buttons'>
-            <Link className="button-link secondary" to="/">
-                ← Back to Members
-            </Link>
-            <Link className="button-link secondary" to="/box-info">
-                Box Info
-            </Link>
+        <div id="navigation-buttons">
+          <Link className="button-link secondary" to="/">
+            ← Back to Members
+          </Link>
+          <Link className="button-link secondary" to="/box-info">
+            Box Info
+          </Link>
             {isAdmin() && (
                 <Link className="button-link secondary" to="/admin">
                     Admin access
                 </Link>
             )}
-            <button className="secondary" onClick={handleLogout} type="button">
-                Log out
-            </button>
+          <button className="secondary" onClick={handleLogout} type="button">
+            Log out
+          </button>
         </div>
       </div>
 
