@@ -103,19 +103,41 @@ func configureMemberSnapshotCollection(collection *core.Collection, usersCollect
 	collection.CreateRule = types.Pointer(ownerRule)
 	collection.UpdateRule = types.Pointer(ownerRule)
 	collection.DeleteRule = types.Pointer(ownerRule)
-	collection.Fields.Add(
-		&core.RelationField{
-			Name:         "user_id",
-			CollectionId: usersCollectionId,
-			Required:     true,
-		},
-		&core.TextField{Name: "member_id"},
-		&core.TextField{Name: "updated_by"},
-		&core.TextField{Name: "notes"},
-		&core.JSONField{Name: "personal_info", Required: true},
-		&core.JSONField{Name: "member_info", Required: true},
-		&core.JSONField{Name: "box_info", Required: true},
-	)
+	addTimeAttributeFields(collection)
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "user_id",
+		CollectionId: usersCollectionId,
+		Required:     true,
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "member_id",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "updated_by",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "notes",
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "personal_info",
+		Required: true,
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "member_info",
+		Required: true,
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "box_info",
+		Required: true,
+	})
+
 }
 
 func ensureMemberCollection(app core.App, snapshotCollectionId string) error {
@@ -144,24 +166,25 @@ func configureMemberCollection(collection *core.Collection, usersCollectionId st
 	authenticatedRule := "@request.auth.id != ''"
 	ownerRule := "user_id = @request.auth.id"
 
-	collection.ListRule = types.Pointer(authenticatedRule)
-	collection.ViewRule = types.Pointer(authenticatedRule)
-	collection.CreateRule = types.Pointer(ownerRule)
+	collection.ListRule = types.Pointer(ownerRule)
+	collection.ViewRule = types.Pointer(ownerRule)
+	collection.CreateRule = types.Pointer(authenticatedRule)
 	collection.UpdateRule = types.Pointer(ownerRule)
 	collection.DeleteRule = types.Pointer(ownerRule)
 
-	collection.Fields.Add(
-		&core.RelationField{
-			Name:         "user_id",
-			CollectionId: usersCollectionId,
-			Required:     true,
-		},
-		&core.RelationField{
-			Name:         "member_snapshot_id",
-			CollectionId: snapshotCollectionId,
-			Required:     true,
-		},
-	)
+	addTimeAttributeFields(collection)
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "user_id",
+		CollectionId: usersCollectionId,
+		Required:     true,
+	})
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "member_snapshot_id",
+		CollectionId: snapshotCollectionId,
+		Required:     true,
+	})
 }
 
 // ensureBoxesCollection ports the schema originally captured by the
@@ -170,6 +193,8 @@ func configureMemberCollection(collection *core.Collection, usersCollectionId st
 // No access rules were ever configured on this collection (dashboard
 // defaults to superuser-only), so none are set here either.
 func ensureBoxesCollection(app core.App) (*core.Collection, error) {
+	log.Println("ensureBoxesCollection running")
+
 	if existing, err := app.FindCollectionByNameOrId("boxes"); err == nil {
 		configureBoxesCollection(existing)
 		if err := app.Save(existing); err != nil {
@@ -190,18 +215,30 @@ func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 }
 
 func configureBoxesCollection(collection *core.Collection) {
-	collection.Fields.Add(
-		&core.NumberField{Name: "box_state"},
-		&core.TextField{Name: "updated_by"},
-		&core.JSONField{Name: "box_member_s"},
-		&core.JSONField{Name: "waitlist_list"},
-		&core.TextField{Name: "notes"},
-	)
+	authenticatedRule := `
+		@request.auth.id != ''
+	`
+
+	collection.ListRule = types.Pointer(authenticatedRule)
+	collection.ViewRule = types.Pointer(authenticatedRule)
+	collection.CreateRule = types.Pointer(authenticatedRule)
+	collection.UpdateRule = types.Pointer(authenticatedRule)
+	collection.DeleteRule = types.Pointer(authenticatedRule)
+
+	log.Println("work_formula rules updated")
+	addTimeAttributeFields(collection)
+	addFieldIfMissing(collection, &core.NumberField{Name: "box_state"})
+	addFieldIfMissing(collection, &core.TextField{Name: "updated_by"})
+	addFieldIfMissing(collection, &core.JSONField{Name: "box_member_s"})
+	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist_list"})
+	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
 }
 
 // ensureWorkFormulaCollection creates/updates the work_formula collection,
 // tracking each member's required vs. completed work and open hours.
 func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
+	log.Println("ensureWorkFormulaCollection running")
+
 	if existing, err := app.FindCollectionByNameOrId("work_formula"); err == nil {
 		configureWorkFormulaCollection(existing)
 		if err := app.Save(existing); err != nil {
@@ -222,11 +259,43 @@ func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
 }
 
 func configureWorkFormulaCollection(collection *core.Collection) {
-	collection.Fields.Add(
-		&core.TextField{Name: "member_id"},
-		&core.NumberField{Name: "work_hours_required", OnlyInt: true},
-		&core.NumberField{Name: "work_hours_completed", OnlyInt: true},
-		&core.NumberField{Name: "open_hours_required", OnlyInt: true},
-		&core.NumberField{Name: "open_hours_completed", OnlyInt: true},
-	)
+	authenticatedRule := "@request.auth.id != ''"
+
+	collection.ListRule = types.Pointer(authenticatedRule)
+	collection.ViewRule = types.Pointer(authenticatedRule)
+	collection.CreateRule = types.Pointer(authenticatedRule)
+	collection.UpdateRule = types.Pointer(authenticatedRule)
+	collection.DeleteRule = types.Pointer(authenticatedRule)
+	addTimeAttributeFields(collection)
+	addFieldIfMissing(collection, &core.TextField{Name: "member_id"})
+	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_required", OnlyInt: true})
+	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_completed", OnlyInt: true})
+	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_required", OnlyInt: true})
+	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_completed", OnlyInt: true})
+}
+
+func addFieldIfMissing(collection *core.Collection, field core.Field) {
+	if collection.Fields.GetByName(field.GetName()) == nil {
+		collection.Fields.Add(field)
+	}
+}
+
+func addTimeAttributeFields(collection *core.Collection) {
+	if collection.Fields.GetByName("created_at") == nil {
+		collection.Fields.Add(
+			&core.NumberField{
+				Name:    "created_at",
+				OnlyInt: true,
+			},
+		)
+	}
+
+	if collection.Fields.GetByName("modified_at") == nil {
+		collection.Fields.Add(
+			&core.NumberField{
+				Name:    "modified_at",
+				OnlyInt: true,
+			},
+		)
+	}
 }

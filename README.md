@@ -104,3 +104,23 @@ You can view added boxes in the boxes collection on PB: http://localhost:8090/_/
 
 
 
+
+## Deploy 
+switch .env `BACKEND_PROVIDER` between `fly` and `gcp` depending on desired provider
+```
+./deploy.sh all                     # deploy backend + frontend using BACKEND_PROVIDER from .env
+./deploy.sh all gcp                 # force GCP for this run only
+./deploy.sh all fly                 # force Fly for this run only
+./deploy.sh backend gcp             # just redeploy the GCP backend
+./deploy.sh frontend                # redeploy frontend, pointed at whatever backend is active
+./deploy.sh superuser _ fly         # create superuser on Fly (positional quirk — see note below)
+./deploy.sh                          # auto mode, current BACKEND_PROVIDER
+```
+
+## Seed Fake Data
+
+`node scripts/pb-seed.mjs --users 3 --boxes 3 --work-formulas 3
+`
+
+## Wipe GCP 
+`./gcp-manage.sh reset`
