@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isLoggedIn, listWorkFormulas, logout } from "../lib/pocketbase";
+import { currentUser, isAdmin, isLoggedIn, listWorkFormulas, logout } from "../lib/pocketbase";
+import AdminStatusButton from "../components/AdminStatusButton";
 
 export default function WorkFormulaPage() {
   const [allFormulas, setAllFormulas] = useState<Array<Record<string, any>>>([]);
@@ -56,7 +57,10 @@ export default function WorkFormulaPage() {
       <div className="page-header">
         <div>
           <h1>Work Formula Info</h1>
-          <p className="muted">Signed in as {currentUser()?.email}</p>
+          <p className="muted signed-in-line">
+            Signed in as {currentUser()?.email}
+            <AdminStatusButton />
+          </p>
         </div>
         <div id='navigation-buttons'>
             <Link className="button-link secondary" to="/">
@@ -65,6 +69,11 @@ export default function WorkFormulaPage() {
             <Link className="button-link secondary" to="/box-info">
                 Box Info
             </Link>
+            {isAdmin() && (
+                <Link className="button-link secondary" to="/admin">
+                    Admin access
+                </Link>
+            )}
             <button className="secondary" onClick={handleLogout} type="button">
                 Log out
             </button>

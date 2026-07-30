@@ -1,5 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 
+import AdminPage from "./pages/AdminPage";
 import WorkFormulaPage from "./pages/WorkFormulaPage";
 import BoxInfoPage from "./pages/BoxInfoPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -14,6 +15,7 @@ export default function App() {
     <main>
       <Routes>
         <Route path="/" element={<MembersPage />} />
+        <Route path="/admin" element={<AdminPage />} />
         <Route path="/work-formula" element={<WorkFormulaPage />} />
         <Route path="/box-info" element={<BoxInfoPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />

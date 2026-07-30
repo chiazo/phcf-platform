@@ -44,9 +44,24 @@ export function isLoggedIn() {
   return pb.authStore.isValid;
 }
 
+export function isAdmin() {
+  const record = currentUser();
+  return (
+    record?.collectionName === "_superusers" ||
+    record?.is_admin === true ||
+    record?.is_admin === "true"
+  );
+}
+
 export async function login(email: string, password: string) {
   pb.autoCancellation(false);
-  return await pb.collection("users").authWithPassword(email, password);
+  const response = await pb.send("/api/app/login", {
+    method: "POST",
+    body: { email, password },
+  });
+
+  pb.authStore.save(response.token, response.record);
+  return response;
 }
 
 export async function requestPasswordReset(email: string) {
@@ -67,6 +82,35 @@ export async function confirmPasswordReset(
 
 export function logout() {
   pb.authStore.clear();
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name?: string;
+  is_admin: boolean;
+  is_superuser: boolean;
+}
+
+export async function listAdminUsers() {
+  pb.autoCancellation(false);
+  return await pb.send<{ items: AdminUser[] }>("/api/app/admin/users", {
+    method: "GET",
+  });
+}
+
+export async function promoteUserToAdmin(id: string) {
+  pb.autoCancellation(false);
+  return await pb.send<AdminUser>(`/api/app/admin/users/${id}/promote`, {
+    method: "POST",
+  });
+}
+
+export async function demoteUserFromAdmin(id: string) {
+  pb.autoCancellation(false);
+  return await pb.send<AdminUser>(`/api/app/admin/users/${id}/demote`, {
+    method: "POST",
+  });
 }
 
 export async function registerFarmMember(input: RegisterFarmMemberInput) {
@@ -238,3 +282,4 @@ export async function typeCheckUser(){
   return userMemberSnapshot.items[0].member_info.memberType
 
 }
+
