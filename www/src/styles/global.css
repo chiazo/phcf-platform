@@ -2,7 +2,7 @@
    Global Styles
    =========================================== */
 
-:root {
+   :root {
     --bg: #f5f7fa;
     --surface: #ffffff;
     --border: #e5e7eb;
@@ -159,8 +159,6 @@ label {
     color: var(--text-light);
 }
 
-input,
-select {
 input,
 select {
     width: 100%;

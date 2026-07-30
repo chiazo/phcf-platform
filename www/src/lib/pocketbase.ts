@@ -23,6 +23,7 @@ interface IFormInput {
 
 export const pb = new PocketBase(config.pbUrl);
 
+
 export interface RegisterFarmMemberInput {
   email: string;
   password: string;
@@ -234,15 +235,69 @@ export async function getMemberSnapshot(id: string) {
 
 export async function getSingleMember(name: string) {
   pb.autoCancellation(false);
-  return await pb.collection("member_snapshot").getFirstListItem(
-    `personal_info.firstName = "${name}"`
-  );
+  return await pb
+    .collection("member_snapshot")
+    .getFirstListItem(`personal_info.firstName = "${name}"`);
 }
 
+export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newRecord: string){
+  
+  if (oldMemberInfo){
+    console.log(`${oldMemberInfo.memberId}`)
+    //find the member through the member_id on the member_snapshot table
+    const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
+    `member_id = "${oldMemberInfo.memberId}"`
+  );
+    console.log(currentMemberSnapshot)
+
+    // update the info in the member table
+    const record = await pb.collection('member_snapshot').update(`${currentMemberSnapshot.id}`, {
+    personal_info : newRecord,
+    }); 
+
+    console.log(record)
+  }
+}
+
+export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newPersonalData: string, newMemberData: string){
+  const snapshot = await pb.collection("member_snapshot").create({
+    user_id: oldMemberInfo?.memberId,
+    member_id: oldMemberInfo?.memberId,
+    updated_by: oldMemberInfo?.fullName,
+    notes: "Update needs approval by an admin.",
+    personal_info: newPersonalData,
+    member_info: newMemberData,
+    box_info: oldMemberInfo?.boxInfo,
+  });
+
+  console.log(snapshot)
+}
+
+export async function listApprovalUpdates() {
+  pb.autoCancellation(false);
+
+  // fetch a paginated records list
+  const resultList = await pb.collection('member_snapshot').getList(1, 50, {
+      filter: 'notes = "Update needs approval by an admin." ',
+  });
+
+  console.log(resultList)
+}
+
+export async function typeCheckUser(){
+  const signedInUser = pb.authStore.record;
+
+  const userMemberSnapshot = await pb.collection("member_snapshot").getList(1, 1, {
+    filter:  `personal_info.emailInfo.primaryEmail = "${signedInUser?.email}" || personal_info.emailInfo.secondaryEmail = "${signedInUser?.email}"`,
+  });
+
+  return userMemberSnapshot.items[0].member_info.memberType
+
+}
 //gets the full list of boxes from the boxes collection
 export async function listBoxes() {
   pb.autoCancellation(false);
-  return await pb.collection("boxes").getList(1, 50, { sort: "-created" });
+  return await pb.collection("boxes").getList(1, 50);
 }
 
 //gets the full list of work formulas from their collection
