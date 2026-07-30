@@ -175,5 +175,5 @@ export async function listBoxes() {
 //gets the full list of work formulas from their collection
 export async function listWorkFormulas() {
   pb.autoCancellation(false);
-  return await pb.collection("work_formula").getList(1, 50, { sort: "-created" });
+  return await pb.collection("work_formula").getList(1, 50);
 }

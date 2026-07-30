@@ -9,7 +9,7 @@ export default function WorkFormulaPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "Box Info";
+    document.title = "Work Formula Info";
 
     if (!isAuthenticated) {
         setAllFormulas([]);
