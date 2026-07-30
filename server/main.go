@@ -1,10 +1,15 @@
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"log"
+	"net/http"
 	"os"
+	"strings"
 
 	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
@@ -18,6 +23,15 @@ func main() {
 		}
 
 		return ensureAppCollections(app)
+	})
+
+	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		e.Router.POST("/api/app/login", appLogin(app))
+		e.Router.GET("/api/app/admin/users", listAdminUsers(app))
+		e.Router.POST("/api/app/admin/users/{id}/promote", promoteAdminUser(app))
+		e.Router.POST("/api/app/admin/users/{id}/demote", demoteAdminUser(app))
+
+		return e.Next()
 	})
 
 	if err := app.Start(); err != nil {
@@ -59,8 +73,242 @@ func ensureUsersCollectionRules(app core.App) error {
 	users.ListRule = types.Pointer(ownRecordRule)
 	users.ViewRule = types.Pointer(ownRecordRule)
 	users.UpdateRule = types.Pointer(ownRecordRule)
+	if users.Fields.GetByName("is_admin") == nil {
+		users.Fields.Add(&core.BoolField{Name: "is_admin"})
+	}
 
 	return app.Save(users)
+}
+
+type appLoginForm struct {
+	Email    string `json:"email" form:"email"`
+	Password string `json:"password" form:"password"`
+}
+
+func appLogin(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		form := appLoginForm{}
+		if err := e.BindBody(&form); err != nil {
+			return e.BadRequestError("Could not read login data.", err)
+		}
+
+		email := strings.TrimSpace(form.Email)
+		if email == "" || form.Password == "" {
+			return e.BadRequestError("Email and password are required.", nil)
+		}
+
+		user, userErr := app.FindAuthRecordByEmail("users", email)
+		if userErr == nil && user.ValidatePassword(form.Password) {
+			if user.GetBool("is_admin") {
+				superuser, err := syncSuperuserForLogin(app, user, form.Password)
+				if err != nil {
+					return e.InternalServerError("Could not prepare admin login.", err)
+				}
+
+				return apis.RecordAuthResponse(e, superuser, core.MFAMethodPassword, map[string]any{
+					"admin": true,
+				})
+			}
+
+			return apis.RecordAuthResponse(e, user, core.MFAMethodPassword, nil)
+		}
+
+		if userErr != nil && !errors.Is(userErr, sql.ErrNoRows) {
+			return e.InternalServerError("Could not check user login.", userErr)
+		}
+
+		superuser, superuserErr := app.FindAuthRecordByEmail(core.CollectionNameSuperusers, email)
+		if superuserErr == nil && superuser.ValidatePassword(form.Password) {
+			if _, err := syncUserForSuperuserLogin(app, superuser, form.Password); err != nil {
+				return e.InternalServerError("Could not prepare app admin account.", err)
+			}
+
+			return apis.RecordAuthResponse(e, superuser, core.MFAMethodPassword, map[string]any{
+				"admin": true,
+			})
+		}
+
+		if superuserErr != nil && !errors.Is(superuserErr, sql.ErrNoRows) {
+			return e.InternalServerError("Could not check admin login.", superuserErr)
+		}
+
+		return e.BadRequestError("Failed to authenticate.", errors.New("invalid login credentials"))
+	}
+}
+
+func listAdminUsers(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		if err := requireAppAdmin(e); err != nil {
+			return err
+		}
+
+		records := []*core.Record{}
+		if err := app.RecordQuery("users").OrderBy("email ASC").All(&records); err != nil {
+			return e.InternalServerError("Could not load users.", err)
+		}
+
+		items := make([]map[string]any, 0, len(records))
+		for _, record := range records {
+			items = append(items, map[string]any{
+				"id":            record.Id,
+				"email":         record.Email(),
+				"name":          record.GetString("name"),
+				"is_admin":      record.GetBool("is_admin"),
+				"is_superuser":  hasSuperuserWithEmail(app, record.Email()),
+				"collection_id": record.Collection().Id,
+			})
+		}
+
+		return e.JSON(http.StatusOK, map[string]any{"items": items})
+	}
+}
+
+func promoteAdminUser(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		if err := requireAppAdmin(e); err != nil {
+			return err
+		}
+
+		record, err := app.FindRecordById("users", e.Request.PathValue("id"))
+		if err != nil {
+			return e.NotFoundError("User not found.", err)
+		}
+
+		record.Set("is_admin", true)
+		if err := app.Save(record); err != nil {
+			return e.BadRequestError("Could not promote user.", err)
+		}
+
+		return e.JSON(http.StatusOK, map[string]any{
+			"id":            record.Id,
+			"email":         record.Email(),
+			"name":          record.GetString("name"),
+			"is_admin":      record.GetBool("is_admin"),
+			"is_superuser":  hasSuperuserWithEmail(app, record.Email()),
+			"collection_id": record.Collection().Id,
+		})
+	}
+}
+
+func demoteAdminUser(app core.App) func(e *core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		if err := requireAppAdmin(e); err != nil {
+			return err
+		}
+
+		record, err := app.FindRecordById("users", e.Request.PathValue("id"))
+		if err != nil {
+			return e.NotFoundError("User not found.", err)
+		}
+		if e.Auth != nil && strings.EqualFold(e.Auth.Email(), record.Email()) {
+			return e.BadRequestError("Admins cannot demote their own account.", nil)
+		}
+
+		superuser, superuserErr := app.FindAuthRecordByEmail(core.CollectionNameSuperusers, record.Email())
+		if superuserErr == nil {
+			count, countErr := app.CountRecords(core.CollectionNameSuperusers)
+			if countErr != nil {
+				return e.InternalServerError("Could not check existing superusers.", countErr)
+			}
+			if count <= 1 {
+				return e.BadRequestError("At least one superuser must remain.", nil)
+			}
+		} else if !errors.Is(superuserErr, sql.ErrNoRows) {
+			return e.InternalServerError("Could not check superuser status.", superuserErr)
+		}
+
+		record.Set("is_admin", false)
+		if err := app.Save(record); err != nil {
+			return e.BadRequestError("Could not demote user.", err)
+		}
+
+		if superuserErr == nil {
+			if deleteErr := app.Delete(superuser); deleteErr != nil {
+				return e.BadRequestError("User was demoted, but the superuser account could not be removed.", deleteErr)
+			}
+		}
+
+		return e.JSON(http.StatusOK, map[string]any{
+			"id":            record.Id,
+			"email":         record.Email(),
+			"name":          record.GetString("name"),
+			"is_admin":      record.GetBool("is_admin"),
+			"is_superuser":  false,
+			"collection_id": record.Collection().Id,
+		})
+	}
+}
+
+func requireAppAdmin(e *core.RequestEvent) error {
+	if e.Auth == nil {
+		return e.UnauthorizedError("Admin login is required.", nil)
+	}
+	if e.Auth.IsSuperuser() {
+		return nil
+	}
+	if e.Auth.Collection().Name == "users" && e.Auth.GetBool("is_admin") {
+		return nil
+	}
+
+	return e.ForbiddenError("Admin access is required.", nil)
+}
+
+func syncSuperuserForLogin(app core.App, user *core.Record, password string) (*core.Record, error) {
+	superuser, err := app.FindAuthRecordByEmail(core.CollectionNameSuperusers, user.Email())
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+
+		collection, err := app.FindCollectionByNameOrId(core.CollectionNameSuperusers)
+		if err != nil {
+			return nil, err
+		}
+		superuser = core.NewRecord(collection)
+		superuser.SetEmail(user.Email())
+	}
+
+	superuser.SetPassword(password)
+	superuser.SetVerified(true)
+	if err := app.Save(superuser); err != nil {
+		return nil, err
+	}
+
+	return superuser, nil
+}
+
+func syncUserForSuperuserLogin(app core.App, superuser *core.Record, password string) (*core.Record, error) {
+	user, err := app.FindAuthRecordByEmail("users", superuser.Email())
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+
+		collection, err := app.FindCollectionByNameOrId("users")
+		if err != nil {
+			return nil, err
+		}
+		user = core.NewRecord(collection)
+		user.SetEmail(superuser.Email())
+		user.SetEmailVisibility(true)
+	}
+
+	user.Set("is_admin", true)
+	user.SetPassword(password)
+	user.SetVerified(true)
+	if err := app.Save(user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func hasSuperuserWithEmail(app core.App, email string) bool {
+	if email == "" {
+		return false
+	}
+	_, err := app.FindAuthRecordByEmail(core.CollectionNameSuperusers, email)
+	return err == nil
 }
 
 func ensureMemberSnapshotCollection(app core.App) (*core.Collection, error) {
