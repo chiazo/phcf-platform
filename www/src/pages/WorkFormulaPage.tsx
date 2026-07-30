@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isLoggedIn, listWorkFormulas, logout } from "../lib/pocketbase";
+import {
+  currentUser,
+  isLoggedIn,
+  listWorkFormulas,
+  logout,
+} from "../lib/pocketbase";
 
 export default function WorkFormulaPage() {
-  const [allFormulas, setAllFormulas] = useState<Array<Record<string, any>>>([]);
+  const [allFormulas, setAllFormulas] = useState<Array<Record<string, any>>>(
+    [],
+  );
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -12,7 +19,7 @@ export default function WorkFormulaPage() {
     document.title = "Box Info";
 
     if (!isAuthenticated) {
-        setAllFormulas([]);
+      setAllFormulas([]);
       return;
     }
 
@@ -23,6 +30,7 @@ export default function WorkFormulaPage() {
       })
       .catch((err) => {
         console.error("WF fetch error:", err);
+        console.error("WF error data:", err?.data);
         setLoadError("Could not load formulas.");
         setAllFormulas([]);
       });
@@ -32,7 +40,6 @@ export default function WorkFormulaPage() {
     logout();
     setIsAuthenticated(false);
   }
-
 
   if (!isAuthenticated) {
     return (
@@ -58,16 +65,16 @@ export default function WorkFormulaPage() {
           <h1>Work Formula Info</h1>
           <p className="muted">Signed in as {currentUser()?.email}</p>
         </div>
-        <div id='navigation-buttons'>
-            <Link className="button-link secondary" to="/">
-                ← Back to Members
-            </Link>
-            <Link className="button-link secondary" to="/box-info">
-                Box Info
-            </Link>
-            <button className="secondary" onClick={handleLogout} type="button">
-                Log out
-            </button>
+        <div id="navigation-buttons">
+          <Link className="button-link secondary" to="/">
+            ← Back to Members
+          </Link>
+          <Link className="button-link secondary" to="/box-info">
+            Box Info
+          </Link>
+          <button className="secondary" onClick={handleLogout} type="button">
+            Log out
+          </button>
         </div>
       </div>
 
