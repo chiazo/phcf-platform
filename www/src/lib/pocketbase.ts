@@ -30,6 +30,7 @@ export interface RegisterFarmMemberInput {
   firstName: string;
   lastName: string;
   pronouns?: string;
+  orientationDate: string;
   phone?: string;
   addressLine1?: string;
   city?: string;
@@ -45,9 +46,24 @@ export function isLoggedIn() {
   return pb.authStore.isValid;
 }
 
+export function isAdmin() {
+  const record = currentUser();
+  return (
+    record?.collectionName === "_superusers" ||
+    record?.is_admin === true ||
+    record?.is_admin === "true"
+  );
+}
+
 export async function login(email: string, password: string) {
   pb.autoCancellation(false);
-  return await pb.collection("users").authWithPassword(email, password);
+  const response = await pb.send("/api/app/login", {
+    method: "POST",
+    body: { email, password },
+  });
+
+  pb.authStore.save(response.token, response.record);
+  return response;
 }
 
 export async function requestPasswordReset(email: string) {
@@ -70,6 +86,35 @@ export function logout() {
   pb.authStore.clear();
 }
 
+export interface AdminUser {
+  id: string;
+  email: string;
+  name?: string;
+  is_admin: boolean;
+  is_superuser: boolean;
+}
+
+export async function listAdminUsers() {
+  pb.autoCancellation(false);
+  return await pb.send<{ items: AdminUser[] }>("/api/app/admin/users", {
+    method: "GET",
+  });
+}
+
+export async function promoteUserToAdmin(id: string) {
+  pb.autoCancellation(false);
+  return await pb.send<AdminUser>(`/api/app/admin/users/${id}/promote`, {
+    method: "POST",
+  });
+}
+
+export async function demoteUserFromAdmin(id: string) {
+  pb.autoCancellation(false);
+  return await pb.send<AdminUser>(`/api/app/admin/users/${id}/demote`, {
+    method: "POST",
+  });
+}
+
 export async function registerFarmMember(input: RegisterFarmMemberInput) {
   pb.autoCancellation(false);
 
@@ -86,6 +131,15 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
   await login(input.email, input.password);
 
   const nowInSeconds = Math.floor(Date.now() / 1000);
+  const orientationDateMs = new Date(
+    `${input.orientationDate}T00:00:00`,
+  ).getTime();
+
+  if (Number.isNaN(orientationDateMs)) {
+    throw new Error("Invalid orientation date");
+  }
+
+  const orientationDateInSeconds = Math.floor(orientationDateMs / 1000);
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: user.id,
     member_id: user.id,
@@ -109,7 +163,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
       },
     },
     member_info: {
-      orientationDate: nowInSeconds,
+      orientationDate: orientationDateInSeconds,
       memberState: "PENDING",
       role: "ROLE_INVALID",
       memberType: "GENERAL",
@@ -147,6 +201,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
 
 export async function listMemberSnapshots() {
   pb.autoCancellation(false);
+
   //gets the full list of all of the records in the memver collection
   const member_records = await pb.collection("member").getFullList();
 
@@ -160,10 +215,10 @@ export async function listMemberSnapshots() {
     return { items: [] as Array<Record<string, any>> };
   }
 
-  //Defines the filter for the members in the list 
+  //Defines the filter for the members in the list
   const filter = snapshotIds.map((id) => `id = "${id}"`).join(" || ");
 
-  //looks for any members with ids defined in the filter variable 
+  //looks for any members with ids defined in the filter variable
   //gives back at least 1 member and at most 50 members
   return await pb.collection("member_snapshot").getList(1, 50, { filter });
 }
@@ -180,9 +235,9 @@ export async function getMemberSnapshot(id: string) {
 
 export async function getSingleMember(name: string) {
   pb.autoCancellation(false);
-  return await pb.collection("member_snapshot").getFirstListItem(
-    `personal_info.firstName = "${name}"`
-  );
+  return await pb
+    .collection("member_snapshot")
+    .getFirstListItem(`personal_info.firstName = "${name}"`);
 }
 
 export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newRecord: string){
@@ -242,9 +297,8 @@ export async function typeCheckUser(){
 //gets the full list of boxes from the boxes collection
 export async function listBoxes() {
   pb.autoCancellation(false);
-  return await pb.collection("boxes").getList(1, 50, { sort: "-created" });
+  return await pb.collection("boxes").getList(1, 50);
 }
-
 
 //gets the full list of work formulas from their collection
 export async function listWorkFormulas() {
