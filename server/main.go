@@ -255,5 +255,7 @@ func configureWorkFormulaCollection(collection *core.Collection) {
 		&core.NumberField{Name: "work_hours_completed", OnlyInt: true},
 		&core.NumberField{Name: "open_hours_required", OnlyInt: true},
 		&core.NumberField{Name: "open_hours_completed", OnlyInt: true},
+		&core.NumberField{Name: "created_at", OnlyInt: true},
+		&core.NumberField{Name: "modified_at", OnlyInt: true},
 	)
 }

@@ -85,6 +85,8 @@ export default function WorkFormulaPage() {
               <th>Work Hours Completed</th>
               <th>Open Hours Required</th>
               <th>Open Hours Completed</th>
+              <th>Created At</th>
+              <th>Modified At</th>
             </tr>
           </thead>
           <tbody>
@@ -95,6 +97,8 @@ export default function WorkFormulaPage() {
                 <td>{wf.work_hours_completed}</td>
                 <td>{wf.open_hours_required}</td>
                 <td>{wf.open_hours_completed}</td>
+                <td>{wf.created_at}</td>
+                <td>{wf.modified_at}</td>
               </tr>
             ))}
           </tbody>
