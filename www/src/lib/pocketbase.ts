@@ -181,6 +181,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
 
 export async function listMemberSnapshots() {
   pb.autoCancellation(false);
+
   //gets the full list of all of the records in the memver collection
   const member_records = await pb.collection("member").getFullList();
 
@@ -194,10 +195,10 @@ export async function listMemberSnapshots() {
     return { items: [] as Array<Record<string, any>> };
   }
 
-  //Defines the filter for the members in the list 
+  //Defines the filter for the members in the list
   const filter = snapshotIds.map((id) => `id = "${id}"`).join(" || ");
 
-  //looks for any members with ids defined in the filter variable 
+  //looks for any members with ids defined in the filter variable
   //gives back at least 1 member and at most 50 members
   return await pb.collection("member_snapshot").getList(1, 50, { filter });
 }
@@ -214,17 +215,16 @@ export async function getMemberSnapshot(id: string) {
 
 export async function getSingleMember(name: string) {
   pb.autoCancellation(false);
-  return await pb.collection("member_snapshot").getFirstListItem(
-    `personal_info.firstName = "${name}"`
-  );
+  return await pb
+    .collection("member_snapshot")
+    .getFirstListItem(`personal_info.firstName = "${name}"`);
 }
 
 //gets the full list of boxes from the boxes collection
 export async function listBoxes() {
   pb.autoCancellation(false);
-  return await pb.collection("boxes").getList(1, 50, { sort: "-created" });
+  return await pb.collection("boxes").getList(1, 50);
 }
-
 
 //gets the full list of work formulas from their collection
 export async function listWorkFormulas() {
