@@ -117,5 +117,10 @@ switch .env `BACKEND_PROVIDER` between `fly` and `gcp` depending on desired prov
 ./deploy.sh                          # auto mode, current BACKEND_PROVIDER
 ```
 
+## Seed Fake Data
+
+`node scripts/pb-seed.mjs --users 3 --boxes 3 --work-formulas 3
+`
+
 ## Wipe GCP 
 `./gcp-manage.sh reset`
