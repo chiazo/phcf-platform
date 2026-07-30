@@ -79,7 +79,7 @@ export default function WorkFormulaPage() {
         <table>
           <thead>
             <tr>
-              <th>ID</th>
+              {/* <th>ID</th> */}
               <th>Member ID</th>
               <th>Work Hours Required</th>
               <th>Work Hours Completed</th>
