@@ -521,7 +521,7 @@ func configureWorkFormulaCollection(collection *core.Collection) {
 	memberOfWFRule := "@request.auth.id != '' && " +
 		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
 		"@collection.member_snapshot.member_id ?= member_id"
-	authenticatedRule := "@request.auth.id != ''"
+	// authenticatedRule := "@request.auth.id != ''"
 
 	collection.ListRule = types.Pointer(memberOfWFRule)
 	collection.ViewRule = types.Pointer(memberOfWFRule)
