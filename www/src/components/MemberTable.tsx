@@ -21,14 +21,10 @@ import Switch from '@mui/material/Switch';
 import DeleteIcon from '@mui/icons-material/Delete';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import { visuallyHidden } from '@mui/utils';
-import Dialog, { DialogProps } from '@mui/material/Dialog';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContent from '@mui/material/DialogContent';
-import DialogContentText from '@mui/material/DialogContentText';
-import DialogTitle from '@mui/material/DialogTitle';
-import Button from '@mui/material/Button';
+import { useState } from "react";
 
 import {listApprovalUpdates} from "../lib/pocketbase";
+
 
 interface Data {
   id: string;
@@ -52,6 +48,7 @@ function toRow(member: Record<string, any>): Data {
   const firstName = personalInfo.firstName ?? ''
   const lastName = personalInfo.lastName ?? ''
   const fullName = firstName + ' ' + lastName
+  
 
   return createData(
     member.id,
@@ -229,6 +226,15 @@ interface EnhancedTableToolbarProps {
 
 function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
   const { numSelected } = props;
+  const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
+
+  function displayModal(){
+    const modal = document.getElementById("myModal");
+    
+    if (modal){
+       modal.style.display = "block";
+    }
+  }
 
   return (
     <Toolbar
@@ -271,7 +277,7 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
           </IconButton>
         </Tooltip>
       ) : (
-        <Tooltip title="Filter list" onClick={listApprovalUpdates}>
+        <Tooltip title="Needs Approval List" onClick={displayModal}>
           <IconButton >
             <FilterListIcon />
           </IconButton>
@@ -432,34 +438,8 @@ export default function EnhancedTable({ members }: { members: Array<Record<strin
             onRowsPerPageChange={handleChangeRowsPerPage}
           />
         </Paper>
-      </Box>
-      {/* <Dialog
-        fullWidth={true}
-        maxWidth={'lg'}
-        open={open}
-        onClose={handleClose}
-      >
-        <DialogTitle>Optional sizes</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            You can set my maximum width and whether to adapt or not.
-          </DialogContentText>
-          <Box
-            noValidate
-            component="form"
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              m: 'auto',
-              width: 'fit-content',
-            }}
-          >
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose}>Close</Button>
-        </DialogActions>
-      </Dialog> */}
+    </Box>
+
     </React.Fragment>
   );
 }
