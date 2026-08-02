@@ -281,8 +281,6 @@ export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newP
     member_info: newMemberData,
     box_info: oldMemberInfo?.boxInfo,
   });
-
-  console.log(snapshot)
 }
 
 export async function listApprovalUpdates() {
