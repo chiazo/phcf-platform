@@ -3,9 +3,10 @@ import { Link, useParams } from "react-router-dom";
 import { useForm, SubmitHandler } from "react-hook-form"
 import Button from '@mui/material/Button';
 
-import { getMemberSnapshot, updatePronouns, newFormUpdate, typeCheckUser} from "../lib/pocketbase";
+import { getMemberSnapshot, updatePronouns, newFormUpdate} from "../lib/pocketbase";
 
 import MemberSnapshot from "../models/MemberSnapshot";
+
 
 
 import {MemberType, DueState, MemberState, PaymentType, MemberRole} from "../models/enums";
@@ -53,13 +54,6 @@ export default function MemberSnapshotPage() {
         }
 
         setMember(new MemberSnapshot(raw as any));
-        typeCheckUser()
-        .then(type => {
-          if (type === "ADMIN"){
-            setIsCurrentUserAdmin(true)
-          }
-        })
-
 
       })
       .catch((err) => {
@@ -103,8 +97,6 @@ export default function MemberSnapshotPage() {
      //check all of the inputs
     //if any are incorrect check add it to the patch
 
-    console.log(data)
-
     if (data.pronouns !== pronouns){
       const newPersonalData = 
        {
@@ -131,6 +123,9 @@ export default function MemberSnapshotPage() {
       const newPersonalInfo = JSON.stringify(newPersonalData)
 
       updatePronouns(member, newPersonalInfo)
+      .catch((err) => {
+        console.error("error in updating pronouns: ", err);
+      })
       
     }
     
@@ -188,17 +183,13 @@ export default function MemberSnapshotPage() {
         <h1>
           {firstName} {lastName}
         </h1>
-
-        <Button variant="contained" onClick={() => setEditMode(!editMode)}>Edit Status</Button>
       </div>
       <div className="grid">
         {/* General */}
         <section>
           <h2>General</h2>
-          {isCurrentUserAdmin 
-            ? <p><strong>Member ID</strong>{memberId}</p>
-            : <p></p>
-          }
+           <p><strong>Member ID</strong>{memberId}</p>
+       
           <p>
             <strong>First Name</strong>
             <input {...register("firstName")} defaultValue={firstName}/>
