@@ -37,7 +37,7 @@ export default function MembersPage() {
   async function memberWorkFormulas(members: Array<Record<string, any>>){
    try {
       const res = await correspondingWorkFormulas(members);
-      return setAllFormulas(res.items);
+      return setAllFormulas(res.items || []);
     } catch (err) {
       console.error("work formula fetch error:", err);
       setAllMembers([]);
