@@ -293,7 +293,9 @@ export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newR
 export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newPersonalData: string, newMemberData: string){
    pb.autoCancellation(false);
 
-   const author = await pb.collection("users").getFirstListItem(
+
+   //first check for any member_snapshots with the "Update needs approval by an admin"
+  const author = await pb.collection("users").getFirstListItem(
     `email = "${currentUser()?.email}"`
    )
 
