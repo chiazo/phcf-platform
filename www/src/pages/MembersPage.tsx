@@ -37,15 +37,16 @@ export default function MembersPage() {
       .then((res) => setApprovedMembers(res.items))
       .catch((err) => {
         console.error("member fetch error:", err);
-        setAllMembers([]);
+        setApprovedMembers([]);
       });
 
       listMemberSnapshots()
       .then((res) => setAllMembers(res.items))
       .catch((err) => {
         console.error("member fetch error:", err);
-        setApprovedMembers([]);
+        setAllMembers([]);
       });
+      console.log("Approved Members: ", approvedMembers)
   }, [isAuthenticated]);
 
   //filters the already-loaded members as the user types, so the table
