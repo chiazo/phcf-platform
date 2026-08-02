@@ -329,7 +329,7 @@ td {
 }
 
 th {
-    text-align: left;
+    text-align: center;
     color: var(--text-light);
 }
 
@@ -383,6 +383,19 @@ th {
   padding: 20px;
   border: 1px solid #888;
   width: 80%; /* Could be more or less, depending on screen size */
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Wrapper that enables horizontal scrolling for wide tables */
+.modal-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-table-wrapper table {
+  width: max-content;
+  min-width: 100%;
 }
 
 /* The Close Button */

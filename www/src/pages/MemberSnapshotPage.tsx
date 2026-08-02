@@ -270,7 +270,7 @@ export default function MemberSnapshotPage() {
           <h2>Dues</h2>
 
           <p>
-            <strong>Status</strong>
+            <strong></strong>
             <select {...register("dueState")} defaultValue={dueState}>
               <option value="COMPLETE">COMPLETE</option>
               <option value="PENDING">PENDING</option>
@@ -285,9 +285,10 @@ export default function MemberSnapshotPage() {
           <p>
             <strong>Payment Type</strong>
             <select {...register("paymentType")} defaultValue={paymentType}>
-              <option value="COMPLETE">COMPLETE</option>
-              <option value="PENDING">PENDING</option>
-              <option value="UNPAID">UNPAID</option>
+              <option value="PAYMENT_TYPE_INVALID">PAYMENT_TYPE_INVALID</option>
+              <option value="CASH">CASH</option>
+              <option value="SQUARE">SQUARE</option>
+              <option value="CREDIT">CREDIT</option>
             </select>
           </p>
           <p>
@@ -313,7 +314,7 @@ export default function MemberSnapshotPage() {
             })}
           </p>
           <p>
-            <strong>Meetings</strong>
+            <strong>Meetings Completed</strong>
             {meetingsCompleted} / {meetingsRequired}
           </p>
         </section>
