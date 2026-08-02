@@ -32,24 +32,26 @@ export default function ModalTable( { members, onActionComplete }: { members: Ar
         <table>
         <thead>
             <tr>
-                <th colSpan={3}>Personal Info</th>
-                <th colSpan={7}>Member Info</th>
+                <th colSpan={9}>Personal Info</th>
+                <th colSpan={9}>Member Status</th>
              </tr>
           </thead>
           <thead>
                     <tr>
                     <th>Full Name</th>
-                    <th>Email</th>
-                    <th>Address</th>
+                    <th>Amount Paid</th>
                     <th>Member Role</th>
                     <th>Member Type</th>
                     <th>Member Status</th>
+                    <th>Email</th>
+                    <th>Street</th>
+                    <th>Status</th>
+                    <th>Zip Code</th>
                     <th>Payment Status</th>
                     <th>Amount Paid</th>
                     <th>Payment Type</th>
                     <th>Meetings Completed</th>
-                    <th></th>
-                    <th></th>
+                    <th>Servince Hours Required</th>
                     </tr>
                 </thead>
           <tbody>
