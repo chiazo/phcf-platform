@@ -241,25 +241,31 @@ export async function getSingleMember(name: string) {
 }
 
 export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newRecord: string){
+   pb.autoCancellation(false);
   
   if (oldMemberInfo){
-    console.log(`${oldMemberInfo.memberId}`)
     //find the member through the member_id on the member_snapshot table
     const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
     `member_id = "${oldMemberInfo.memberId}"`
   );
-    console.log(currentMemberSnapshot)
 
     // update the info in the member table
     const record = await pb.collection('member_snapshot').update(`${currentMemberSnapshot.id}`, {
     personal_info : newRecord,
     }); 
 
-    console.log(record)
   }
 }
 
 export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newPersonalData: string, newMemberData: string){
+   pb.autoCancellation(false);
+
+
+   //first check for any member_snapshots with the "Update needs approval by an admin"
+
+   //if it exists update the snapshot
+
+   //if not create the snapshot
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: oldMemberInfo?.memberId,
     member_id: oldMemberInfo?.memberId,
@@ -274,26 +280,15 @@ export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newP
 }
 
 export async function listApprovalUpdates() {
-  pb.autoCancellation(false);
 
   // fetch a paginated records list
   const resultList = await pb.collection('member_snapshot').getList(1, 50, {
       filter: 'notes = "Update needs approval by an admin." ',
   });
 
-  console.log(resultList)
+  return resultList
 }
 
-export async function typeCheckUser(){
-  const signedInUser = pb.authStore.record;
-
-  const userMemberSnapshot = await pb.collection("member_snapshot").getList(1, 1, {
-    filter:  `personal_info.emailInfo.primaryEmail = "${signedInUser?.email}" || personal_info.emailInfo.secondaryEmail = "${signedInUser?.email}"`,
-  });
-
-  return userMemberSnapshot.items[0].member_info.memberType
-
-}
 //gets the full list of boxes from the boxes collection
 export async function listBoxes() {
   pb.autoCancellation(false);
