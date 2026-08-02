@@ -278,14 +278,20 @@ export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newR
 export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newPersonalData: string, newMemberData: string){
    pb.autoCancellation(false);
 
+  //find the member through the member_id on the member_snapshot table
+  const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
+  `member_id = "${oldMemberInfo?.memberId}"`)
+
+  console.log(currentMemberSnapshot)
 
    //first check for any member_snapshots with the "Update needs approval by an admin"
+   
 
    //if it exists update the snapshot
 
    //if not create the snapshot
   const snapshot = await pb.collection("member_snapshot").create({
-    user_id: oldMemberInfo?.memberId,
+    user_id: currentMemberSnapshot?.user_id,
     member_id: oldMemberInfo?.memberId,
     updated_by: oldMemberInfo?.fullName,
     notes: "Update needs approval by an admin.",
