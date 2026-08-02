@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useId } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isAdmin, isLoggedIn, listMemberSnapshots, logout, listApprovalUpdates, correspondingWorkFormulas } from "../lib/pocketbase";
+import { currentUser, isAdmin, isLoggedIn, listMemberSnapshots, logout, correspondingWorkFormulas, listApprovalUpdates } from "../lib/pocketbase";
 import { config } from "../lib/config";
 
 import Box from '@mui/material/Box';
@@ -71,7 +71,21 @@ export default function MembersPage() {
       return;
     }
 
-    refreshMembers();
+    listApprovalUpdates()
+      .then((res) => setApprovedMembers(res.items))
+      .catch((err) => {
+        console.error("member fetch error:", err);
+        setAllMembers([]);
+      });
+
+      refreshMembers();
+
+    listMemberSnapshots()
+      .then((res) => setAllMembers(res.items))
+      .catch((err) => {
+        console.error("member fetch error:", err);
+        setAllMembers([]);
+      });
   }, [isAuthenticated]);
 
   //filters the already-loaded members as the user types, so the table
