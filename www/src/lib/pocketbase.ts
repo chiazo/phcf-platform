@@ -305,3 +305,4 @@ export async function listWorkFormulas() {
   pb.autoCancellation(false);
   return await pb.collection("work_formula").getList(1, 50);
 }
+
