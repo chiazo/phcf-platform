@@ -545,7 +545,7 @@ async function main() {
   }
 
   if (WIPE) {
-    await wipeSeededData(pb, ["member_snapshot", "boxes", "legacy_snapshots","work_formula"]);
+    await wipeSeededData(pb, ["member_snapshot", "boxes", "legacy_snapshots", "work_formula"]);
   }
 
   let userResult = {
@@ -567,9 +567,9 @@ async function main() {
   }
 
   if (NUM_LEGACY_SNAPSHOTS > 0) {
-    await seedBoxes(
+    await seedLegacySnaphots(
       pb,
-      NUM_BOXES,
+      NUM_LEGACY_SNAPSHOTS,
       userResult.members.map((m) => m.id),
     );
   }

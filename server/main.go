@@ -403,10 +403,10 @@ func configureMemberSnapshotCollection(app core.App, collection *core.Collection
 func ensureLegacySnapshotCollection(app core.App) (*core.Collection, error) {
 	existing, err := app.FindCollectionByNameOrId("legacy_snapshot")
 	if err == nil {
-		// users, err := app.FindCollectionByNameOrId("users")
-		// if err != nil {
-		// 	return nil, err
-		// }
+		users, err := app.FindCollectionByNameOrId("users")
+		if err != nil {
+			return nil, err
+		}
 
 		if err := configureLegacySnapshotCollection(app, existing, users.Id); err != nil {
 			return nil, err
@@ -418,10 +418,10 @@ func ensureLegacySnapshotCollection(app core.App) (*core.Collection, error) {
 		return existing, nil
 	}
 
-	// users, err := app.FindCollectionByNameOrId("users")
-	// if err != nil {
-	// 	return nil, err
-	// }
+	users, err := app.FindCollectionByNameOrId("users")
+	if err != nil {
+		return nil, err
+	}
 
 	collection := core.NewBaseCollection("legacy_snapshot")
 	if err := configureLegacySnapshotCollection(app, collection, users.Id); err != nil {
@@ -437,13 +437,13 @@ func ensureLegacySnapshotCollection(app core.App) (*core.Collection, error) {
 
 func configureLegacySnapshotCollection(app core.App, collection *core.Collection, usersCollectionId string) error {
 	authenticatedRule := "@request.auth.id != ''"
-	ownerRule := "user_id = @request.auth.id"
+	// ownerRule := "user_id = @request.auth.id"
 
 	collection.ListRule = types.Pointer(authenticatedRule)
 	collection.ViewRule = types.Pointer(authenticatedRule)
-	collection.CreateRule = types.Pointer(ownerRule)
-	collection.UpdateRule = types.Pointer(ownerRule)
-	collection.DeleteRule = types.Pointer(ownerRule)
+	collection.CreateRule = types.Pointer(authenticatedRule)
+	collection.UpdateRule = types.Pointer(authenticatedRule)
+	collection.DeleteRule = types.Pointer(authenticatedRule)
 	if err := addTimeAttributeFields(app, collection); err != nil {
 		return err
 	}
