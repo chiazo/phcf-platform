@@ -316,6 +316,15 @@ export async function listWorkFormulas() {
   return await pb.collection("work_formula").getList(1, 50);
 }
 
+
+export async function getMemberWorkFormula(memberSnapshot: Record <string, any>){
+  pb.autoCancellation(false);
+  return await pb.collection('work_formula').getList(1, 50, {
+      filter: `member_id = "${memberSnapshot.member_id}"` ,
+  });
+}
+
+
 export async function deleteRequest(currentSnapshot: Record<string, any>){
   pb.autoCancellation(false);
   await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
@@ -345,13 +354,9 @@ export async function acceptRequest(currentSnapshot: Record<string, any>){
   })
 }
 
-export async function getMemberWorkFormula(memberSnapshot: Record <string, any>){
-  pb.autoCancellation(false);
-  return await pb.collection('work_formula').getList(1, 50, {
-      filter: `member_id = "${memberSnapshot.member_id}"` ,
-  });
-}
 
-
-
-
+//gets the full list of legacy snapshots from their collection
+// export async function listLegacySnapshots() {
+//   pb.autoCancellation(false);
+//   return await pb.collection("legacy_snapshots").getList(1, 50);
+// }

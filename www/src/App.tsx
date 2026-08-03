@@ -7,6 +7,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import LoginPage from "./pages/LoginPage";
 import MembersPage from "./pages/MembersPage";
 import MemberSnapshotPage from "./pages/MemberSnapshotPage";
+import LegacySnapshotPage from "./pages/LegacySnapshotPage";
 import RegisterPage from "./pages/RegisterPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/snapshot/:id" element={<MemberSnapshotPage />} />
+        <Route path="/legacy-snapshots" element={<LegacySnapshotPage />} />
       </Routes>
     </main>
   );

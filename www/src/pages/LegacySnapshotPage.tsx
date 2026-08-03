@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useId } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isAdmin, isLoggedIn, listMemberSnapshots, logout, listApprovalUpdates, correspondingWorkFormulas } from "../lib/pocketbase";
+import { currentUser, isAdmin, isLoggedIn, listMemberSnapshots, logout } from "../lib/pocketbase";
 import { config } from "../lib/config";
 
 import Box from '@mui/material/Box';
@@ -13,53 +13,13 @@ import SearchIcon from '@mui/icons-material/Search';
 
 import AdminStatusButton from "../components/AdminStatusButton";
 import MemberTable from "../components/MemberTable";
-import ModalTable from "../components/ModalTable";
 
 export default function MembersPage() {
   //holds all of the members fetched from the server
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
-  const [workFormulas, setAllFormulas] = useState<Array<Record<string, any> | null>>([]);
-  const [approvedMembers, setApprovedMembers] = useState<Array<Record<string, any>>>([]);
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
-
-  async function refreshApprovedMembers() {
-    try {
-      const res = await listApprovalUpdates();
-      setApprovedMembers(res.items);
-    } catch (err) {
-      console.error("member fetch error:", err);
-      setApprovedMembers([]);
-    }
-  }
-
-  async function memberWorkFormulas(members: Array<Record<string, any>>){
-   try {
-      const res = await correspondingWorkFormulas(members);
-      return setAllFormulas(res.items);
-    } catch (err) {
-      console.error("work formula fetch error:", err);
-      setAllMembers([]);
-    }
-  }
-
-  function refreshAllMembers() {
-    return listMemberSnapshots()
-      .then((res) => {
-        setAllMembers(res.items)
-        memberWorkFormulas(res.items)
-        console.log(workFormulas)
-      })
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setAllMembers([]);
-      });
-  }
-
-  function refreshMembers() {
-    return Promise.all([refreshApprovedMembers(), refreshAllMembers()]);
-  }
 
   //listMemberSnapshots is a GET Request
   //gives back at least 1 member and at most 50 members
@@ -71,7 +31,12 @@ export default function MembersPage() {
       return;
     }
 
-    refreshMembers();
+    listMemberSnapshots()
+      .then((res) => setAllMembers(res.items))
+      .catch((err) => {
+        console.error("member fetch error:", err);
+        setAllMembers([]);
+      });
   }, [isAuthenticated]);
 
   //filters the already-loaded members as the user types, so the table
@@ -128,9 +93,6 @@ export default function MembersPage() {
           <Link className="button-link secondary" to="/work-formula">
             Work Formulas
           </Link>
-          <Link className="button-link secondary" to="/legacy-snapshots">
-            Legacy Snapshots
-          </Link>
           {isAdmin() && (
             <Link className="button-link secondary" to="/admin">
               Admin access
@@ -157,9 +119,7 @@ export default function MembersPage() {
     </Box>
     
 
-      <MemberTable members={items} work_formulas={workFormulas}/>
-
-      <ModalTable members={approvedMembers} onActionComplete={refreshMembers}/>
+      <MemberTable members={items}/>
 
       <br />
 
