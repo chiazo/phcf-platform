@@ -174,6 +174,8 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
         waitlistNumber: 0,
       },
     },
+    created_at: new Date(),////add fresh date pull here
+    modified_at: new Date(),
   });
 
   await pb.collection("member").create({
@@ -258,17 +260,32 @@ export async function getSingleMember(name: string) {
 export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newRecord: string){
    pb.autoCancellation(false);
   
-  if (oldMemberInfo){
+  if (oldMemberInfo){ //does this check do anything? if there's no record to update then this should be called for member init
+    console.log('oldMemberInfo:',`${oldMemberInfo.memberId}`)
     //find the member through the member_id on the member_snapshot table
     const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
     `member_id = "${oldMemberInfo.memberId}"`
   );
+    console.log('currentMemberSnapshot:',currentMemberSnapshot)
+    console.log("modified_at:",currentMemberSnapshot.modified_at)
+
+    // check if created_at history, if not, set to now
+    if (!currentMemberSnapshot.created_at){
+      currentMemberSnapshot.created_at = new Date()
+      console.log('currentMemberSnapshot.created_at:', currentMemberSnapshot.created_at)
+    }
+    // check if modified history, if not, set to now
+    if (!currentMemberSnapshot.modified_at){
+      currentMemberSnapshot.modified_at = new Date()
+      console.log('currentMemberSnapshot.modified_at:', currentMemberSnapshot.modified_at)
+    }
 
     // update the info in the member table
     const record = await pb.collection('member_snapshot').update(`${currentMemberSnapshot.id}`, {
     personal_info : newRecord,
     }); 
 
+    console.log("new member snapshot record:",record)
   }
 }
 
@@ -292,6 +309,8 @@ export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newP
     member_info: newMemberData,
     box_info: oldMemberInfo?.boxInfo,
   });
+  console.log('\nSNAP SHOT:', snapshot)
+  // console.log(snapshot)
 }
 
 export async function listApprovalUpdates() {
@@ -301,7 +320,7 @@ export async function listApprovalUpdates() {
       filter: 'notes = "Update needs approval by an admin." ',
   });
 
-  return resultList
+  console.log('resultList:',resultList)
 }
 
 //gets the full list of boxes from the boxes collection
