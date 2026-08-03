@@ -12,7 +12,7 @@ export default function WorkFormulaPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "Box Info";
+    document.title = "Work Formula Info";
 
     if (!isAuthenticated) {
       setAllFormulas([]);
@@ -64,21 +64,21 @@ export default function WorkFormulaPage() {
             <AdminStatusButton />
           </p>
         </div>
-        <div id='navigation-buttons'>
-            <Link className="button-link secondary" to="/">
-                ← Back to Members
-            </Link>
-            <Link className="button-link secondary" to="/box-info">
-                Box Info
-            </Link>
+        <div id="navigation-buttons">
+          <Link className="button-link secondary" to="/">
+            ← Back to Members
+          </Link>
+          <Link className="button-link secondary" to="/box-info">
+            Box Info
+          </Link>
             {isAdmin() && (
                 <Link className="button-link secondary" to="/admin">
                     Admin access
                 </Link>
             )}
-            <button className="secondary" onClick={handleLogout} type="button">
-                Log out
-            </button>
+          <button className="secondary" onClick={handleLogout} type="button">
+            Log out
+          </button>
         </div>
       </div>
 
@@ -90,12 +90,14 @@ export default function WorkFormulaPage() {
         <table>
           <thead>
             <tr>
-              <th>ID</th>
+              {/* <th>ID</th> */}
               <th>Member ID</th>
               <th>Work Hours Required</th>
               <th>Work Hours Completed</th>
               <th>Open Hours Required</th>
               <th>Open Hours Completed</th>
+              <th>Created At</th>
+              <th>Modified At</th>
             </tr>
           </thead>
           <tbody>
@@ -106,6 +108,8 @@ export default function WorkFormulaPage() {
                 <td>{wf.work_hours_completed}</td>
                 <td>{wf.open_hours_required}</td>
                 <td>{wf.open_hours_completed}</td>
+                <td>{wf.created_at}</td>
+                <td>{wf.modified_at}</td>
               </tr>
             ))}
           </tbody>
