@@ -326,6 +326,9 @@ func ensureMemberSnapshotCollection(app core.App) (*core.Collection, error) {
 		if err := configureMemberSnapshotCollection(app, existing, users.Id); err != nil {
 			return nil, err
 		}
+		if err := configureMemberSnapshotCollection(app, existing, users.Id); err != nil {
+			return nil, err
+		}
 		if err := app.Save(existing); err != nil {
 			return nil, err
 		}
@@ -607,6 +610,16 @@ func configureBoxesCollection(app core.App, collection *core.Collection) error {
 	memberOfBoxRule := "@request.auth.id != '' && " +
 		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
 		"@collection.member_snapshot.member_id ?= box_member_s " + "|| @request.auth.is_admin = true"
+
+	log.Println("work_formula rules updated")
+	if err := addTimeAttributeFields(app, collection); err != nil {
+		return err
+	}
+	addFieldIfMissing(collection, &core.NumberField{Name: "box_state"})
+	addFieldIfMissing(collection, &core.TextField{Name: "updated_by"})
+	addFieldIfMissing(collection, &core.JSONField{Name: "box_member_s"})
+	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist_list"})
+	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
 
 	return nil
 }
