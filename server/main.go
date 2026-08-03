@@ -58,7 +58,11 @@ func ensureAppCollections(app core.App) error {
 		return err
 	}
 
-	_, err = ensureWorkFormulaCollection(app)
+	if _, err := ensureWorkFormulaCollection(app); err != nil {
+		return err
+	}
+
+	_, err = ensureLegacySnapshotCollection(app)
 	return err
 }
 
@@ -395,6 +399,92 @@ func configureMemberSnapshotCollection(app core.App, collection *core.Collection
 	return nil
 }
 
+// legacy snapshot collection functions
+func ensureLegacySnapshotCollection(app core.App) (*core.Collection, error) {
+	existing, err := app.FindCollectionByNameOrId("legacy_snapshot")
+	if err == nil {
+		// users, err := app.FindCollectionByNameOrId("users")
+		// if err != nil {
+		// 	return nil, err
+		// }
+
+		if err := configureLegacySnapshotCollection(app, existing, users.Id); err != nil {
+			return nil, err
+		}
+		if err := app.Save(existing); err != nil {
+			return nil, err
+		}
+
+		return existing, nil
+	}
+
+	// users, err := app.FindCollectionByNameOrId("users")
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	collection := core.NewBaseCollection("legacy_snapshot")
+	if err := configureLegacySnapshotCollection(app, collection, users.Id); err != nil {
+		return nil, err
+	}
+
+	if err := app.Save(collection); err != nil {
+		return nil, err
+	}
+
+	return collection, nil
+}
+
+func configureLegacySnapshotCollection(app core.App, collection *core.Collection, usersCollectionId string) error {
+	authenticatedRule := "@request.auth.id != ''"
+	ownerRule := "user_id = @request.auth.id"
+
+	collection.ListRule = types.Pointer(authenticatedRule)
+	collection.ViewRule = types.Pointer(authenticatedRule)
+	collection.CreateRule = types.Pointer(ownerRule)
+	collection.UpdateRule = types.Pointer(ownerRule)
+	collection.DeleteRule = types.Pointer(ownerRule)
+	if err := addTimeAttributeFields(app, collection); err != nil {
+		return err
+	}
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "user_id",
+		CollectionId: usersCollectionId,
+		Required:     true,
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "member_id",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "updated_by",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "notes",
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "personal_info",
+		Required: true,
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "member_info",
+		Required: true,
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "box_info",
+		Required: true,
+	})
+
+	return nil
+}
+
+// member collection functions
 func ensureMemberCollection(app core.App, snapshotCollectionId string) error {
 	if existing, err := app.FindCollectionByNameOrId("member"); err == nil {
 		users, err := app.FindCollectionByNameOrId("users")
@@ -492,7 +582,7 @@ func configureBoxesCollection(app core.App, collection *core.Collection) error {
 	collection.UpdateRule = types.Pointer(authenticatedRule)
 	collection.DeleteRule = types.Pointer(authenticatedRule)
 
-	log.Println("work_formula rules updated")
+	// log.Println("work_formula rules updated")
 	if err := addTimeAttributeFields(app, collection); err != nil {
 		return err
 	}
@@ -508,7 +598,7 @@ func configureBoxesCollection(app core.App, collection *core.Collection) error {
 // ensureWorkFormulaCollection creates/updates the work_formula collection,
 // tracking each member's required vs. completed work and open hours.
 func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
-	log.Println("ensureWorkFormulaCollection running")
+	// log.Println("ensureWorkFormulaCollection running")
 
 	if existing, err := app.FindCollectionByNameOrId("work_formula"); err == nil {
 		if err := configureWorkFormulaCollection(app, existing); err != nil {
