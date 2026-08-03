@@ -283,6 +283,7 @@ export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newR
     // update the info in the member table
     const record = await pb.collection('member_snapshot').update(`${currentMemberSnapshot.id}`, {
     personal_info : newRecord,
+    modified_at: new Date(),
     }); 
 
     console.log("new member snapshot record:",record)
