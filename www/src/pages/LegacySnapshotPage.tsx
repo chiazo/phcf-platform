@@ -14,7 +14,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import AdminStatusButton from "../components/AdminStatusButton";
 import MemberTable from "../components/MemberTable";
 
-export default function MembersPage() {
+export default function LegacySnapshotPage() {
   //holds all of the members fetched from the server
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
   const [query, setQuery] = useState("");
@@ -24,7 +24,7 @@ export default function MembersPage() {
   //listMemberSnapshots is a GET Request
   //gives back at least 1 member and at most 50 members
   useEffect(() => {
-    document.title = "Overview";
+    document.title = "Legacy Snapshots";
 
     if (!isAuthenticated) {
       setAllMembers([]);
@@ -80,27 +80,30 @@ export default function MembersPage() {
     <>
       <div className="page-header">
         <div>
-          <h1>Members</h1>
+          <h1>Legacy Snapshots</h1>
           <p className="muted signed-in-line">
             Signed in as {currentUser()?.email}
             <AdminStatusButton />
           </p>
         </div>
         <div id='navigation-buttons'>
-          <Link className="button-link secondary" to="/box-info">
-            Box Info
-          </Link>
-          <Link className="button-link secondary" to="/work-formula">
-            Work Formulas
-          </Link>
-          {isAdmin() && (
-            <Link className="button-link secondary" to="/admin">
-              Admin access
+            <Link className="button-link secondary" to="/">
+                ← Back to Members
             </Link>
-          )}
-          <button className="secondary" onClick={handleLogout} type="button">
+            <Link className="button-link secondary" to="/box-info">
+            Box Info
+            </Link>
+            <Link className="button-link secondary" to="/work-formula">
+            Work Formulas
+            </Link>
+            {isAdmin() && (
+            <Link className="button-link secondary" to="/admin">
+                Admin access
+            </Link>
+            )}
+            <button className="secondary" onClick={handleLogout} type="button">
             Log out
-          </button>
+            </button>
         </div>
       </div>
 
