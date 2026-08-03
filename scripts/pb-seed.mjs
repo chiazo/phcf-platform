@@ -545,7 +545,7 @@ async function main() {
   }
 
   if (WIPE) {
-    await wipeSeededData(pb, ["member_snapshot", "boxes", "legacy_snapshots", "work_formula"]);
+    await wipeSeededData(pb, ["member_snapshot", "boxes", "legacy_snapshots","work_formula"]);
   }
 
   let userResult = {
