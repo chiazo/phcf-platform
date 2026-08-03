@@ -103,7 +103,7 @@ export default function MemberSnapshotPage() {
      //check all of the inputs
     //if any are incorrect check add it to the patch
 
-    console.log(data)
+    console.log("submitted personal data:",data)
 
     if (data.pronouns !== pronouns){
       const newPersonalData = 
@@ -130,6 +130,7 @@ export default function MemberSnapshotPage() {
 
       const newPersonalInfo = JSON.stringify(newPersonalData)
 
+      // update pronouns updates all the personal info, not just pronouns
       updatePronouns(member, newPersonalInfo)
       
     }
