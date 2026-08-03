@@ -355,8 +355,8 @@ export async function acceptRequest(currentSnapshot: Record<string, any>){
 }
 
 
-//gets the full list of legacy snapshots from their collection
-// export async function listLegacySnapshots() {
-//   pb.autoCancellation(false);
-//   return await pb.collection("legacy_snapshots").getList(1, 50);
-// }
+// gets the full list of legacy snapshots from the legacy_snapshots collection
+export async function listLegacySnapshots() {
+  pb.autoCancellation(false);
+  return await pb.collection("legacy_snapshots").getList(1, 50);
+}

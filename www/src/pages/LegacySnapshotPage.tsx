@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useId } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isAdmin, isLoggedIn, listMemberSnapshots, logout } from "../lib/pocketbase";
+import { currentUser, isAdmin, isLoggedIn, listLegacySnapshots, logout } from "../lib/pocketbase";
 import { config } from "../lib/config";
 
 import Box from '@mui/material/Box';
@@ -16,7 +16,7 @@ import MemberTable from "../components/MemberTable";
 
 export default function LegacySnapshotPage() {
   //holds all of the members fetched from the server
-  const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
+  const [allSnapshots, setAllSnapshots] = useState<Array<Record<string, any>>>([]);
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
@@ -27,15 +27,15 @@ export default function LegacySnapshotPage() {
     document.title = "Legacy Snapshots";
 
     if (!isAuthenticated) {
-      setAllMembers([]);
+        setAllSnapshots([]);
       return;
     }
 
-    listMemberSnapshots()
-      .then((res) => setAllMembers(res.items))
+    listLegacySnapshots()
+      .then((res) => setAllSnapshots(res.items))
       .catch((err) => {
         console.error("member fetch error:", err);
-        setAllMembers([]);
+        setAllSnapshots([]);
       });
   }, [isAuthenticated]);
 
@@ -43,14 +43,14 @@ export default function LegacySnapshotPage() {
   //updates immediately without waiting on a network request
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return allMembers;
+    if (!q) return allSnapshots;
 
-    return allMembers.filter((record) => {
+    return allSnapshots.filter((record) => {
       const firstName = record.personal_info?.firstName?.toLowerCase() ?? "";
       const lastName = record.personal_info?.lastName?.toLowerCase() ?? "";
       return firstName.includes(q) || lastName.includes(q);
     });
-  }, [allMembers, query]);
+  }, [allSnapshots, query]);
 
   function handleLogout() {
     logout();

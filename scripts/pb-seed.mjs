@@ -85,6 +85,7 @@ try {
       password: { type: "string" },
       users: { type: "string", default: "10" },
       boxes: { type: "string", default: "5" },
+      legacy_snapshots: { type: "string", default: "10" },
       "work-formulas": { type: "string", default: "10" },
       wipe: { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
@@ -104,6 +105,7 @@ const PB_URL =
 const NUM_USERS = Math.max(0, parseInt(args.users, 10) || 0);
 const NUM_BOXES = Math.max(0, parseInt(args.boxes, 10) || 0);
 const NUM_WORK_FORMULAS = Math.max(0, parseInt(args["work-formulas"], 10) || 0);
+const NUM_LEGACY_SNAPSHOTS = Math.max(0, parseInt(args.legacy_snapshots, 10) || 0);
 const WIPE = args.wipe;
 const DRY_RUN = args["dry-run"];
 
@@ -401,6 +403,33 @@ async function seedBoxes(pb, count, memberIdsPool) {
   return created;
 }
 
+async function seedLegacySnaphots(pb, count, memberIdsPool) {
+  console.log(`\n📦 Seeding ${count} fake legacy snapshot record(s)...`);
+  const created = [];
+
+  for (let i = 0; i < count; i++) {
+    const payload = fakeBoxPayload(memberIdsPool);
+
+    if (DRY_RUN) {
+      console.log(
+        `  [${i + 1}/${count}] would create:`,
+        JSON.stringify(payload),
+      );
+      continue;
+    }
+
+    try {
+      const snapshot = await pb.collection("legacy_snaphots").create(payload);
+      console.log(`  [${i + 1}/${count}] created id=${snapshot.id}`);
+      created.push(snapshot);
+    } catch (err) {
+      console.error(`  [${i + 1}/${count}] FAILED: ${describeError(err)}`);
+    }
+  }
+
+  return created;
+}
+
 async function seedWorkFormulas(pb, count, memberIdTextPool) {
   console.log(`\n🧾 Seeding ${count} fake work_formula record(s)...`);
   const created = [];
@@ -516,7 +545,7 @@ async function main() {
   }
 
   if (WIPE) {
-    await wipeSeededData(pb, ["member_snapshot", "boxes", "work_formula"]);
+    await wipeSeededData(pb, ["member_snapshot", "boxes", "legacy_snapshots","work_formula"]);
   }
 
   let userResult = {
@@ -530,6 +559,14 @@ async function main() {
   }
 
   if (NUM_BOXES > 0) {
+    await seedBoxes(
+      pb,
+      NUM_BOXES,
+      userResult.members.map((m) => m.id),
+    );
+  }
+
+  if (NUM_LEGACY_SNAPSHOTS > 0) {
     await seedBoxes(
       pb,
       NUM_BOXES,
