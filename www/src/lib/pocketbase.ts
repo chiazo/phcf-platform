@@ -293,16 +293,15 @@ export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newR
 export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newPersonalData: string, newMemberData: string){
    pb.autoCancellation(false);
 
+   const author = await pb.collection("users").getFirstListItem(
+    `email = "${currentUser()?.email}"`
+   )
+
   //find the member through the member_id on the member_snapshot table
   const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
   `member_id = "${oldMemberInfo?.memberId}"`)
 
   console.log(currentMemberSnapshot)
-
-   //first check for any member_snapshots with the "Update needs approval by an admin"
-  const author = await pb.collection("users").getFirstListItem(
-    `email = "${currentUser()?.email}"`
-   )
 
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: currentMemberSnapshot?.user_id,
@@ -378,8 +377,5 @@ export async function acceptRequest(currentSnapshot: Record<string, any>){
 }
 
 
-// gets the full list of legacy snapshots from the legacy_snapshots collection
-export async function listLegacySnapshots() {
-  pb.autoCancellation(false);
-  return await pb.collection("legacy_snapshots").getList(1, 50);
-}
+
+

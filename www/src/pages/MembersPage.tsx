@@ -72,7 +72,9 @@ export default function MembersPage() {
     }
 
     listApprovalUpdates()
-      .then((res) => setApprovedMembers(res.items))
+      .then((res) => {
+        setApprovedMembers(res.items)
+      })
       .catch((err) => {
         console.error("member fetch error:", err);
         setAllMembers([]);

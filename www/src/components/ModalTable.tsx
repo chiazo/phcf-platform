@@ -32,31 +32,36 @@ export default function ModalTable( { members, onActionComplete }: { members: Ar
         <table>
         <thead>
             <tr>
-                <th colSpan={9}>Personal Info</th>
+                <th colSpan={6}>Personal Info</th>
                 <th colSpan={9}>Member Status</th>
              </tr>
           </thead>
           <thead>
                     <tr>
+                    <th></th>
                     <th>Full Name</th>
-                    <th>Amount Paid</th>
+                    <th>Email</th>
+                    <th>Address</th>
                     <th>Member Role</th>
                     <th>Member Type</th>
                     <th>Member Status</th>
-                    <th>Email</th>
-                    <th>Street</th>
-                    <th>Status</th>
-                    <th>Zip Code</th>
                     <th>Payment Status</th>
                     <th>Amount Paid</th>
                     <th>Payment Type</th>
                     <th>Meetings Completed</th>
-                    <th>Servince Hours Required</th>
+                    <th>Service Hours Required</th>
+                    <th></th>
+                    <th></th>
                     </tr>
                 </thead>
           <tbody>
            {members.map((singleMember) => (
             <tr>
+                <td>
+                    <Checkbox
+                    color="primary"
+                    />
+                </td>
                 <td>{singleMember.personal_info.firstName + " " + singleMember.personal_info.lastName}</td>
                 <td>{singleMember.personal_info.emailInfo.primaryEmail}</td>
                 <td>{singleMember.personal_info.address.line1 + 
@@ -69,8 +74,9 @@ export default function ModalTable( { members, onActionComplete }: { members: Ar
                 <td>{singleMember.member_info.dues.paymentType}</td>
                 <td>{singleMember.member_info.dues.paymentType}</td>
                 <td>{singleMember.member_info.requirements.meetingsCompleted}</td>
-                <td><CheckIcon style={{ color: "green" }} onClick={() => {handleAccept(singleMember)}}/></td>
-                <td><DeleteIcon style={{ color: "red" }} onClick={() => {handleDelete(singleMember)}}/></td>
+                <td></td>
+                <td><CheckIcon onClick={() => {acceptRequest(singleMember)}}/></td>
+                <td><DeleteIcon onClick={() => {deleteRequest(singleMember)}}/></td>
             </tr>
            ))}
             
