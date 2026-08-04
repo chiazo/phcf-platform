@@ -44,17 +44,15 @@ export default function MembersPage() {
     }
   }
 
-  function refreshAllMembers() {
-    return listMemberSnapshots()
-      .then((res) => {
-        setAllMembers(res.items)
-        memberWorkFormulas(res.items)
-        console.log(workFormulas)
-      })
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setAllMembers([]);
-      });
+
+  async function refreshAllMembers() {
+    try {
+      const res = await listMemberSnapshots();
+      return setAllMembers(res.items);
+    } catch (err) {
+      console.error("member fetch error:", err);
+      setAllMembers([]);
+    }
   }
 
   function refreshMembers() {
@@ -175,7 +173,7 @@ export default function MembersPage() {
 
       <MemberTable members={items} work_formulas={workFormulas}/>
 
-      <ModalTable members={approvedMembers} onActionComplete={refreshApprovedMembers}/>
+      <ModalTable members={approvedMembers} onActionComplete={refreshMembers}/>
 
       <br />
 
