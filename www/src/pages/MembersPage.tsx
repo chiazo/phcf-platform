@@ -175,7 +175,7 @@ export default function MembersPage() {
 
       <MemberTable members={items} work_formulas={workFormulas}/>
 
-      <ModalTable members={approvedMembers} onActionComplete={refreshMembers}/>
+      <ModalTable members={approvedMembers} onActionComplete={refreshApprovedMembers}/>
 
       <br />
 

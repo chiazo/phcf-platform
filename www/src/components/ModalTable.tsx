@@ -24,6 +24,16 @@ export default function ModalTable( { members, onActionComplete }: { members: Ar
         onActionComplete?.();
     }
 
+    async function handleAccept(singleMember: Record<string, any>){
+        await acceptRequest(singleMember);
+        onActionComplete?.();
+    }
+
+    async function handleDelete(singleMember: Record<string, any>){
+        await deleteRequest(singleMember);
+        onActionComplete?.();
+    }
+
     return(
     <div id="myModal" className="modal">
       <div className="modal-content">
@@ -49,7 +59,6 @@ export default function ModalTable( { members, onActionComplete }: { members: Ar
                     <th>Amount Paid</th>
                     <th>Payment Type</th>
                     <th>Meetings Completed</th>
-                    <th>Service Hours Required</th>
                     <th></th>
                     <th></th>
                     </tr>
@@ -74,9 +83,8 @@ export default function ModalTable( { members, onActionComplete }: { members: Ar
                 <td>{singleMember.member_info.dues.paymentType}</td>
                 <td>{singleMember.member_info.dues.paymentType}</td>
                 <td>{singleMember.member_info.requirements.meetingsCompleted}</td>
-                <td></td>
-                <td><CheckIcon onClick={() => {acceptRequest(singleMember)}}/></td>
-                <td><DeleteIcon onClick={() => {deleteRequest(singleMember)}}/></td>
+                <td><CheckIcon style={{ color: "green" }} onClick={() => {handleAccept(singleMember)}}/></td>
+                <td><DeleteIcon style={{ color: "red" }} onClick={() => {handleDelete(singleMember)}}/></td>
             </tr>
            ))}
             
