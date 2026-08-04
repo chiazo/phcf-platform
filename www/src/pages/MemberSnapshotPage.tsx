@@ -39,13 +39,14 @@ export default function MemberSnapshotPage() {
   const [notFound, setNotFound] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [isCurrentUserAdmin, setIsCurrentUserAdmin] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
 
   const { register, handleSubmit } = useForm<IFormInput>()
 
-  useEffect(() => {
-    if (!id) return;
+  function refreshMember() {
+    if (!id) return Promise.resolve();
 
-    getMemberSnapshot(id)
+    return getMemberSnapshot(id)
       .then((raw) => {
         if (!raw) {
           console.error("could not find specific")
@@ -54,12 +55,15 @@ export default function MemberSnapshotPage() {
         }
 
         setMember(new MemberSnapshot(raw as any));
-
       })
       .catch((err) => {
         console.error("member snapshot fetch error:", err);
         setNotFound(true);
       });
+  }
+
+  useEffect(() => {
+    refreshMember();
   }, [id]);
 
   useEffect(() => {
@@ -93,9 +97,11 @@ export default function MemberSnapshotPage() {
     meetingsRequired = 0,
   } = requirements;
 
-    const onSubmit: SubmitHandler<IFormInput> = ((data) => {
+    const onSubmit: SubmitHandler<IFormInput> = (async (data) => {
      //check all of the inputs
     //if any are incorrect check add it to the patch
+    setSubmitMessage(null);
+    let hadError = false;
 
     if (data.pronouns !== pronouns){
       const newPersonalData = 
@@ -122,11 +128,12 @@ export default function MemberSnapshotPage() {
 
       const newPersonalInfo = JSON.stringify(newPersonalData)
 
-      updatePronouns(member, newPersonalInfo)
+      await updatePronouns(member, newPersonalInfo)
       .catch((err) => {
         console.error("error in updating pronouns: ", err);
+        hadError = true;
       })
-      
+
     }
     
     const needsApprovalPersonal = 
@@ -169,14 +176,24 @@ export default function MemberSnapshotPage() {
         "role": `${data.memberRole}`
       }
 
-      newFormUpdate(member, JSON.stringify(needsApprovalPersonal), JSON.stringify(needsApprovalMember))
+      await newFormUpdate(member, JSON.stringify(needsApprovalPersonal), JSON.stringify(needsApprovalMember))
       .catch((err) => {
         console.error("error in member snapshot updates: ", err);
+        hadError = true;
       })
+
+      await refreshMember();
+
+      setSubmitMessage(
+        hadError
+          ? "Something went wrong submitting the form. Please try again."
+          : "Form was successfully completed."
+      );
   })
 
   return (
     <>
+      {submitMessage && <p role="status" className="submit-toast">{submitMessage}</p>}
       <Link to="/">← Back to Members</Link>
       <form onSubmit={handleSubmit(onSubmit)}>
 

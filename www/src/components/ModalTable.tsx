@@ -1,15 +1,26 @@
+import { useEffect, useState } from "react";
 import Checkbox from '@mui/material/Checkbox';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckIcon from '@mui/icons-material/Check';
 import { acceptRequest, deleteRequest } from '../lib/pocketbase';
 
-export default function ModalTable( { members }: { members: Array<Record<string, any>> } ){
+export default function ModalTable( { members, onActionComplete }: { members: Array<Record<string, any>>, onActionComplete?: () => void } ){
 
     function closeModal(){
         const modal = document.getElementById("myModal");
         if(modal){
             modal.style.display = "none";
         }
+    }
+
+    async function handleAccept(singleMember: Record<string, any>){
+        await acceptRequest(singleMember);
+        onActionComplete?.();
+    }
+
+    async function handleDelete(singleMember: Record<string, any>){
+        await deleteRequest(singleMember);
+        onActionComplete?.();
     }
 
     return(
@@ -37,7 +48,6 @@ export default function ModalTable( { members }: { members: Array<Record<string,
                     <th>Amount Paid</th>
                     <th>Payment Type</th>
                     <th>Meetings Completed</th>
-                    <th>Service Hours Required</th>
                     <th></th>
                     <th></th>
                     </tr>
@@ -62,9 +72,8 @@ export default function ModalTable( { members }: { members: Array<Record<string,
                 <td>{singleMember.member_info.dues.paymentType}</td>
                 <td>{singleMember.member_info.dues.paymentType}</td>
                 <td>{singleMember.member_info.requirements.meetingsCompleted}</td>
-                <td></td>
-                <td><CheckIcon onClick={() => {acceptRequest(singleMember)}}/></td>
-                <td><DeleteIcon onClick={() => {deleteRequest(singleMember)}}/></td>
+                <td><CheckIcon style={{ color: "green" }} onClick={() => {handleAccept(singleMember)}}/></td>
+                <td><DeleteIcon style={{ color: "red" }} onClick={() => {handleDelete(singleMember)}}/></td>
             </tr>
            ))}
             

@@ -288,7 +288,9 @@ export async function listWorkFormulas() {
 
 export async function deleteRequest(currentSnapshot: Record<string, any>){
   pb.autoCancellation(false);
-  return await pb.collection("member_snapshot").delete(currentSnapshot?.id)
+  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
+    notes: "Recently Denied"
+  })
 }
 
 export async function acceptRequest(currentSnapshot: Record<string, any>){

@@ -23,6 +23,17 @@ export default function MembersPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
 
+  function refreshApprovedMembers() {
+    return listApprovalUpdates()
+      .then((res) => {
+        setApprovedMembers(res.items)
+      })
+      .catch((err) => {
+        console.error("member fetch error:", err);
+        setApprovedMembers([]);
+      });
+  }
+
   //listMemberSnapshots is a GET Request
   //gives back at least 1 member and at most 50 members
   useEffect(() => {
@@ -33,14 +44,7 @@ export default function MembersPage() {
       return;
     }
 
-    listApprovalUpdates()
-      .then((res) => {
-        setApprovedMembers(res.items)
-      })
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setApprovedMembers([]);
-      });
+    refreshApprovedMembers();
 
       listMemberSnapshots()
       .then((res) => setAllMembers(res.items))
@@ -132,7 +136,7 @@ export default function MembersPage() {
 
       <MemberTable members={items}/>
 
-      <ModalTable members={approvedMembers}/>
+      <ModalTable members={approvedMembers} onActionComplete={refreshApprovedMembers}/>
 
       <br />
 
