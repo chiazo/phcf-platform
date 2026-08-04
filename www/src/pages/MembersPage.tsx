@@ -34,6 +34,19 @@ export default function MembersPage() {
       });
   }
 
+  function refreshAllMembers() {
+    return listMemberSnapshots()
+      .then((res) => setAllMembers(res.items))
+      .catch((err) => {
+        console.error("member fetch error:", err);
+        setAllMembers([]);
+      });
+  }
+
+  function refreshMembers() {
+    return Promise.all([refreshApprovedMembers(), refreshAllMembers()]);
+  }
+
   //listMemberSnapshots is a GET Request
   //gives back at least 1 member and at most 50 members
   useEffect(() => {
@@ -44,14 +57,7 @@ export default function MembersPage() {
       return;
     }
 
-    refreshApprovedMembers();
-
-      listMemberSnapshots()
-      .then((res) => setAllMembers(res.items))
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setAllMembers([]);
-      });
+    refreshMembers();
   }, [isAuthenticated]);
 
   //filters the already-loaded members as the user types, so the table
@@ -136,7 +142,7 @@ export default function MembersPage() {
 
       <MemberTable members={items}/>
 
-      <ModalTable members={approvedMembers} onActionComplete={refreshApprovedMembers}/>
+      <ModalTable members={approvedMembers} onActionComplete={refreshMembers}/>
 
       <br />
 

@@ -11,6 +11,7 @@ export default function ModalTable( { members, onActionComplete }: { members: Ar
         if(modal){
             modal.style.display = "none";
         }
+        onActionComplete?.();
     }
 
     async function handleAccept(singleMember: Record<string, any>){
@@ -31,13 +32,12 @@ export default function ModalTable( { members, onActionComplete }: { members: Ar
         <table>
         <thead>
             <tr>
-                <th colSpan={6}>Personal Info</th>
-                <th colSpan={9}>Member Status</th>
+                <th colSpan={3}>Personal Info</th>
+                <th colSpan={7}>Member Info</th>
              </tr>
           </thead>
           <thead>
                     <tr>
-                    <th></th>
                     <th>Full Name</th>
                     <th>Email</th>
                     <th>Address</th>
@@ -55,11 +55,6 @@ export default function ModalTable( { members, onActionComplete }: { members: Ar
           <tbody>
            {members.map((singleMember) => (
             <tr>
-                <td>
-                    <Checkbox
-                    color="primary"
-                    />
-                </td>
                 <td>{singleMember.personal_info.firstName + " " + singleMember.personal_info.lastName}</td>
                 <td>{singleMember.personal_info.emailInfo.primaryEmail}</td>
                 <td>{singleMember.personal_info.address.line1 + 
