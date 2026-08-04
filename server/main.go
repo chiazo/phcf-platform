@@ -438,8 +438,6 @@ func configureMemberCollection(collection *core.Collection, usersCollectionId st
 // ensureBoxesCollection ports the schema originally captured by the
 // auto-generated 1784314870_created_boxes.go / 1784315056_updated_boxes.go
 // migrations into the same idempotent find-or-create pattern used above.
-// No access rules were ever configured on this collection (dashboard
-// defaults to superuser-only), so none are set here either.
 func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 	log.Println("ensureBoxesCollection running")
 
@@ -478,6 +476,35 @@ func configureBoxesCollection(collection *core.Collection) {
 	addFieldIfMissing(collection, &core.JSONField{Name: "box_member_s"})
 	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist_list"})
 	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
+	// Superusers always bypass API rules entirely (see PocketBase docs), so
+	// they can already list/view/edit every box without any rule needed
+	// here. This rule only governs everyone else: a regular authenticated
+	// user may list/view a box only if there's a member_snapshot they own
+	// (user_id = them) whose member_id shows up in that box's
+	// box_member_s list. @collection.* is used because boxes has no direct
+	// relation field to member_snapshot — both conditions reference the
+	// same @collection.member_snapshot alias, so they constrain the same
+	// joined row rather than being independent checks.
+	//
+	// NOTE: this assumes box_member_s is a JSON array of member_id strings
+	// (e.g. ["m_123", "m_456"]). If it's structured differently (e.g. an
+	// array of objects), this filter will need to change accordingly.
+	memberOfBoxRule := "@request.auth.id != '' && " +
+		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
+		"@collection.member_snapshot.member_id ?= box_member_s"
+
+	collection.ListRule = types.Pointer(memberOfBoxRule)
+	collection.ViewRule = types.Pointer(memberOfBoxRule)
+	// create/update/delete stay unset (nil = superuser-only): editing box
+	// assignments is an administrative action, not self-service.
+
+	collection.Fields.Add(
+		&core.NumberField{Name: "box_state"},
+		&core.TextField{Name: "updated_by"},
+		&core.JSONField{Name: "box_member_s"},
+		&core.JSONField{Name: "waitlist_list"},
+		&core.TextField{Name: "notes"},
+	)
 }
 
 // ensureWorkFormulaCollection creates/updates the work_formula collection,
@@ -505,19 +532,25 @@ func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
 }
 
 func configureWorkFormulaCollection(collection *core.Collection) {
-	authenticatedRule := "@request.auth.id != ''"
+	// WF rules
+	memberOfWFRule := "@request.auth.id != '' && " +
+		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
+		"@collection.member_snapshot.member_id ?= member_id"
+	// authenticatedRule := "@request.auth.id != ''"
 
-	collection.ListRule = types.Pointer(authenticatedRule)
-	collection.ViewRule = types.Pointer(authenticatedRule)
-	collection.CreateRule = types.Pointer(authenticatedRule)
-	collection.UpdateRule = types.Pointer(authenticatedRule)
-	collection.DeleteRule = types.Pointer(authenticatedRule)
+	collection.ListRule = types.Pointer(memberOfWFRule)
+	collection.ViewRule = types.Pointer(memberOfWFRule)
+	// collection.CreateRule = types.Pointer(authenticatedRule)
+	// collection.UpdateRule = types.Pointer(authenticatedRule)
+	// collection.DeleteRule = types.Pointer(authenticatedRule)
 	addTimeAttributeFields(collection)
 	addFieldIfMissing(collection, &core.TextField{Name: "member_id"})
 	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_required", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_completed", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_required", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_completed", OnlyInt: true})
+	addFieldIfMissing(collection, &core.NumberField{Name: "created_at", OnlyInt: true})
+	addFieldIfMissing(collection, &core.NumberField{Name: "modified_at", OnlyInt: true})
 }
 
 func addFieldIfMissing(collection *core.Collection, field core.Field) {
