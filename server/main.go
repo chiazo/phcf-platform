@@ -344,7 +344,7 @@ func ensureMemberSnapshotCollection(app core.App) (*core.Collection, error) {
 
 func configureMemberSnapshotCollection(collection *core.Collection, usersCollectionId string) {
 	authenticatedRule := "@request.auth.id != ''"
-	ownerRule := "user_id = @request.auth.id"
+	ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 
 	collection.ListRule = types.Pointer(authenticatedRule)
 	collection.ViewRule = types.Pointer(authenticatedRule)
@@ -412,7 +412,7 @@ func ensureMemberCollection(app core.App, snapshotCollectionId string) error {
 
 func configureMemberCollection(collection *core.Collection, usersCollectionId string, snapshotCollectionId string) {
 	authenticatedRule := "@request.auth.id != ''"
-	ownerRule := "user_id = @request.auth.id"
+	ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 
 	collection.ListRule = types.Pointer(ownerRule)
 	collection.ViewRule = types.Pointer(ownerRule)
@@ -463,9 +463,7 @@ func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 }
 
 func configureBoxesCollection(collection *core.Collection) {
-	authenticatedRule := `
-		@request.auth.id != ''
-	`
+	authenticatedRule := `@request.auth.id != ''`
 
 	collection.ListRule = types.Pointer(authenticatedRule)
 	collection.ViewRule = types.Pointer(authenticatedRule)

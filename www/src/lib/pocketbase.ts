@@ -6,21 +6,6 @@ import {MemberType, DueState, MemberState, PaymentType, MemberRole} from "../mod
 import MemberSnapshot from "../models/MemberSnapshot";
 
 
-interface IFormInput {
-  pronouns: string
-  memberType: MemberType
-  dueState: DueState
-  memberState: MemberState
-  primaryEmail: string
-  primaryPhoneNumber: string
-  paymentType: PaymentType
-  memberRole: MemberRole
-  amountPaid: number
-  line1: string
-  city: string
-  zipCode: string
-}
-
 export const pb = new PocketBase(config.pbUrl);
 
 
@@ -260,22 +245,18 @@ export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newR
 export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newPersonalData: string, newMemberData: string){
    pb.autoCancellation(false);
 
+   const author = await pb.collection("users").getFirstListItem(
+    `email = "${currentUser()?.email}"`
+   )
+
   //find the member through the member_id on the member_snapshot table
   const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
   `member_id = "${oldMemberInfo?.memberId}"`)
 
-  console.log(currentMemberSnapshot)
-
-   //first check for any member_snapshots with the "Update needs approval by an admin"
-   
-
-   //if it exists update the snapshot
-
-   //if not create the snapshot
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: currentMemberSnapshot?.user_id,
     member_id: oldMemberInfo?.memberId,
-    updated_by: oldMemberInfo?.fullName,
+    updated_by: author?.name,
     notes: "Update needs approval by an admin.",
     personal_info: newPersonalData,
     member_info: newMemberData,
@@ -304,3 +285,33 @@ export async function listWorkFormulas() {
   pb.autoCancellation(false);
   return await pb.collection("work_formula").getList(1, 50, { sort: "-created" });
 }
+
+export async function deleteRequest(currentSnapshot: Record<string, any>){
+  pb.autoCancellation(false);
+  return await pb.collection("member_snapshot").delete(currentSnapshot?.id)
+}
+
+export async function acceptRequest(currentSnapshot: Record<string, any>){
+
+  console.log(currentSnapshot.user_id)
+
+  //find the user with that id from the currentSnapshot's user_id
+  const currentUser = await pb.collection("users").getFirstListItem(
+    `id = "${currentSnapshot.user_id}"`
+  )
+
+  //use the id from currentUser and find the member with that user_id
+  const currentMember = await pb.collection("member").getFirstListItem(
+    `user_id = "${currentUser.id}"`
+  )
+
+  //update the currentSnapshot id to the currentMember's member_snapshot_id
+  await pb.collection("member").update(`${currentMember.id}`, {
+    member_snapshot_id: `${currentSnapshot.id}`
+  })
+
+  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
+    notes: "Recently Updated"
+  })
+}
+

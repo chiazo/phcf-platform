@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useForm, SubmitHandler } from "react-hook-form"
-import Button from '@mui/material/Button';
 
 import { getMemberSnapshot, updatePronouns, newFormUpdate} from "../lib/pocketbase";
 
@@ -29,6 +28,7 @@ interface IFormInput {
   memberRole: MemberRole
   amountPaid: number
   paymentType: PaymentType
+  meetingsCompleted: number,
   //box_info
   dueState: DueState
 }
@@ -155,23 +155,24 @@ export default function MemberSnapshotPage() {
       {
         "dues": {
           "amountPaid": `${data.amountPaid}`,
-          "dueState": "UNPAID",
+          "dueState":`${dueState}`,
           "duesPaidAt": 0,
           "paymentType": `${data.paymentType}`
         },
         "memberState": `${data.memberState}`,
         "memberType": `${data.memberType}`,
-        "orientationDate": 1784751272,
+        "orientationDate": orientationDate,
         "requirements": {
-          "meetingsCompleted": 0,
-          "meetingsRequired": 0,
-          "serviceHoursRequired": 0,
-          "serviceRequirements": []
+          "meetingsCompleted": `${data.meetingsCompleted}`,
+          "meetingsRequired": meetingsRequired,
         },
         "role": `${data.memberRole}`
       }
 
       newFormUpdate(member, JSON.stringify(needsApprovalPersonal), JSON.stringify(needsApprovalMember))
+      .catch((err) => {
+        console.error("error in member snapshot updates: ", err);
+      })
   })
 
   return (
@@ -267,7 +268,7 @@ export default function MemberSnapshotPage() {
           <h2>Dues</h2>
 
           <p>
-            <strong></strong>
+            <strong>Due Status</strong>
             <select {...register("dueState")} defaultValue={dueState}>
               <option value="COMPLETE">COMPLETE</option>
               <option value="PENDING">PENDING</option>
@@ -312,7 +313,7 @@ export default function MemberSnapshotPage() {
           </p>
           <p>
             <strong>Meetings Completed</strong>
-            {meetingsCompleted} / {meetingsRequired}
+            <input id={"meetingsInput"} {...register("meetingsCompleted")} defaultValue={meetingsCompleted}/> / {meetingsRequired}
           </p>
         </section>
 
