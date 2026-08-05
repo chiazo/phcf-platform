@@ -20,6 +20,8 @@ import {
   MemberState,
   MemberType,
   PaymentType,
+  emailPattern,
+  phonePattern,
 } from "../models/enums";
 
 interface IFormInput {
@@ -59,7 +61,11 @@ export default function MemberSnapshotPage() {
     null,
   );
 
-  const { register, handleSubmit } = useForm<IFormInput>();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<IFormInput>();
 
   async function refreshMember() {
     if (!id) return Promise.resolve();
@@ -374,18 +380,38 @@ export default function MemberSnapshotPage() {
             <p>
               <strong>Email</strong>
               <input
-                {...register("primaryEmail")}
+                {...register("primaryEmail", {
+                  pattern: {
+                    value: emailPattern,
+                    message: "Invalid email address",
+                  },
+                })}
                 defaultValue={primaryEmail}
                 disabled={!editMode}
               />
+              {errors.primaryEmail && (
+                <span style={{ color: "red" }}>
+                  {errors.primaryEmail.message}
+                </span>
+              )}
             </p>
             <p>
               <strong>Phone</strong>
               <input
-                {...register("primaryPhoneNumber")}
+                {...register("primaryPhoneNumber", {
+                  pattern: {
+                    value: phonePattern,
+                    message: "Invalid phone number",
+                  },
+                })}
                 defaultValue={primaryPhoneNumber}
                 disabled={!editMode}
               />
+              {errors.primaryPhoneNumber && (
+                <span style={{ color: "red" }}>
+                  {errors.primaryPhoneNumber.message}
+                </span>
+              )}
             </p>
             <p>
               <strong>Mailing List</strong>

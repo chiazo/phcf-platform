@@ -45,6 +45,9 @@ export const PaymentType = {
 
 export type PaymentType = (typeof PaymentType)[keyof typeof PaymentType];
 
+export const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const phonePattern = /^\+?[\d\s().-]{10,17}$/;
+
 export const BoxState = {
   UNASSIGNED: "UNASSIGNED",
   ASSIGNED: "ASSIGNED",
