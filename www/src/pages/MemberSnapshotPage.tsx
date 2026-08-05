@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useForm, SubmitHandler } from "react-hook-form"
-import Button from '@mui/material/Button';
 
-import { getMemberSnapshot, updatePronouns, newFormUpdate, typeCheckUser} from "../lib/pocketbase";
+import { getMemberSnapshot, updatePronouns, newFormUpdate, getMemberWorkFormula} from "../lib/pocketbase";
 
 import MemberSnapshot from "../models/MemberSnapshot";
-
 
 import {MemberType, DueState, MemberState, PaymentType, MemberRole} from "../models/enums";
 import { AuthRecord } from "pocketbase";
@@ -28,6 +26,7 @@ interface IFormInput {
   memberRole: MemberRole
   amountPaid: number
   paymentType: PaymentType
+  meetingsCompleted: number,
   //box_info
   dueState: DueState
 }
@@ -38,13 +37,15 @@ export default function MemberSnapshotPage() {
   const [notFound, setNotFound] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [isCurrentUserAdmin, setIsCurrentUserAdmin] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const [workFormula, setWorkFormula] = useState<Record<string, any> | null>(null);
 
   const { register, handleSubmit } = useForm<IFormInput>()
 
-  useEffect(() => {
-    if (!id) return;
+  async function refreshMember() {
+    if (!id) return Promise.resolve();
 
-    getMemberSnapshot(id)
+    return getMemberSnapshot(id)
       .then((raw) => {
         if (!raw) {
           console.error("could not find specific")
@@ -52,20 +53,26 @@ export default function MemberSnapshotPage() {
           return;
         }
 
-        setMember(new MemberSnapshot(raw as any));
-        typeCheckUser()
-        .then(type => {
-          if (type === "ADMIN"){
-            setIsCurrentUserAdmin(true)
-          }
+        getMemberWorkFormula(raw)
+        .then((result) => {
+          setWorkFormula(result)
+        })
+        .catch((err) => {
+          console.error("issues with fetching work formula:", err);
         })
 
+        console.log(workFormula)
 
+        setMember(new MemberSnapshot(raw as any));
       })
       .catch((err) => {
         console.error("member snapshot fetch error:", err);
         setNotFound(true);
       });
+  }
+
+  useEffect(() => {
+    refreshMember();
   }, [id]);
 
   useEffect(() => {
@@ -99,11 +106,11 @@ export default function MemberSnapshotPage() {
     meetingsRequired = 0,
   } = requirements;
 
-    const onSubmit: SubmitHandler<IFormInput> = ((data) => {
+    const onSubmit: SubmitHandler<IFormInput> = (async (data) => {
      //check all of the inputs
     //if any are incorrect check add it to the patch
-
-    console.log(data)
+    setSubmitMessage(null);
+    let hadError = false;
 
     if (data.pronouns !== pronouns){
       const newPersonalData = 
@@ -130,8 +137,12 @@ export default function MemberSnapshotPage() {
 
       const newPersonalInfo = JSON.stringify(newPersonalData)
 
-      updatePronouns(member, newPersonalInfo)
-      
+      await updatePronouns(member, newPersonalInfo)
+      .catch((err) => {
+        console.error("error in updating pronouns: ", err);
+        hadError = true;
+      })
+
     }
     
     const needsApprovalPersonal = 
@@ -160,27 +171,38 @@ export default function MemberSnapshotPage() {
       {
         "dues": {
           "amountPaid": `${data.amountPaid}`,
-          "dueState": "UNPAID",
+          "dueState":`${dueState}`,
           "duesPaidAt": 0,
           "paymentType": `${data.paymentType}`
         },
         "memberState": `${data.memberState}`,
         "memberType": `${data.memberType}`,
-        "orientationDate": 1784751272,
+        "orientationDate": orientationDate,
         "requirements": {
-          "meetingsCompleted": 0,
-          "meetingsRequired": 0,
-          "serviceHoursRequired": 0,
-          "serviceRequirements": []
+          "meetingsCompleted": `${data.meetingsCompleted}`,
+          "meetingsRequired": meetingsRequired,
         },
         "role": `${data.memberRole}`
       }
 
-      newFormUpdate(member, JSON.stringify(needsApprovalPersonal), JSON.stringify(needsApprovalMember))
+      await newFormUpdate(member, JSON.stringify(needsApprovalPersonal), JSON.stringify(needsApprovalMember))
+      .catch((err) => {
+        console.error("error in member snapshot updates: ", err);
+        hadError = true;
+      })
+
+      await refreshMember();
+
+      setSubmitMessage(
+        hadError
+          ? "Something went wrong submitting the form. Please try again."
+          : "Form was successfully completed."
+      );
   })
 
   return (
     <>
+      {submitMessage && <p role="status" className="submit-toast">{submitMessage}</p>}
       <Link to="/">← Back to Members</Link>
       <form onSubmit={handleSubmit(onSubmit)}>
 
@@ -188,17 +210,13 @@ export default function MemberSnapshotPage() {
         <h1>
           {firstName} {lastName}
         </h1>
-
-        <Button variant="contained" onClick={() => setEditMode(!editMode)}>Edit Status</Button>
       </div>
       <div className="grid">
         {/* General */}
         <section>
           <h2>General</h2>
-          {isCurrentUserAdmin 
-            ? <p><strong>Member ID</strong>{memberId}</p>
-            : <p></p>
-          }
+           <p><strong>Member ID</strong>{memberId}</p>
+       
           <p>
             <strong>First Name</strong>
             <input {...register("firstName")} defaultValue={firstName}/>
@@ -276,7 +294,7 @@ export default function MemberSnapshotPage() {
           <h2>Dues</h2>
 
           <p>
-            <strong>Status</strong>
+            <strong>Due Status</strong>
             <select {...register("dueState")} defaultValue={dueState}>
               <option value="COMPLETE">COMPLETE</option>
               <option value="PENDING">PENDING</option>
@@ -291,9 +309,10 @@ export default function MemberSnapshotPage() {
           <p>
             <strong>Payment Type</strong>
             <select {...register("paymentType")} defaultValue={paymentType}>
-              <option value="COMPLETE">COMPLETE</option>
-              <option value="PENDING">PENDING</option>
-              <option value="UNPAID">UNPAID</option>
+              <option value="PAYMENT_TYPE_INVALID">PAYMENT_TYPE_INVALID</option>
+              <option value="CASH">CASH</option>
+              <option value="SQUARE">SQUARE</option>
+              <option value="CREDIT">CREDIT</option>
             </select>
           </p>
           <p>
@@ -319,8 +338,8 @@ export default function MemberSnapshotPage() {
             })}
           </p>
           <p>
-            <strong>Meetings</strong>
-            {meetingsCompleted} / {meetingsRequired}
+            <strong>Meetings Completed</strong>
+            <input id={"meetingsInput"} {...register("meetingsCompleted")} defaultValue={meetingsCompleted}/> / {meetingsRequired}
           </p>
         </section>
 

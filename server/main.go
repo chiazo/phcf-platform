@@ -344,7 +344,7 @@ func ensureMemberSnapshotCollection(app core.App) (*core.Collection, error) {
 
 func configureMemberSnapshotCollection(collection *core.Collection, usersCollectionId string) {
 	authenticatedRule := "@request.auth.id != ''"
-	ownerRule := "user_id = @request.auth.id"
+	ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 
 	collection.ListRule = types.Pointer(authenticatedRule)
 	collection.ViewRule = types.Pointer(authenticatedRule)
@@ -412,7 +412,7 @@ func ensureMemberCollection(app core.App, snapshotCollectionId string) error {
 
 func configureMemberCollection(collection *core.Collection, usersCollectionId string, snapshotCollectionId string) {
 	authenticatedRule := "@request.auth.id != ''"
-	ownerRule := "user_id = @request.auth.id"
+	ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 
 	collection.ListRule = types.Pointer(ownerRule)
 	collection.ViewRule = types.Pointer(ownerRule)
@@ -461,6 +461,21 @@ func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 }
 
 func configureBoxesCollection(collection *core.Collection) {
+	authenticatedRule := `@request.auth.id != ''`
+
+	collection.ListRule = types.Pointer(authenticatedRule)
+	collection.ViewRule = types.Pointer(authenticatedRule)
+	collection.CreateRule = types.Pointer(authenticatedRule)
+	collection.UpdateRule = types.Pointer(authenticatedRule)
+	collection.DeleteRule = types.Pointer(authenticatedRule)
+
+	log.Println("work_formula rules updated")
+	addTimeAttributeFields(collection)
+	addFieldIfMissing(collection, &core.NumberField{Name: "box_state"})
+	addFieldIfMissing(collection, &core.TextField{Name: "updated_by"})
+	addFieldIfMissing(collection, &core.JSONField{Name: "box_member_s"})
+	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist_list"})
+	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
 	// Superusers always bypass API rules entirely (see PocketBase docs), so
 	// they can already list/view/edit every box without any rule needed
 	// here. This rule only governs everyone else: a regular authenticated
@@ -476,7 +491,7 @@ func configureBoxesCollection(collection *core.Collection) {
 	// array of objects), this filter will need to change accordingly.
 	memberOfBoxRule := "@request.auth.id != '' && " +
 		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
-		"@collection.member_snapshot.member_id ?= box_member_s"
+		"@collection.member_snapshot.member_id ?= box_member_s " + "|| @request.auth.is_admin = true"
 
 	collection.ListRule = types.Pointer(memberOfBoxRule)
 	collection.ViewRule = types.Pointer(memberOfBoxRule)
@@ -520,7 +535,7 @@ func configureWorkFormulaCollection(collection *core.Collection) {
 	// WF rules
 	memberOfWFRule := "@request.auth.id != '' && " +
 		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
-		"@collection.member_snapshot.member_id ?= member_id"
+		"@collection.member_snapshot.member_id ?= member_id " + "|| @request.auth.is_admin = true"
 	// authenticatedRule := "@request.auth.id != ''"
 
 	collection.ListRule = types.Pointer(memberOfWFRule)
