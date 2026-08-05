@@ -314,9 +314,7 @@ export async function deleteRequest(currentSnapshot: Record<string, any>){
 }
 
 export async function acceptRequest(currentSnapshot: Record<string, any>){
-
-  console.log(currentSnapshot.user_id)
-
+  pb.autoCancellation(false);
   //find the user with that id from the currentSnapshot's user_id
   const currentUser = await pb.collection("users").getFirstListItem(
     `id = "${currentSnapshot.user_id}"`
@@ -335,5 +333,12 @@ export async function acceptRequest(currentSnapshot: Record<string, any>){
   await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
     notes: "Recently Updated"
   })
+}
+
+export async function getMemberWorkFormula(memberSnapshot: Record <string, any>){
+  pb.autoCancellation(false);
+  return await pb
+    .collection("work_formula")
+    .getFirstListItem(`member_id = "${memberSnapshot.member_id}"`);
 }
 

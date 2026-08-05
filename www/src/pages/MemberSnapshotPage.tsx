@@ -2,11 +2,9 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useForm, SubmitHandler } from "react-hook-form"
 
-import { getMemberSnapshot, updatePronouns, newFormUpdate} from "../lib/pocketbase";
+import { getMemberSnapshot, updatePronouns, newFormUpdate, getMemberWorkFormula} from "../lib/pocketbase";
 
 import MemberSnapshot from "../models/MemberSnapshot";
-
-
 
 import {MemberType, DueState, MemberState, PaymentType, MemberRole} from "../models/enums";
 import { AuthRecord } from "pocketbase";
@@ -40,10 +38,11 @@ export default function MemberSnapshotPage() {
   const [editMode, setEditMode] = useState(false);
   const [isCurrentUserAdmin, setIsCurrentUserAdmin] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const [workFormula, setWorkFormula] = useState<Record<string, any> | null>(null);
 
   const { register, handleSubmit } = useForm<IFormInput>()
 
-  function refreshMember() {
+  async function refreshMember() {
     if (!id) return Promise.resolve();
 
     return getMemberSnapshot(id)
@@ -53,6 +52,16 @@ export default function MemberSnapshotPage() {
           setNotFound(true);
           return;
         }
+
+        getMemberWorkFormula(raw)
+        .then((result) => {
+          setWorkFormula(result)
+        })
+        .catch((err) => {
+          console.error("issues with fetching work formula:", err);
+        })
+
+        console.log(workFormula)
 
         setMember(new MemberSnapshot(raw as any));
       })

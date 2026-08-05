@@ -591,6 +591,22 @@ func configureBoxesCollection(app core.App, collection *core.Collection) error {
 	addFieldIfMissing(collection, &core.JSONField{Name: "box_member_s"})
 	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist_list"})
 	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
+	// Superusers always bypass API rules entirely (see PocketBase docs), so
+	// they can already list/view/edit every box without any rule needed
+	// here. This rule only governs everyone else: a regular authenticated
+	// user may list/view a box only if there's a member_snapshot they own
+	// (user_id = them) whose member_id shows up in that box's
+	// box_member_s list. @collection.* is used because boxes has no direct
+	// relation field to member_snapshot — both conditions reference the
+	// same @collection.member_snapshot alias, so they constrain the same
+	// joined row rather than being independent checks.
+	//
+	// NOTE: this assumes box_member_s is a JSON array of member_id strings
+	// (e.g. ["m_123", "m_456"]). If it's structured differently (e.g. an
+	// array of objects), this filter will need to change accordingly.
+	memberOfBoxRule := "@request.auth.id != '' && " +
+		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
+		"@collection.member_snapshot.member_id ?= box_member_s " + "|| @request.auth.is_admin = true"
 
 	return nil
 }
@@ -623,8 +639,12 @@ func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
 	return collection, nil
 }
 
-func configureWorkFormulaCollection(app core.App, collection *core.Collection) error {
-	authenticatedRule := "@request.auth.id != ''"
+func configureWorkFormulaCollection(collection *core.Collection) {
+	// WF rules
+	memberOfWFRule := "@request.auth.id != '' && " +
+		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
+		"@collection.member_snapshot.member_id ?= member_id " + "|| @request.auth.is_admin = true"
+	// authenticatedRule := "@request.auth.id != ''"
 
 	collection.ListRule = types.Pointer(authenticatedRule)
 	collection.ViewRule = types.Pointer(authenticatedRule)
