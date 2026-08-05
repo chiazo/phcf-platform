@@ -45,20 +45,33 @@ func ensureAppCollections(app core.App) error {
 		return err
 	}
 
-	snapshotCollection, err := ensureMemberSnapshotCollection(app)
+	users, err := app.FindCollectionByNameOrId("users")
 	if err != nil {
 		return err
 	}
 
-	if err := ensureMemberCollection(app, snapshotCollection.Id); err != nil {
+	// Pass 1: create both collections with their non-circular fields only.
+	snapshotCollection, err := ensureMemberSnapshotCollection(app, users.Id, "")
+	if err != nil {
 		return err
 	}
 
-	if _, err := ensureBoxesCollection(app); err != nil {
+	memberCollection, err := ensureMemberCollection(app, snapshotCollection.Id)
+	if err != nil {
 		return err
 	}
 
-	if _, err := ensureWorkFormulaCollection(app); err != nil {
+	// Pass 2: now that both exist, backfill the circular relation.
+	snapshotCollection, err = ensureMemberSnapshotCollection(app, users.Id, memberCollection.Id)
+	if err != nil {
+		return err
+	}
+
+	if _, err := ensureBoxesCollection(app, memberCollection.Id); err != nil {
+		return err
+	}
+
+	if _, err := ensureWorkFormulaCollection(app, memberCollection.Id); err != nil {
 		return err
 	}
 
@@ -315,34 +328,20 @@ func hasSuperuserWithEmail(app core.App, email string) bool {
 	return err == nil
 }
 
-func ensureMemberSnapshotCollection(app core.App) (*core.Collection, error) {
+func ensureMemberSnapshotCollection(app core.App, usersCollectionId string, memberCollectionId string) (*core.Collection, error) {
 	existing, err := app.FindCollectionByNameOrId("member_snapshot")
 	if err == nil {
-		users, err := app.FindCollectionByNameOrId("users")
-		if err != nil {
-			return nil, err
-		}
-
-		if err := configureMemberSnapshotCollection(app, existing, users.Id); err != nil {
-			return nil, err
-		}
-		if err := configureMemberSnapshotCollection(app, existing, users.Id); err != nil {
+		if err := configureMemberSnapshotCollection(app, existing, usersCollectionId, memberCollectionId); err != nil {
 			return nil, err
 		}
 		if err := app.Save(existing); err != nil {
 			return nil, err
 		}
-
 		return existing, nil
 	}
 
-	users, err := app.FindCollectionByNameOrId("users")
-	if err != nil {
-		return nil, err
-	}
-
 	collection := core.NewBaseCollection("member_snapshot")
-	if err := configureMemberSnapshotCollection(app, collection, users.Id); err != nil {
+	if err := configureMemberSnapshotCollection(app, collection, usersCollectionId, memberCollectionId); err != nil {
 		return nil, err
 	}
 
@@ -353,7 +352,7 @@ func ensureMemberSnapshotCollection(app core.App) (*core.Collection, error) {
 	return collection, nil
 }
 
-func configureMemberSnapshotCollection(app core.App, collection *core.Collection, usersCollectionId string) error {
+func configureMemberSnapshotCollection(app core.App, collection *core.Collection, usersCollectionId string, memberCollectionId string) error {
 	authenticatedRule := "@request.auth.id != ''"
 	ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 
@@ -372,9 +371,18 @@ func configureMemberSnapshotCollection(app core.App, collection *core.Collection
 		Required:     true,
 	})
 
-	addFieldIfMissing(collection, &core.TextField{
-		Name: "member_id",
-	})
+	// member_id can't be required at first-pass creation time, since the
+	// member collection doesn't exist yet (circular dependency — see
+	// ensureAppCollections). It's added/upgraded on the second pass once
+	// memberCollectionId is known, so it stays optional here even though
+	// every real snapshot should have one in practice.
+	if memberCollectionId != "" {
+		addFieldIfMissing(collection, &core.RelationField{
+			Name:         "member_id",
+			CollectionId: memberCollectionId,
+			Required:     false,
+		})
+	}
 
 	addFieldIfMissing(collection, &core.TextField{
 		Name: "updated_by",
@@ -487,30 +495,30 @@ func configureLegacySnapshotCollection(app core.App, collection *core.Collection
 	return nil
 }
 
-func ensureMemberCollection(app core.App, snapshotCollectionId string) error {
+func ensureMemberCollection(app core.App, snapshotCollectionId string) (*core.Collection, error) {
 	if existing, err := app.FindCollectionByNameOrId("member"); err == nil {
 		users, err := app.FindCollectionByNameOrId("users")
 		if err != nil {
-			return err
+			return existing, err
 		}
 
 		if err := configureMemberCollection(app, existing, users.Id, snapshotCollectionId); err != nil {
-			return err
+			return nil, err
 		}
-		return app.Save(existing)
+		return existing, app.Save(existing)
 	}
 
 	users, err := app.FindCollectionByNameOrId("users")
 	if err != nil {
-		return err
+		return users, err
 	}
 
 	collection := core.NewBaseCollection("member")
 	if err := configureMemberCollection(app, collection, users.Id, snapshotCollectionId); err != nil {
-		return err
+		return nil, err
 	}
 
-	return app.Save(collection)
+	return collection, app.Save(collection)
 }
 
 func configureMemberCollection(app core.App, collection *core.Collection, usersCollectionId string, snapshotCollectionId string) error {
@@ -545,13 +553,11 @@ func configureMemberCollection(app core.App, collection *core.Collection, usersC
 // ensureBoxesCollection ports the schema originally captured by the
 // auto-generated 1784314870_created_boxes.go / 1784315056_updated_boxes.go
 // migrations into the same idempotent find-or-create pattern used above.
-// No access rules were ever configured on this collection (dashboard
-// defaults to superuser-only), so none are set here either.
-func ensureBoxesCollection(app core.App) (*core.Collection, error) {
+func ensureBoxesCollection(app core.App, memberCollectionId string) (*core.Collection, error) {
 	log.Println("ensureBoxesCollection running")
 
 	if existing, err := app.FindCollectionByNameOrId("boxes"); err == nil {
-		if err := configureBoxesCollection(app, existing); err != nil {
+		if err := configureBoxesCollection(app, existing, memberCollectionId); err != nil {
 			return nil, err
 		}
 		if err := app.Save(existing); err != nil {
@@ -562,7 +568,7 @@ func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 	}
 
 	collection := core.NewBaseCollection("boxes")
-	if err := configureBoxesCollection(app, collection); err != nil {
+	if err := configureBoxesCollection(app, collection, memberCollectionId); err != nil {
 		return nil, err
 	}
 
@@ -573,13 +579,8 @@ func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 	return collection, nil
 }
 
-func configureBoxesCollection(app core.App, collection *core.Collection) error {
-	authenticatedRule := `
-        @request.auth.id != ''
-    `
-	// memberOfBoxRule := "@request.auth.id != '' && " +
-	// 	"@collection.member_snapshot.user_id ?= @request.auth.id && " +
-	// 	"@collection.member_snapshot.member_id ?= box_member_s " + "|| @request.auth.is_admin = true"
+func configureBoxesCollection(app core.App, collection *core.Collection, memberCollectionId string) error {
+	authenticatedRule := "@request.auth.id != ''"
 
 	collection.ListRule = types.Pointer(authenticatedRule)
 	collection.ViewRule = types.Pointer(authenticatedRule)
@@ -590,10 +591,16 @@ func configureBoxesCollection(app core.App, collection *core.Collection) error {
 	if err := addTimeAttributeFields(app, collection); err != nil {
 		return err
 	}
-	addFieldIfMissing(collection, &core.NumberField{Name: "box_state"})
+
+	addFieldIfMissing(collection, &core.TextField{Name: "box_state"})
+	addFieldIfMissing(collection, &core.TextField{Name: "box_name"})
 	addFieldIfMissing(collection, &core.TextField{Name: "updated_by"})
-	addFieldIfMissing(collection, &core.JSONField{Name: "box_member_s"})
-	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist_list"})
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "box_members",
+		CollectionId: memberCollectionId,
+		MaxSelect:    5,
+	})
+	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist"})
 	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
 
 	return nil
@@ -601,12 +608,11 @@ func configureBoxesCollection(app core.App, collection *core.Collection) error {
 
 // ensureWorkFormulaCollection creates/updates the work_formula collection,
 // tracking each member's required vs. completed work and open hours.
-// (app core.App, collection *core.Collection)
-func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
-	// log.Println("ensureWorkFormulaCollection running")
+func ensureWorkFormulaCollection(app core.App, memberCollectionId string) (*core.Collection, error) {
+	log.Println("ensureWorkFormulaCollection running")
 
 	if existing, err := app.FindCollectionByNameOrId("work_formula"); err == nil {
-		if err := configureWorkFormulaCollection(app, existing); err != nil {
+		if err := configureWorkFormulaCollection(app, existing, memberCollectionId); err != nil {
 			return nil, err
 		}
 		if err := app.Save(existing); err != nil {
@@ -617,7 +623,7 @@ func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
 	}
 
 	collection := core.NewBaseCollection("work_formula")
-	if err := configureWorkFormulaCollection(app, collection); err != nil {
+	if err := configureWorkFormulaCollection(app, collection, memberCollectionId); err != nil {
 		return nil, err
 	}
 
@@ -628,11 +634,7 @@ func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
 	return collection, nil
 }
 
-func configureWorkFormulaCollection(app core.App, collection *core.Collection) error {
-	// WF rules
-	// memberOfWFRule := "@request.auth.id != '' && " +
-	// 	"@collection.member_snapshot.user_id ?= @request.auth.id && " +
-	// 	"@collection.member_snapshot.member_id ?= member_id " + "|| @request.auth.is_admin = true"
+func configureWorkFormulaCollection(app core.App, collection *core.Collection, memberCollectionId string) error {
 	authenticatedRule := "@request.auth.id != ''"
 
 	collection.ListRule = types.Pointer(authenticatedRule)
@@ -640,10 +642,16 @@ func configureWorkFormulaCollection(app core.App, collection *core.Collection) e
 	collection.CreateRule = types.Pointer(authenticatedRule)
 	collection.UpdateRule = types.Pointer(authenticatedRule)
 	collection.DeleteRule = types.Pointer(authenticatedRule)
+
 	if err := addTimeAttributeFields(app, collection); err != nil {
 		return err
 	}
-	addFieldIfMissing(collection, &core.TextField{Name: "member_id"})
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "member_id",
+		CollectionId: memberCollectionId,
+		Required:     true,
+	})
 	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_required", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_completed", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_required", OnlyInt: true})
@@ -653,7 +661,15 @@ func configureWorkFormulaCollection(app core.App, collection *core.Collection) e
 }
 
 func addFieldIfMissing(collection *core.Collection, field core.Field) {
-	if collection.Fields.GetByName(field.GetName()) == nil {
+	existing := collection.Fields.GetByName(field.GetName())
+
+	if existing == nil {
+		collection.Fields.Add(field)
+		return
+	}
+
+	if existing.Type() != field.Type() {
+		collection.Fields.RemoveByName(field.GetName())
 		collection.Fields.Add(field)
 	}
 }
@@ -677,15 +693,6 @@ func addTimeAttributeFields(app core.App, collection *core.Collection) error {
 		collection.Fields.RemoveByName("modified_at")
 		collection.Fields.Add(&core.DateField{Name: "modified_at"})
 	}
-
-	// if collection.Fields.GetByName("modified_at") == nil {
-	//  collection.Fields.Add(
-	//      &core.NumberField{
-	//          Name:    "modified_at",
-	//          OnlyInt: true,
-	//      },
-	//  )
-	// }
 
 	// Push the field change to the database right away.
 	return app.Save(collection)

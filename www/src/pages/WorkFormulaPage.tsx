@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isAdmin, isLoggedIn, listWorkFormulas, logout } from "../lib/pocketbase";
+import {
+  currentUser,
+  isAdmin,
+  isLoggedIn,
+  listWorkFormulas,
+  logout,
+} from "../lib/pocketbase";
 import AdminStatusButton from "../components/AdminStatusButton";
 
 export default function WorkFormulaPage() {
@@ -74,11 +80,11 @@ export default function WorkFormulaPage() {
           <Link className="button-link secondary" to="/legacy-snapshots">
             Legacy Snapshots
           </Link>
-            {isAdmin() && (
-                <Link className="button-link secondary" to="/admin">
-                    Admin access
-                </Link>
-            )}
+          {isAdmin() && (
+            <Link className="button-link secondary" to="/admin">
+              Admin access
+            </Link>
+          )}
           <button className="secondary" onClick={handleLogout} type="button">
             Log out
           </button>
@@ -94,7 +100,7 @@ export default function WorkFormulaPage() {
           <thead>
             <tr>
               {/* <th>ID</th> */}
-              <th>Member ID</th>
+              <th>Member</th>
               <th>Work Hours Required</th>
               <th>Work Hours Completed</th>
               <th>Open Hours Required</th>
@@ -106,7 +112,7 @@ export default function WorkFormulaPage() {
           <tbody>
             {allFormulas.map((wf) => (
               <tr key={wf.id}>
-                <td>{wf.member_id}</td>
+                <td>{wf.expand.member_id.expand.user_id.name}</td>
                 <td>{wf.work_hours_required}</td>
                 <td>{wf.work_hours_completed}</td>
                 <td>{wf.open_hours_required}</td>
