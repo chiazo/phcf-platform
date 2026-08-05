@@ -2,12 +2,16 @@ import PocketBase from "pocketbase";
 
 import { config } from "./config";
 
-import {MemberType, DueState, MemberState, PaymentType, MemberRole} from "../models/enums";
+import {
+  MemberType,
+  DueState,
+  MemberState,
+  PaymentType,
+  MemberRole,
+} from "../models/enums";
 import MemberSnapshot from "../models/MemberSnapshot";
 
-
 export const pb = new PocketBase(config.pbUrl);
-
 
 export interface RegisterFarmMemberInput {
   email: string;
@@ -174,7 +178,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
         waitlistNumber: 0,
       },
     },
-    created_at: new Date(),////add fresh date pull here
+    created_at: new Date(), ////add fresh date pull here
     modified_at: new Date(),
   });
 
@@ -257,73 +261,76 @@ export async function getSingleMember(name: string) {
     .getFirstListItem(`personal_info.firstName = "${name}"`);
 }
 
-export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newRecord: string){
-   pb.autoCancellation(false);
-  
-  if (oldMemberInfo){ //does this check do anything? if there's no record to update then this should be called for member init
-    console.log('oldMemberInfo:',`${oldMemberInfo.memberId}`)
-    //find the member through the member_id on the member_snapshot table
-    const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
-    `member_id = "${oldMemberInfo.memberId}"`
-  );
-    console.log('currentMemberSnapshot:',currentMemberSnapshot)
-    console.log("modified_at:",currentMemberSnapshot.modified_at)
+export async function updatePronouns(
+  oldMemberInfo: MemberSnapshot | null,
+  newRecord: string,
+) {
+  pb.autoCancellation(false);
 
-    // check if created_at history, if not, set to now
-    if (!currentMemberSnapshot.created_at){
-      currentMemberSnapshot.created_at = new Date()
-      console.log('currentMemberSnapshot.created_at:', currentMemberSnapshot.created_at)
-    }
-    // check if modified history, if not, set to now
-    if (!currentMemberSnapshot.modified_at){
-      currentMemberSnapshot.modified_at = new Date()
-      console.log('currentMemberSnapshot.modified_at:', currentMemberSnapshot.modified_at)
-    }
-
-    // update the info in the member table
-    const record = await pb.collection('member_snapshot').update(`${currentMemberSnapshot.id}`, {
-    personal_info : newRecord,
-    modified_at: new Date(),
-    }); 
-
-    console.log("new member snapshot record:",record)
-  }
-}
-
-export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newPersonalData: string, newMemberData: string){
-   pb.autoCancellation(false);
-
-   const author = await pb.collection("users").getFirstListItem(
-    `email = "${currentUser()?.email}"`
-   )
+  if (!oldMemberInfo) return;
 
   //find the member through the member_id on the member_snapshot table
-  const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
-  `member_id = "${oldMemberInfo?.memberId}"`)
+  const currentMemberSnapshot = await pb
+    .collection("member_snapshot")
+    .getFirstListItem(`member_id = "${oldMemberInfo.memberId}"`);
 
-  console.log(currentMemberSnapshot)
+  // keep created_at history, if not already set
+  const createdAt = currentMemberSnapshot.created_at ?? new Date();
 
-  const snapshot = await pb.collection("member_snapshot").create({
-    user_id: currentMemberSnapshot?.user_id,
-    member_id: oldMemberInfo?.memberId,
-    updated_by: author?.name,
-    notes: "Update needs approval by an admin.",
-    personal_info: newPersonalData,
-    member_info: newMemberData,
-    box_info: oldMemberInfo?.boxInfo,
-  });
-  console.log('\nSNAP SHOT:', snapshot)
-  // console.log(snapshot)
+  const record = await pb
+    .collection("member_snapshot")
+    .update(`${currentMemberSnapshot.id}`, {
+      personal_info: newRecord,
+      created_at: createdAt,
+      modified_at: new Date(),
+    });
+
+    console.log("new member snapshot record:",record)
+}
+
+export async function newFormUpdate(
+  oldMemberInfo: MemberSnapshot | null,
+  newPersonalData: string,
+  newMemberData: string,
+) {
+  pb.autoCancellation(false);
+
+  if (!oldMemberInfo?.id) {
+    throw new Error("newFormUpdate: missing snapshot id, cannot update");
+  }
+
+  const snapshot = await pb
+    .collection("member_snapshot")
+    .update(oldMemberInfo.id, {
+      updated_by: oldMemberInfo.fullName,
+      notes: "Update needs approval by an admin.",
+      personal_info: newPersonalData,
+      member_info: newMemberData,
+      box_info: oldMemberInfo.boxInfo,
+    });
+
+  console.log(snapshot);
 }
 
 export async function listApprovalUpdates() {
-
   // fetch a paginated records list
-  const resultList = await pb.collection('member_snapshot').getList(1, 50, {
-      filter: 'notes = "Update needs approval by an admin." ',
+  const resultList = await pb.collection("member_snapshot").getList(1, 50, {
+    filter: 'notes = "Update needs approval by an admin." ',
   });
 
   return resultList;
+}
+
+export async function typeCheckUser() {
+  const signedInUser = pb.authStore.record;
+
+  const userMemberSnapshot = await pb
+    .collection("member_snapshot")
+    .getList(1, 1, {
+      filter: `personal_info.emailInfo.primaryEmail = "${signedInUser?.email}" || personal_info.emailInfo.secondaryEmail = "${signedInUser?.email}"`,
+    });
+
+  return userMemberSnapshot.items[0].member_info.memberType;
 }
 
 //gets the full list of boxes from the boxes collection
@@ -339,43 +346,43 @@ export async function listWorkFormulas() {
 }
 
 
-export async function getMemberWorkFormula(memberSnapshot: Record <string, any>){
+export async function deleteRequest(currentSnapshot: Record<string, any>) {
   pb.autoCancellation(false);
-  return await pb.collection('work_formula').getList(1, 50, {
-      filter: `member_id = "${memberSnapshot.member_id}"` ,
+  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
+    notes: "Recently Denied",
   });
 }
 
-
-export async function deleteRequest(currentSnapshot: Record<string, any>){
-  pb.autoCancellation(false);
-  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
-    notes: "Recently Denied"
-  })
-}
-
-export async function acceptRequest(currentSnapshot: Record<string, any>){
+export async function acceptRequest(currentSnapshot: Record<string, any>) {
   pb.autoCancellation(false);
   //find the user with that id from the currentSnapshot's user_id
-  const currentUser = await pb.collection("users").getFirstListItem(
-    `id = "${currentSnapshot.user_id}"`
-  )
+  const requestingUser = await pb
+    .collection("users")
+    .getFirstListItem(`id = "${currentSnapshot.user_id}"`);
 
-  //use the id from currentUser and find the member with that user_id
-  const currentMember = await pb.collection("member").getFirstListItem(
-    `user_id = "${currentUser.id}"`
-  )
+  //use the id from requestingUser and find the member with that user_id
+  const currentMember = await pb
+    .collection("member")
+    .getFirstListItem(`user_id = "${requestingUser.id}"`);
 
   //update the currentSnapshot id to the currentMember's member_snapshot_id
   await pb.collection("member").update(`${currentMember.id}`, {
-    member_snapshot_id: `${currentSnapshot.id}`
-  })
+    member_snapshot_id: `${currentSnapshot.id}`,
+  });
 
   await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
-    notes: "Recently Updated"
-  })
+    notes: "Recently Updated",
+  });
 }
 
+export async function getMemberWorkFormula(
+  memberSnapshot: Record<string, any>,
+) {
+  pb.autoCancellation(false);
+  return await pb
+    .collection("work_formula")
+    .getFirstListItem(`member_id = "${memberSnapshot.member_id}"`);
+}
 
 // gets the full list of legacy snapshots from the legacy_snapshots collection
 export async function listLegacySnapshots() {

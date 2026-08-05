@@ -1,5 +1,6 @@
 export default class BaseModel<T extends Record<string, any> = any> {
   protected data: T;
+  id?: string;
 
   constructor(data: T = {} as T) {
     this.data = data;

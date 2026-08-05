@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "start": "./run.sh",
+    "build": "./build.sh",
+    "deploy": "./deploy.sh"
+  },
   "dependencies": {
     "@astrojs/node": "^11.0.2",
     "astro": "^7.0.6",

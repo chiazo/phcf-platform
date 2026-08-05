@@ -220,6 +220,7 @@ input[type="submit"] {
     border: 1px solid var(--primary);
     border-radius: 8px;
     padding: .75rem 1rem;
+    margin-right: 1rem;
     font: inherit;
     font-weight: 700;
     color: white;
