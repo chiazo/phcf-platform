@@ -230,8 +230,7 @@ export async function getSingleMember(name: string) {
 export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newRecord: string){
    pb.autoCancellation(false);
   
-  if (oldMemberInfo){ //does this check do anything? if there's no record to update then this should be called for member init
-    console.log('oldMemberInfo:',`${oldMemberInfo.memberId}`)
+  if (oldMemberInfo){
     //find the member through the member_id on the member_snapshot table
     const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
     `member_id = "${oldMemberInfo.memberId}"`
@@ -256,7 +255,6 @@ export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newR
     modified_at: new Date(),
     }); 
 
-    console.log("new member snapshot record:",record)
   }
 }
 
@@ -280,8 +278,6 @@ export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newP
     member_info: newMemberData,
     box_info: oldMemberInfo?.boxInfo,
   });
-  console.log('\nSNAP SHOT:', snapshot)
-  // console.log(snapshot)
 }
 
 export async function listApprovalUpdates() {
@@ -291,7 +287,7 @@ export async function listApprovalUpdates() {
       filter: 'notes = "Update needs approval by an admin." ',
   });
 
-  console.log('resultList:',resultList)
+  return resultList
 }
 
 //gets the full list of boxes from the boxes collection
