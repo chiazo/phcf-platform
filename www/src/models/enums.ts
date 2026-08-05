@@ -10,6 +10,7 @@ export const MemberType = {
   GENERAL: "GENERAL",
   ASSOCIATE: "ASSOCIATE",
   ALUMNI: "ALUMNI",
+  PENDING: "PENDING",
 } as const;
 
 export type MemberType = (typeof MemberType)[keyof typeof MemberType];
@@ -20,6 +21,7 @@ export const MemberRole = {
   VICE_PRESIDENT: "VICE_PRESIDENT",
   SECRETARY: "SECRETARY",
   TREASURER: "TREASURER",
+  PENDING: "PENDING",
 } as const;
 
 export type MemberRole = (typeof MemberRole)[keyof typeof MemberRole];
@@ -36,7 +38,9 @@ export const PaymentType = {
   CASH: "cash",
   CARD: "card",
   CHECK: "check",
-  ONLINE: "online",
+  VENMO: "venmo",
+  PAYPAL: "paypal",
+  OTHER: "other",
 } as const;
 
 export type PaymentType = (typeof PaymentType)[keyof typeof PaymentType];
