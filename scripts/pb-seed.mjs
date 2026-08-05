@@ -199,7 +199,7 @@ function fakeMemberSnapshotPayload(userId) {
         onMailingList: faker.datatype.boolean(),
       },
       phoneInfo: {
-        primaryPhoneNumber: faker.phone.number(),
+        primaryPhoneNumber: faker.phone.number("###-###-####"),
       },
     },
 
