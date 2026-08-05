@@ -39,7 +39,7 @@ export default function MemberSnapshotPage() {
   const [editMode, setEditMode] = useState(false);
   const [isCurrentUserAdmin, setIsCurrentUserAdmin] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
-  const [workFormulas, setWorkFormula] = useState<Array<Record<string, any>>>([]);
+  const [workFormula, setWorkFormula] = useState<Record<string, any> | null>(null);
 
   const { register, handleSubmit } = useForm<IFormInput>()
 
@@ -346,9 +346,9 @@ export default function MemberSnapshotPage() {
         <section className="full">
           <h2>Service Requirements</h2>
 
-          {workFormulas.length > 0 ? (
+          {workFormula?.length > 0 ? (
             <ul>
-              {workFormulas.map((singleFormula) => (
+              {workFormula?.map((singleFormula: Record<string, any>) => (
                 <>
                 <li key={singleFormula.id}>
                   <p>
