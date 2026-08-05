@@ -12,7 +12,7 @@
 //   member           — user_id (relation, required),
 //                       member_snapshot_id (relation, required)
 //   boxes            — box_state (number), updated_by (text),
-//                       box_member_s (json), waitlist_list (json), notes (text)
+//                       box_members (json), waitlist (json), notes (text)
 //   work_formula     — member_id (TEXT, not a relation), work_hours_required,
 //                       work_hours_completed, open_hours_required,
 //                       open_hours_completed (all int numbers)
@@ -177,7 +177,9 @@ function fakeMemberSnapshotPayload(userId) {
 
   return {
     user_id: userId,
-    member_id: `SEED-${faker.string.alphanumeric(8).toUpperCase()}`,
+    // member_id is intentionally omitted here — member doesn't exist yet.
+    // It gets patched in after the member record is created, in
+    // seedUsersWithProfiles below.
     updated_by: "pb-seed script",
     notes: faker.datatype.boolean() ? faker.lorem.sentence() : "",
 
@@ -247,11 +249,14 @@ function fakeBoxPayload(memberIdsPool) {
     max: Math.min(3, memberIdsPool.length),
   });
 
+  const adjective = faker.food.adjective();
+
   return {
-    box_state: faker.number.int({ min: 0, max: 3 }),
+    box_state: "ASSIGNED",
+    box_name: `${adjective.charAt(0).toUpperCase()}${adjective.slice(1)} Box`,
     updated_by: "pb-seed script",
-    box_member_s: faker.helpers.arrayElements(memberIdsPool, memberCount),
-    waitlist_list: faker.helpers.arrayElements(memberIdsPool, waitlistCount),
+    box_members: faker.helpers.arrayElements(memberIdsPool, memberCount),
+    waitlist: faker.helpers.arrayElements(memberIdsPool, waitlistCount),
     notes: faker.datatype.boolean() ? faker.lorem.sentence() : "",
     [SEED_MARKER_FIELD]: true,
   };
@@ -313,7 +318,6 @@ async function seedUsersWithProfiles(pb, count) {
     users: [],
     memberSnapshots: [],
     members: [],
-    memberIdTexts: [], // the human-readable member_id text values, for work_formula linking
   };
 
   for (let i = 0; i < count; i++) {
@@ -348,20 +352,29 @@ async function seedUsersWithProfiles(pb, count) {
 
       result.users.push(user);
 
+      // Step 1: create the snapshot without member_id (member doesn't
+      // exist yet).
       const snapshotPayload = fakeMemberSnapshotPayload(user.id);
-
       const snapshot = await pb
         .collection("member_snapshot")
         .create(snapshotPayload);
 
       result.memberSnapshots.push(snapshot);
-      result.memberIdTexts.push(snapshotPayload.member_id);
 
+      // Step 2: create member, referencing the snapshot.
       const member = await pb.collection("member").create({
         user_id: user.id,
         member_snapshot_id: snapshot.id,
       });
       result.members.push(member);
+
+      // Step 3: patch the snapshot with the real member.id, now that it
+      // exists.
+      const updatedSnapshot = await pb
+        .collection("member_snapshot")
+        .update(snapshot.id, { member_id: member.id });
+      result.memberSnapshots[result.memberSnapshots.length - 1] =
+        updatedSnapshot;
 
       console.log(
         `  [${i + 1}/${count}] created user=${user.id} snapshot=${snapshot.id} member=${member.id} (${email})`,
@@ -552,7 +565,6 @@ async function main() {
     users: [],
     memberSnapshots: [],
     members: [],
-    memberIdTexts: [],
   };
   if (NUM_USERS > 0) {
     userResult = await seedUsersWithProfiles(pb, NUM_USERS);
@@ -575,7 +587,11 @@ async function main() {
   }
 
   if (NUM_WORK_FORMULAS > 0) {
-    await seedWorkFormulas(pb, NUM_WORK_FORMULAS, userResult.memberIdTexts);
+    await seedWorkFormulas(
+      pb,
+      NUM_WORK_FORMULAS,
+      userResult.members.map((m) => m.id),
+    );
   }
 
   console.log(

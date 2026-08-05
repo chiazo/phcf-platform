@@ -1,16 +1,16 @@
 [
-    {
-      "box_state": "1",
-      "updated_by":"User2",
-      "box_member_s":["User1","User2"],
-      "waitlist_list":["User3","User4"],
-      "notes": "Box 1 Information."
-    },
-    {
-        "box_state": "0",
-        "updated_by":"User2",
-        "box_member_s":[],
-        "waitlist_list":["User3","User4"],
-        "notes": "Box 2 Information."
-      }
+  {
+    "box_state": "1",
+    "updated_by": "User2",
+    "box_members": ["User1", "User2"],
+    "waitlist": ["User3", "User4"],
+    "notes": "Box 1 Information."
+  },
+  {
+    "box_state": "0",
+    "updated_by": "User2",
+    "box_members": [],
+    "waitlist": ["User3", "User4"],
+    "notes": "Box 2 Information."
+  }
 ]

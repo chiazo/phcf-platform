@@ -334,15 +334,50 @@ export async function typeCheckUser() {
 }
 
 //gets the full list of boxes from the boxes collection
-export async function listBoxes() {
+// .member_snapshot.member_id ?= box_members"
+
+export async function listBoxes(userId?: string) {
   pb.autoCancellation(false);
-  return await pb.collection("boxes").getList(1, 50);
+
+  if (isAdmin()) {
+    return await pb.collection("boxes").getList(1, 50);
+  }
+
+  const targetUserId = userId ?? currentUser()?.id;
+
+  if (!targetUserId) {
+    return { items: [], page: 1, perPage: 50, totalItems: 0, totalPages: 0 };
+  }
+
+  return await pb.collection("boxes").getList(1, 50, {
+    filter: pb.filter("box_members.user_id ?= {:userId}", {
+      userId: targetUserId,
+    }),
+  });
 }
 
 //gets the full list of work formulas from their collection
-export async function listWorkFormulas() {
+export async function listWorkFormulas(userId?: string) {
   pb.autoCancellation(false);
-  return await pb.collection("work_formula").getList(1, 50);
+
+  if (isAdmin()) {
+    return await pb.collection("work_formula").getList(1, 50, {
+      expand: "member_id.user_id",
+    });
+  }
+
+  const targetUserId = userId ?? currentUser()?.id;
+
+  if (!targetUserId) {
+    return { items: [], page: 1, perPage: 50, totalItems: 0, totalPages: 0 };
+  }
+
+  return await pb.collection("work_formula").getList(1, 50, {
+    filter: pb.filter("member_id.user_id = {:userId}", {
+      userId: targetUserId,
+    }),
+    expand: "member_id.user_id",
+  });
 }
 
 
