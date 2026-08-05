@@ -491,7 +491,7 @@ func configureBoxesCollection(collection *core.Collection) {
 	// array of objects), this filter will need to change accordingly.
 	memberOfBoxRule := "@request.auth.id != '' && " +
 		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
-		"@collection.member_snapshot.member_id ?= box_member_s"
+		"@collection.member_snapshot.member_id ?= box_member_s " + "|| @request.auth.is_admin = true"
 
 	collection.ListRule = types.Pointer(memberOfBoxRule)
 	collection.ViewRule = types.Pointer(memberOfBoxRule)
@@ -535,7 +535,7 @@ func configureWorkFormulaCollection(collection *core.Collection) {
 	// WF rules
 	memberOfWFRule := "@request.auth.id != '' && " +
 		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
-		"@collection.member_snapshot.member_id ?= member_id"
+		"@collection.member_snapshot.member_id ?= member_id " + "|| @request.auth.is_admin = true"
 	// authenticatedRule := "@request.auth.id != ''"
 
 	collection.ListRule = types.Pointer(memberOfWFRule)
