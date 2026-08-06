@@ -581,9 +581,13 @@ func ensureBoxesCollection(app core.App, memberCollectionId string) (*core.Colle
 
 func configureBoxesCollection(app core.App, collection *core.Collection, memberCollectionId string) error {
 	authenticatedRule := "@request.auth.id != ''"
+	memberOfBoxRule := "@request.auth.id != '' && " +
+		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
+		"@collection.member_snapshot.member_id ?= box_member_s " + "|| @request.auth.is_admin = true"
+	// ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 
-	collection.ListRule = types.Pointer(authenticatedRule)
-	collection.ViewRule = types.Pointer(authenticatedRule)
+	collection.ListRule = types.Pointer(memberOfBoxRule)
+	collection.ViewRule = types.Pointer(memberOfBoxRule)
 	collection.CreateRule = types.Pointer(authenticatedRule)
 	collection.UpdateRule = types.Pointer(authenticatedRule)
 	collection.DeleteRule = types.Pointer(authenticatedRule)

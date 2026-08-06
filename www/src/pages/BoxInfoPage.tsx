@@ -6,6 +6,7 @@ import {
   isAdmin,
   isLoggedIn,
   listBoxes,
+  addToBoxWaitlist,
   logout,
 } from "../lib/pocketbase";
 import AdminStatusButton from "../components/AdminStatusButton";
@@ -38,6 +39,13 @@ export default function BoxInfoPage() {
   function handleLogout() {
     logout();
     setIsAuthenticated(false);
+  }
+
+  // send box request using current logged in user
+  function handleRequestBox(){
+    console.log('allBoxes', allBoxes)
+    addToBoxWaitlist(allBoxes)
+    console.log('request processed')
   }
 
   // box_members / waitlist are stored as free-form JSON on each box
@@ -76,26 +84,30 @@ export default function BoxInfoPage() {
           </p>
         </div>
         <div id="navigation-buttons">
-          <Link className="button-link secondary" to="/">
-            ← Back to Members
-          </Link>
-          <Link className="button-link secondary" to="/work-formula">
-            Work Formulas
-          </Link>
-          {isAdmin() && (
-            <>
-              <Link className="button-link secondary" to="/legacy-snapshots">
-                Legacy Snapshots
-              </Link>
-              <Link className="button-link secondary" to="/admin">
-                Admin access
-              </Link>
-            </>
-          )}
-          <button className="secondary" onClick={handleLogout} type="button">
-            Log out
-          </button>
-        </div>
+          <div>
+            <Link className="button-link secondary" to="/">
+              ← Back to Members
+            </Link>
+            <Link className="button-link secondary" to="/work-formula">
+                Work Formulas
+            </Link>
+            {isAdmin() && (
+                <Link className="button-link secondary" to="/admin">
+                    Admin access
+                </Link>
+            )}
+            <button className="secondary" onClick={handleLogout} type="button">
+                Log out
+            </button>
+          </div>
+          <div>
+            <div id='requestBoxSection'>
+              <button id='requestBoxButton' className="secondary" onClick={handleRequestBox} type="button">
+                  Request a Box
+              </button>
+            </div>
+          </div>  
+        </div> 
       </div>
 
       {loadError && <p className="error">{loadError}</p>}
