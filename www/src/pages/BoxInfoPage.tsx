@@ -83,23 +83,18 @@ export default function BoxInfoPage() {
             Work Formulas
           </Link>
           {isAdmin() && (
-            <Link className="button-link secondary" to="/admin">
-              Admin access
-            </Link>
-            <Link className="button-link secondary" to="/work-formula">
-                Work Formulas
-            </Link>
-            <Link className="button-link secondary" to="/legacy-snapshots">
-              Legacy Snapshots
-            </Link>
-            {isAdmin() && (
-                <Link className="button-link secondary" to="/admin">
-                    Admin access
-                </Link>
-            )}
-            <button className="secondary" onClick={handleLogout} type="button">
-                Log out
-            </button>
+            <>
+              <Link className="button-link secondary" to="/legacy-snapshots">
+                Legacy Snapshots
+              </Link>
+              <Link className="button-link secondary" to="/admin">
+                Admin access
+              </Link>
+            </>
+          )}
+          <button className="secondary" onClick={handleLogout} type="button">
+            Log out
+          </button>
         </div>
       </div>
 

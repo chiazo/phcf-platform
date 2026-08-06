@@ -67,6 +67,16 @@ main {
     margin-bottom: 2rem;
 }
 
+#navigation-buttons {
+    display: flex;
+    min-width: 800px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: .75rem;
+    flex: 1 1 auto;
+}
+
 .signed-in-line {
     display: flex;
     align-items: center;
@@ -220,7 +230,7 @@ input[type="submit"] {
     border: 1px solid var(--primary);
     border-radius: 8px;
     padding: .75rem 1rem;
-    margin-right: 1rem;
+    margin-right: .5rem;
     font: inherit;
     font-weight: 700;
     color: white;
