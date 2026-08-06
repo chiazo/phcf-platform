@@ -159,9 +159,9 @@ export default function MembersPage() {
           <Link className="button-link secondary" to="/work-formula">
             Work Formulas
           </Link>
-          <Link className="button-link secondary" to="/legacy-snapshots">
+          {/* <Link className="button-link secondary" to="/legacy-snapshots">
             Legacy Snapshots
-          </Link>
+          </Link> */}
           {isAdmin() && (
             <Link className="button-link secondary" to="/admin">
               Admin access
