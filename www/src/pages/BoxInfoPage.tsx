@@ -6,6 +6,7 @@ import {
   isAdmin,
   isLoggedIn,
   listBoxes,
+  addToBoxWaitlist,
   logout,
 } from "../lib/pocketbase";
 import AdminStatusButton from "../components/AdminStatusButton";
@@ -38,6 +39,13 @@ export default function BoxInfoPage() {
   function handleLogout() {
     logout();
     setIsAuthenticated(false);
+  }
+
+  // send box request using current logged in user
+  function handleRequestBox(){
+    console.log('allBoxes', allBoxes)
+    addToBoxWaitlist(allBoxes)
+    console.log('request processed')
   }
 
   // box_members / waitlist are stored as free-form JSON on each box
