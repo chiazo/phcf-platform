@@ -461,15 +461,20 @@ func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 }
 
 func configureBoxesCollection(collection *core.Collection) {
-	authenticatedRule := `@request.auth.id != ''`
+	authenticatedRule := "@request.auth.id != ''"
+	memberOfBoxRule := "@request.auth.id != '' && " +
+		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
+		"@collection.member_snapshot.member_id ?= box_member_s " + "|| @request.auth.is_admin = true"
+	// ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
+	collection.ListRule = types.Pointer(memberOfBoxRule)
+	collection.ViewRule = types.Pointer(memberOfBoxRule)
 
-	collection.ListRule = types.Pointer(authenticatedRule)
-	collection.ViewRule = types.Pointer(authenticatedRule)
+	// collection.ListRule = types.Pointer(authenticatedRule)
+	// collection.ViewRule = types.Pointer(authenticatedRule)
 	collection.CreateRule = types.Pointer(authenticatedRule)
-	collection.UpdateRule = types.Pointer(authenticatedRule)
+	collection.UpdateRule = types.Pointer(authenticatedRule) // i think this should be opened for all users to add themselves for waitlisting
 	collection.DeleteRule = types.Pointer(authenticatedRule)
 
-	log.Println("work_formula rules updated")
 	addTimeAttributeFields(collection)
 	addFieldIfMissing(collection, &core.NumberField{Name: "box_state"})
 	addFieldIfMissing(collection, &core.TextField{Name: "updated_by"})
@@ -489,22 +494,17 @@ func configureBoxesCollection(collection *core.Collection) {
 	// NOTE: this assumes box_member_s is a JSON array of member_id strings
 	// (e.g. ["m_123", "m_456"]). If it's structured differently (e.g. an
 	// array of objects), this filter will need to change accordingly.
-	memberOfBoxRule := "@request.auth.id != '' && " +
-		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
-		"@collection.member_snapshot.member_id ?= box_member_s " + "|| @request.auth.is_admin = true"
 
-	collection.ListRule = types.Pointer(memberOfBoxRule)
-	collection.ViewRule = types.Pointer(memberOfBoxRule)
 	// create/update/delete stay unset (nil = superuser-only): editing box
 	// assignments is an administrative action, not self-service.
 
-	collection.Fields.Add(
-		&core.NumberField{Name: "box_state"},
-		&core.TextField{Name: "updated_by"},
-		&core.JSONField{Name: "box_member_s"},
-		&core.JSONField{Name: "waitlist_list"},
-		&core.TextField{Name: "notes"},
-	)
+	// collection.Fields.Add(
+	// 	&core.NumberField{Name: "box_state"},
+	// 	&core.TextField{Name: "updated_by"},
+	// 	&core.JSONField{Name: "box_member_s"},
+	// 	&core.JSONField{Name: "waitlist_list"},
+	// 	&core.TextField{Name: "notes"},
+	// )
 }
 
 // ensureWorkFormulaCollection creates/updates the work_formula collection,

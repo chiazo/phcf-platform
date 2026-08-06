@@ -280,6 +280,70 @@ export async function listBoxes() {
   return await pb.collection("boxes").getList(1, 50);
 }
 
+// Adds the currently logged-in user's member_id to a box waitlist, choosing
+// the box in this priority order:
+//   1. any box with zero members (box_member_s is empty)
+//   2. any box with an empty waitlist (waitlist_list is empty)
+//   3. the box with the shortest waitlist
+// The chosen box's notes are flagged for admin review and the change is
+// persisted back to the boxes collection.
+export async function addToBoxWaitlist(allBoxes: Record<string, any>[]) {
+  pb.autoCancellation(false);
+
+  const user = currentUser();
+  if (!user) {
+    throw new Error("No logged in user found.");
+  }
+  if (!allBoxes || allBoxes.length === 0) {
+    throw new Error("No boxes available to join.");
+  }
+
+  // member_id isn't guaranteed to equal the auth user's id, so resolve it
+  // via that user's member_snapshot, same as acceptRequest/updatePronouns do.
+  const memberSnapshot = await pb
+    .collection("member_snapshot")
+    .getFirstListItem(`user_id = "${user.id}"`);
+
+  const memberId = memberSnapshot.member_id;
+  console.log('memberId',memberId)
+  if (!memberId) {
+    throw new Error("Current user has no associated member_id.");
+  }
+
+  // 1. Prefer a box with no members at all.
+  let targetBox = allBoxes.find(
+    (box) => countEntries(box.box_member_s) === 0,
+  );
+
+  // 2. Otherwise, prefer a box with an empty waitlist.
+  if (!targetBox) {
+    targetBox = allBoxes.find(
+      (box) => countEntries(box.waitlist_list) === 0,
+    );
+  }
+
+  // 3. Otherwise, fall back to the box with the shortest waitlist.
+  if (!targetBox) {
+    targetBox = allBoxes.reduce((shortest, box) =>
+      countEntries(box.waitlist_list) < countEntries(shortest.waitlist_list)
+        ? box
+        : shortest,
+    );
+  }
+
+  const updatedWaitlist = [...(targetBox.waitlist_list ?? []), memberId];
+  console.log('updatedWaitlist',updatedWaitlist)
+  // Persist the change to PocketBase.
+  return await pb.collection("boxes").update(`${targetBox.id}`, {
+    waitlist_list: updatedWaitlist,
+    notes: "Update needs approval by an admin.",
+  });
+}
+
+function countEntries(list: unknown[] | undefined | null): number {
+  return list?.length ?? 0;
+}
+
 //gets the full list of work formulas from their collection
 export async function listWorkFormulas() {
   pb.autoCancellation(false);

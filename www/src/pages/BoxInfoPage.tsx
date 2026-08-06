@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isAdmin, isLoggedIn, listBoxes, logout } from "../lib/pocketbase";
+import { currentUser, isAdmin, isLoggedIn, listBoxes, addToBoxWaitlist, logout } from "../lib/pocketbase";
 import AdminStatusButton from "../components/AdminStatusButton";
 
 export default function BoxInfoPage() {
@@ -32,6 +32,20 @@ export default function BoxInfoPage() {
   function handleLogout() {
     logout();
     setIsAuthenticated(false);
+  }
+
+  function handleRequestBox(){
+    console.log('box requested')
+    console.log(listBoxes)
+    addToBoxWaitlist(allBoxes)
+    console.log('request processed')
+
+
+    // GET the boxes collection from pocketbase, 
+    // check if any boxes have no members, 
+      // if yes, add current logged user to waitlist for that box AND set box notes to admin review requested;
+      // if no, check all waitlists and return the first 0 length waitlist, add user to waitlist for that box AND set box notes to admin review requested;
+        // if no 0 length waitlist, find the shortest waitlist, add user to waitlist for that box AND set box notes to admin review requested;
   }
 
   // box_member_s / waitlist_list are stored as free-form JSON on each box
@@ -84,6 +98,11 @@ export default function BoxInfoPage() {
             <button className="secondary" onClick={handleLogout} type="button">
                 Log out
             </button>
+        </div>
+        <div id='requestBoxSection'>
+          <button className="secondary" onClick={handleRequestBox} type="button">
+              Request a Box
+          </button>
         </div>
       </div>
 
