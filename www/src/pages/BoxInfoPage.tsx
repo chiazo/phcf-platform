@@ -84,26 +84,30 @@ export default function BoxInfoPage() {
           </p>
         </div>
         <div id='navigation-buttons'>
+          <div>
             <Link className="button-link secondary" to="/">
-                ← Back to Members
-            </Link>
-            <Link className="button-link secondary" to="/work-formula">
-                Work Formulas
-            </Link>
-            {isAdmin() && (
-                <Link className="button-link secondary" to="/admin">
-                    Admin access
-                </Link>
-            )}
-            <button className="secondary" onClick={handleLogout} type="button">
-                Log out
-            </button>
-        </div>
-        <div id='requestBoxSection'>
-          <button className="secondary" onClick={handleRequestBox} type="button">
-              Request a Box
-          </button>
-        </div>
+                  ← Back to Members
+              </Link>
+              <Link className="button-link secondary" to="/work-formula">
+                  Work Formulas
+              </Link>
+              {isAdmin() && (
+                  <Link className="button-link secondary" to="/admin">
+                      Admin access
+                  </Link>
+              )}
+              <button className="secondary" onClick={handleLogout} type="button">
+                  Log out
+              </button>
+          </div>
+          <div>
+            <div id='requestBoxSection'>
+              <button id='requestBoxButton' className="secondary" onClick={handleRequestBox} type="button">
+                  Request a Box
+              </button>
+            </div>
+          </div>  
+        </div> 
       </div>
 
       {loadError && <p className="error">{loadError}</p>}

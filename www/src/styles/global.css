@@ -464,3 +464,12 @@ th {
         margin-top: 1rem;
     }
 }
+
+/* more nav button styling */
+#requestBoxSection{
+    display: flex;
+    margin-top: 20px;
+}
+#requestBoxButton{
+    margin-left: auto;
+}
