@@ -2,16 +2,12 @@ import PocketBase from "pocketbase";
 
 import { config } from "./config";
 
-import {
-  MemberType,
-  DueState,
-  MemberState,
-  PaymentType,
-  MemberRole,
-} from "../models/enums";
+import {MemberType, DueState, MemberState, PaymentType, MemberRole} from "../models/enums";
 import MemberSnapshot from "../models/MemberSnapshot";
 
+
 export const pb = new PocketBase(config.pbUrl);
+
 
 export interface RegisterFarmMemberInput {
   email: string;
@@ -178,8 +174,6 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
         waitlistNumber: 0,
       },
     },
-    created_at: new Date(), ////add fresh date pull here
-    modified_at: new Date(),
   });
 
   await pb.collection("member").create({
@@ -231,102 +225,61 @@ export async function getSingleMember(name: string) {
     .getFirstListItem(`personal_info.firstName = "${name}"`);
 }
 
-export async function updatePronouns(
-  oldMemberInfo: MemberSnapshot | null,
-  newRecord: string,
-) {
-  pb.autoCancellation(false);
+export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newRecord: string){
+   pb.autoCancellation(false);
+  
+  if (oldMemberInfo){
+    //find the member through the member_id on the member_snapshot table
+    const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
+    `member_id = "${oldMemberInfo.memberId}"`
+  );
 
-  if (!oldMemberInfo) return;
+    // update the info in the member table
+    const record = await pb.collection('member_snapshot').update(`${currentMemberSnapshot.id}`, {
+    personal_info : newRecord,
+    }); 
 
-  //find the member through the member_id on the member_snapshot table
-  const currentMemberSnapshot = await pb
-    .collection("member_snapshot")
-    .getFirstListItem(`member_id = "${oldMemberInfo.memberId}"`);
-
-  // keep created_at history, if not already set
-  const createdAt = currentMemberSnapshot.created_at ?? new Date();
-
-  const record = await pb
-    .collection("member_snapshot")
-    .update(`${currentMemberSnapshot.id}`, {
-      personal_info: newRecord,
-      created_at: createdAt,
-      modified_at: new Date(),
-    });
-
-  console.log(record);
+  }
 }
 
-export async function newFormUpdate(
-  oldMemberInfo: MemberSnapshot | null,
-  newPersonalData: string,
-  newMemberData: string,
-) {
-  pb.autoCancellation(false);
+export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newPersonalData: string, newMemberData: string){
+   pb.autoCancellation(false);
 
-  if (!oldMemberInfo?.id) {
-    throw new Error("newFormUpdate: missing snapshot id, cannot update");
-  }
+   const author = await pb.collection("users").getFirstListItem(
+    `email = "${currentUser()?.email}"`
+   )
 
-  const snapshot = await pb
-    .collection("member_snapshot")
-    .update(oldMemberInfo.id, {
-      updated_by: oldMemberInfo.fullName,
-      notes: "Update needs approval by an admin.",
-      personal_info: newPersonalData,
-      member_info: newMemberData,
-      box_info: oldMemberInfo.boxInfo,
-    });
+  //find the member through the member_id on the member_snapshot table
+  const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
+  `member_id = "${oldMemberInfo?.memberId}"`)
 
-  console.log(snapshot);
+  const snapshot = await pb.collection("member_snapshot").create({
+    user_id: currentMemberSnapshot?.user_id,
+    member_id: oldMemberInfo?.memberId,
+    updated_by: author?.name,
+    notes: "Update needs approval by an admin.",
+    personal_info: newPersonalData,
+    member_info: newMemberData,
+    box_info: oldMemberInfo?.boxInfo,
+  });
 }
 
 export async function listApprovalUpdates() {
+
   // fetch a paginated records list
-  const resultList = await pb.collection("member_snapshot").getList(1, 50, {
-    filter: 'notes = "Update needs approval by an admin." ',
+  const resultList = await pb.collection('member_snapshot').getList(1, 50, {
+      filter: 'notes = "Update needs approval by an admin." ',
   });
 
-  return resultList;
-}
-
-export async function typeCheckUser() {
-  const signedInUser = pb.authStore.record;
-
-  const userMemberSnapshot = await pb
-    .collection("member_snapshot")
-    .getList(1, 1, {
-      filter: `personal_info.emailInfo.primaryEmail = "${signedInUser?.email}" || personal_info.emailInfo.secondaryEmail = "${signedInUser?.email}"`,
-    });
-
-  return userMemberSnapshot.items[0].member_info.memberType;
+  return resultList
 }
 
 //gets the full list of boxes from the boxes collection
-// .member_snapshot.member_id ?= box_members"
-
-export async function listBoxes(userId?: string) {
+export async function listBoxes() {
   pb.autoCancellation(false);
-
-  if (isAdmin()) {
-    return await pb.collection("boxes").getList(1, 50);
-  }
-
-  const targetUserId = userId ?? currentUser()?.id;
-
-  if (!targetUserId) {
-    return { items: [], page: 1, perPage: 50, totalItems: 0, totalPages: 0 };
-  }
-
-  return await pb.collection("boxes").getList(1, 50, {
-    filter: pb.filter("box_members.user_id ?= {:userId}", {
-      userId: targetUserId,
-    }),
-  });
+  return await pb.collection("boxes").getList(1, 50);
 }
 
-// add user to box waitlist
 // Adds the currently logged-in user's member_id to a box waitlist, choosing
 // the box in this priority order:
 //   1. any box with zero members (box_member_s is empty)
@@ -391,66 +344,42 @@ function countEntries(list: unknown[] | undefined | null): number {
   return list?.length ?? 0;
 }
 
-
-
-
-
 //gets the full list of work formulas from their collection
-export async function listWorkFormulas(userId?: string) {
+export async function listWorkFormulas() {
   pb.autoCancellation(false);
-
-  if (isAdmin()) {
-    return await pb.collection("work_formula").getList(1, 50, {
-      expand: "member_id.user_id",
-    });
-  }
-
-  const targetUserId = userId ?? currentUser()?.id;
-
-  if (!targetUserId) {
-    return { items: [], page: 1, perPage: 50, totalItems: 0, totalPages: 0 };
-  }
-
-  return await pb.collection("work_formula").getList(1, 50, {
-    filter: pb.filter("member_id.user_id = {:userId}", {
-      userId: targetUserId,
-    }),
-    expand: "member_id.user_id",
-  });
+  return await pb.collection("work_formula").getList(1, 50);
 }
 
-export async function deleteRequest(currentSnapshot: Record<string, any>) {
+export async function deleteRequest(currentSnapshot: Record<string, any>){
   pb.autoCancellation(false);
   await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
-    notes: "Recently Denied",
-  });
+    notes: "Recently Denied"
+  })
 }
 
-export async function acceptRequest(currentSnapshot: Record<string, any>) {
+export async function acceptRequest(currentSnapshot: Record<string, any>){
   pb.autoCancellation(false);
   //find the user with that id from the currentSnapshot's user_id
-  const requestingUser = await pb
-    .collection("users")
-    .getFirstListItem(`id = "${currentSnapshot.user_id}"`);
+  const currentUser = await pb.collection("users").getFirstListItem(
+    `id = "${currentSnapshot.user_id}"`
+  )
 
-  //use the id from requestingUser and find the member with that user_id
-  const currentMember = await pb
-    .collection("member")
-    .getFirstListItem(`user_id = "${requestingUser.id}"`);
+  //use the id from currentUser and find the member with that user_id
+  const currentMember = await pb.collection("member").getFirstListItem(
+    `user_id = "${currentUser.id}"`
+  )
 
   //update the currentSnapshot id to the currentMember's member_snapshot_id
   await pb.collection("member").update(`${currentMember.id}`, {
-    member_snapshot_id: `${currentSnapshot.id}`,
-  });
+    member_snapshot_id: `${currentSnapshot.id}`
+  })
 
   await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
-    notes: "Recently Updated",
-  });
+    notes: "Recently Updated"
+  })
 }
 
-export async function getMemberWorkFormula(
-  memberSnapshot: Record<string, any>,
-) {
+export async function getMemberWorkFormula(memberSnapshot: Record <string, any>){
   pb.autoCancellation(false);
   return await pb
     .collection("work_formula")

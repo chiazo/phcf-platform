@@ -45,37 +45,20 @@ func ensureAppCollections(app core.App) error {
 		return err
 	}
 
-	users, err := app.FindCollectionByNameOrId("users")
+	snapshotCollection, err := ensureMemberSnapshotCollection(app)
 	if err != nil {
 		return err
 	}
 
-	// Pass 1: create both collections with their non-circular fields only.
-	snapshotCollection, err := ensureMemberSnapshotCollection(app, users.Id, "")
-	if err != nil {
+	if err := ensureMemberCollection(app, snapshotCollection.Id); err != nil {
 		return err
 	}
 
-	memberCollection, err := ensureMemberCollection(app, snapshotCollection.Id)
-	if err != nil {
+	if _, err := ensureBoxesCollection(app); err != nil {
 		return err
 	}
 
-	// Pass 2: now that both exist, backfill the circular relation.
-	snapshotCollection, err = ensureMemberSnapshotCollection(app, users.Id, memberCollection.Id)
-	if err != nil {
-		return err
-	}
-
-	if _, err := ensureBoxesCollection(app, memberCollection.Id); err != nil {
-		return err
-	}
-
-	if _, err := ensureWorkFormulaCollection(app, memberCollection.Id); err != nil {
-		return err
-	}
-
-	_, err = ensureLegacySnapshotCollection(app)
+	_, err = ensureWorkFormulaCollection(app)
 	return err
 }
 
@@ -328,100 +311,15 @@ func hasSuperuserWithEmail(app core.App, email string) bool {
 	return err == nil
 }
 
-func ensureMemberSnapshotCollection(app core.App, usersCollectionId string, memberCollectionId string) (*core.Collection, error) {
+func ensureMemberSnapshotCollection(app core.App) (*core.Collection, error) {
 	existing, err := app.FindCollectionByNameOrId("member_snapshot")
-	if err == nil {
-		if err := configureMemberSnapshotCollection(app, existing, usersCollectionId, memberCollectionId); err != nil {
-			return nil, err
-		}
-		if err := app.Save(existing); err != nil {
-			return nil, err
-		}
-		return existing, nil
-	}
-
-	collection := core.NewBaseCollection("member_snapshot")
-	if err := configureMemberSnapshotCollection(app, collection, usersCollectionId, memberCollectionId); err != nil {
-		return nil, err
-	}
-
-	if err := app.Save(collection); err != nil {
-		return nil, err
-	}
-
-	return collection, nil
-}
-
-func configureMemberSnapshotCollection(app core.App, collection *core.Collection, usersCollectionId string, memberCollectionId string) error {
-	authenticatedRule := "@request.auth.id != ''"
-	ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
-
-	collection.ListRule = types.Pointer(authenticatedRule)
-	collection.ViewRule = types.Pointer(authenticatedRule)
-	collection.CreateRule = types.Pointer(ownerRule)
-	collection.UpdateRule = types.Pointer(ownerRule)
-	collection.DeleteRule = types.Pointer(ownerRule)
-	if err := addTimeAttributeFields(app, collection); err != nil {
-		return err
-	}
-
-	addFieldIfMissing(collection, &core.RelationField{
-		Name:         "user_id",
-		CollectionId: usersCollectionId,
-		Required:     true,
-	})
-
-	// member_id can't be required at first-pass creation time, since the
-	// member collection doesn't exist yet (circular dependency — see
-	// ensureAppCollections). It's added/upgraded on the second pass once
-	// memberCollectionId is known, so it stays optional here even though
-	// every real snapshot should have one in practice.
-	if memberCollectionId != "" {
-		addFieldIfMissing(collection, &core.RelationField{
-			Name:         "member_id",
-			CollectionId: memberCollectionId,
-			Required:     false,
-		})
-	}
-
-	addFieldIfMissing(collection, &core.TextField{
-		Name: "updated_by",
-	})
-
-	addFieldIfMissing(collection, &core.TextField{
-		Name: "notes",
-	})
-
-	addFieldIfMissing(collection, &core.JSONField{
-		Name:     "personal_info",
-		Required: true,
-	})
-
-	addFieldIfMissing(collection, &core.JSONField{
-		Name:     "member_info",
-		Required: true,
-	})
-
-	addFieldIfMissing(collection, &core.JSONField{
-		Name:     "box_info",
-		Required: true,
-	})
-
-	return nil
-}
-
-// legacy snapshot collection functions
-func ensureLegacySnapshotCollection(app core.App) (*core.Collection, error) {
-	existing, err := app.FindCollectionByNameOrId("legacy_snapshot")
 	if err == nil {
 		users, err := app.FindCollectionByNameOrId("users")
 		if err != nil {
 			return nil, err
 		}
 
-		if err := configureLegacySnapshotCollection(app, existing, users.Id); err != nil {
-			return nil, err
-		}
+		configureMemberSnapshotCollection(existing, users.Id)
 		if err := app.Save(existing); err != nil {
 			return nil, err
 		}
@@ -434,10 +332,8 @@ func ensureLegacySnapshotCollection(app core.App) (*core.Collection, error) {
 		return nil, err
 	}
 
-	collection := core.NewBaseCollection("legacy_snapshot")
-	if err := configureLegacySnapshotCollection(app, collection, users.Id); err != nil {
-		return nil, err
-	}
+	collection := core.NewBaseCollection("member_snapshot")
+	configureMemberSnapshotCollection(collection, users.Id)
 
 	if err := app.Save(collection); err != nil {
 		return nil, err
@@ -446,18 +342,16 @@ func ensureLegacySnapshotCollection(app core.App) (*core.Collection, error) {
 	return collection, nil
 }
 
-func configureLegacySnapshotCollection(app core.App, collection *core.Collection, usersCollectionId string) error {
+func configureMemberSnapshotCollection(collection *core.Collection, usersCollectionId string) {
 	authenticatedRule := "@request.auth.id != ''"
-	// ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
+	ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 
 	collection.ListRule = types.Pointer(authenticatedRule)
 	collection.ViewRule = types.Pointer(authenticatedRule)
-	collection.CreateRule = types.Pointer(authenticatedRule)
-	collection.UpdateRule = types.Pointer(authenticatedRule)
-	collection.DeleteRule = types.Pointer(authenticatedRule)
-	if err := addTimeAttributeFields(app, collection); err != nil {
-		return err
-	}
+	collection.CreateRule = types.Pointer(ownerRule)
+	collection.UpdateRule = types.Pointer(ownerRule)
+	collection.DeleteRule = types.Pointer(ownerRule)
+	addTimeAttributeFields(collection)
 
 	addFieldIfMissing(collection, &core.RelationField{
 		Name:         "user_id",
@@ -492,36 +386,31 @@ func configureLegacySnapshotCollection(app core.App, collection *core.Collection
 		Required: true,
 	})
 
-	return nil
 }
 
-func ensureMemberCollection(app core.App, snapshotCollectionId string) (*core.Collection, error) {
+func ensureMemberCollection(app core.App, snapshotCollectionId string) error {
 	if existing, err := app.FindCollectionByNameOrId("member"); err == nil {
 		users, err := app.FindCollectionByNameOrId("users")
 		if err != nil {
-			return existing, err
+			return err
 		}
 
-		if err := configureMemberCollection(app, existing, users.Id, snapshotCollectionId); err != nil {
-			return nil, err
-		}
-		return existing, app.Save(existing)
+		configureMemberCollection(existing, users.Id, snapshotCollectionId)
+		return app.Save(existing)
 	}
 
 	users, err := app.FindCollectionByNameOrId("users")
 	if err != nil {
-		return users, err
+		return err
 	}
 
 	collection := core.NewBaseCollection("member")
-	if err := configureMemberCollection(app, collection, users.Id, snapshotCollectionId); err != nil {
-		return nil, err
-	}
+	configureMemberCollection(collection, users.Id, snapshotCollectionId)
 
-	return collection, app.Save(collection)
+	return app.Save(collection)
 }
 
-func configureMemberCollection(app core.App, collection *core.Collection, usersCollectionId string, snapshotCollectionId string) error {
+func configureMemberCollection(collection *core.Collection, usersCollectionId string, snapshotCollectionId string) {
 	authenticatedRule := "@request.auth.id != ''"
 	ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 
@@ -531,9 +420,7 @@ func configureMemberCollection(app core.App, collection *core.Collection, usersC
 	collection.UpdateRule = types.Pointer(ownerRule)
 	collection.DeleteRule = types.Pointer(ownerRule)
 
-	if err := addTimeAttributeFields(app, collection); err != nil {
-		return err
-	}
+	addTimeAttributeFields(collection)
 
 	addFieldIfMissing(collection, &core.RelationField{
 		Name:         "user_id",
@@ -546,20 +433,16 @@ func configureMemberCollection(app core.App, collection *core.Collection, usersC
 		CollectionId: snapshotCollectionId,
 		Required:     true,
 	})
-
-	return nil
 }
 
 // ensureBoxesCollection ports the schema originally captured by the
 // auto-generated 1784314870_created_boxes.go / 1784315056_updated_boxes.go
 // migrations into the same idempotent find-or-create pattern used above.
-func ensureBoxesCollection(app core.App, memberCollectionId string) (*core.Collection, error) {
+func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 	log.Println("ensureBoxesCollection running")
 
 	if existing, err := app.FindCollectionByNameOrId("boxes"); err == nil {
-		if err := configureBoxesCollection(app, existing, memberCollectionId); err != nil {
-			return nil, err
-		}
+		configureBoxesCollection(existing)
 		if err := app.Save(existing); err != nil {
 			return nil, err
 		}
@@ -568,9 +451,7 @@ func ensureBoxesCollection(app core.App, memberCollectionId string) (*core.Colle
 	}
 
 	collection := core.NewBaseCollection("boxes")
-	if err := configureBoxesCollection(app, collection, memberCollectionId); err != nil {
-		return nil, err
-	}
+	configureBoxesCollection(collection)
 
 	if err := app.Save(collection); err != nil {
 		return nil, err
@@ -579,46 +460,60 @@ func ensureBoxesCollection(app core.App, memberCollectionId string) (*core.Colle
 	return collection, nil
 }
 
-func configureBoxesCollection(app core.App, collection *core.Collection, memberCollectionId string) error {
+func configureBoxesCollection(collection *core.Collection) {
 	authenticatedRule := "@request.auth.id != ''"
 	memberOfBoxRule := "@request.auth.id != '' && " +
 		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
 		"@collection.member_snapshot.member_id ?= box_member_s " + "|| @request.auth.is_admin = true"
 	// ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
-
 	collection.ListRule = types.Pointer(memberOfBoxRule)
 	collection.ViewRule = types.Pointer(memberOfBoxRule)
+
+	// collection.ListRule = types.Pointer(authenticatedRule)
+	// collection.ViewRule = types.Pointer(authenticatedRule)
 	collection.CreateRule = types.Pointer(authenticatedRule)
-	collection.UpdateRule = types.Pointer(authenticatedRule)
+	collection.UpdateRule = types.Pointer(authenticatedRule) // i think this should be opened for all users to add themselves for waitlisting
 	collection.DeleteRule = types.Pointer(authenticatedRule)
 
-	if err := addTimeAttributeFields(app, collection); err != nil {
-		return err
-	}
-
-	addFieldIfMissing(collection, &core.TextField{Name: "box_state"})
-	addFieldIfMissing(collection, &core.TextField{Name: "box_name"})
+	addTimeAttributeFields(collection)
+	addFieldIfMissing(collection, &core.NumberField{Name: "box_state"})
 	addFieldIfMissing(collection, &core.TextField{Name: "updated_by"})
-	addFieldIfMissing(collection, &core.RelationField{
-		Name:         "box_members",
-		CollectionId: memberCollectionId,
-		MaxSelect:    5,
-	})
-	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist"})
+	addFieldIfMissing(collection, &core.JSONField{Name: "box_member_s"})
+	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist_list"})
 	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
+	// Superusers always bypass API rules entirely (see PocketBase docs), so
+	// they can already list/view/edit every box without any rule needed
+	// here. This rule only governs everyone else: a regular authenticated
+	// user may list/view a box only if there's a member_snapshot they own
+	// (user_id = them) whose member_id shows up in that box's
+	// box_member_s list. @collection.* is used because boxes has no direct
+	// relation field to member_snapshot — both conditions reference the
+	// same @collection.member_snapshot alias, so they constrain the same
+	// joined row rather than being independent checks.
+	//
+	// NOTE: this assumes box_member_s is a JSON array of member_id strings
+	// (e.g. ["m_123", "m_456"]). If it's structured differently (e.g. an
+	// array of objects), this filter will need to change accordingly.
 
-	return nil
+	// create/update/delete stay unset (nil = superuser-only): editing box
+	// assignments is an administrative action, not self-service.
+
+	// collection.Fields.Add(
+	//  &core.NumberField{Name: "box_state"},
+	//  &core.TextField{Name: "updated_by"},
+	//  &core.JSONField{Name: "box_member_s"},
+	//  &core.JSONField{Name: "waitlist_list"},
+	//  &core.TextField{Name: "notes"},
+	// )
 }
 
 // ensureWorkFormulaCollection creates/updates the work_formula collection,
 // tracking each member's required vs. completed work and open hours.
-func ensureWorkFormulaCollection(app core.App, memberCollectionId string) (*core.Collection, error) {
+func ensureWorkFormulaCollection(app core.App) (*core.Collection, error) {
 	log.Println("ensureWorkFormulaCollection running")
 
 	if existing, err := app.FindCollectionByNameOrId("work_formula"); err == nil {
-		if err := configureWorkFormulaCollection(app, existing, memberCollectionId); err != nil {
-			return nil, err
-		}
+		configureWorkFormulaCollection(existing)
 		if err := app.Save(existing); err != nil {
 			return nil, err
 		}
@@ -627,9 +522,7 @@ func ensureWorkFormulaCollection(app core.App, memberCollectionId string) (*core
 	}
 
 	collection := core.NewBaseCollection("work_formula")
-	if err := configureWorkFormulaCollection(app, collection, memberCollectionId); err != nil {
-		return nil, err
-	}
+	configureWorkFormulaCollection(collection)
 
 	if err := app.Save(collection); err != nil {
 		return nil, err
@@ -638,66 +531,50 @@ func ensureWorkFormulaCollection(app core.App, memberCollectionId string) (*core
 	return collection, nil
 }
 
-func configureWorkFormulaCollection(app core.App, collection *core.Collection, memberCollectionId string) error {
-	authenticatedRule := "@request.auth.id != ''"
+func configureWorkFormulaCollection(collection *core.Collection) {
+	// WF rules
+	memberOfWFRule := "@request.auth.id != '' && " +
+		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
+		"@collection.member_snapshot.member_id ?= member_id " + "|| @request.auth.is_admin = true"
+	// authenticatedRule := "@request.auth.id != ''"
 
-	collection.ListRule = types.Pointer(authenticatedRule)
-	collection.ViewRule = types.Pointer(authenticatedRule)
-	collection.CreateRule = types.Pointer(authenticatedRule)
-	collection.UpdateRule = types.Pointer(authenticatedRule)
-	collection.DeleteRule = types.Pointer(authenticatedRule)
-
-	if err := addTimeAttributeFields(app, collection); err != nil {
-		return err
-	}
-
-	addFieldIfMissing(collection, &core.RelationField{
-		Name:         "member_id",
-		CollectionId: memberCollectionId,
-		Required:     true,
-	})
+	collection.ListRule = types.Pointer(memberOfWFRule)
+	collection.ViewRule = types.Pointer(memberOfWFRule)
+	// collection.CreateRule = types.Pointer(authenticatedRule)
+	// collection.UpdateRule = types.Pointer(authenticatedRule)
+	// collection.DeleteRule = types.Pointer(authenticatedRule)
+	addTimeAttributeFields(collection)
+	addFieldIfMissing(collection, &core.TextField{Name: "member_id"})
 	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_required", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_completed", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_required", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_completed", OnlyInt: true})
-
-	return nil
+	addFieldIfMissing(collection, &core.NumberField{Name: "created_at", OnlyInt: true})
+	addFieldIfMissing(collection, &core.NumberField{Name: "modified_at", OnlyInt: true})
 }
 
 func addFieldIfMissing(collection *core.Collection, field core.Field) {
-	existing := collection.Fields.GetByName(field.GetName())
-
-	if existing == nil {
-		collection.Fields.Add(field)
-		return
-	}
-
-	if existing.Type() != field.Type() {
-		collection.Fields.RemoveByName(field.GetName())
+	if collection.Fields.GetByName(field.GetName()) == nil {
 		collection.Fields.Add(field)
 	}
 }
 
-func addTimeAttributeFields(app core.App, collection *core.Collection) error {
-	// created_at used to be stored as a NumberField (unix timestamp).
-	// PocketBase rejects changing an existing field's type in place (it
-	// reuses the same field id when Add() matches by name, and type changes
-	// on an existing id are blocked), so remove the old field first and add
-	// the DateField fresh - this drops and recreates the underlying column.
-	if existing := collection.Fields.GetByName("created_at"); existing == nil {
-		collection.Fields.Add(&core.DateField{Name: "created_at"})
-	} else if _, isDateField := existing.(*core.DateField); !isDateField {
-		collection.Fields.RemoveByName("created_at")
-		collection.Fields.Add(&core.DateField{Name: "created_at"})
+func addTimeAttributeFields(collection *core.Collection) {
+	if collection.Fields.GetByName("created_at") == nil {
+		collection.Fields.Add(
+			&core.NumberField{
+				Name:    "created_at",
+				OnlyInt: true,
+			},
+		)
 	}
 
-	if existing := collection.Fields.GetByName("modified_at"); existing == nil {
-		collection.Fields.Add(&core.DateField{Name: "modified_at"})
-	} else if _, isDateField := existing.(*core.DateField); !isDateField {
-		collection.Fields.RemoveByName("modified_at")
-		collection.Fields.Add(&core.DateField{Name: "modified_at"})
+	if collection.Fields.GetByName("modified_at") == nil {
+		collection.Fields.Add(
+			&core.NumberField{
+				Name:    "modified_at",
+				OnlyInt: true,
+			},
+		)
 	}
-
-	// Push the field change to the database right away.
-	return app.Save(collection)
 }
