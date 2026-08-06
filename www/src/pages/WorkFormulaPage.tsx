@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import AdminWorkFormulaMatrix from "../components/AdminWorkFormulaMatrix";
 
 import {
   currentUser,
@@ -45,6 +46,18 @@ export default function WorkFormulaPage() {
         setAllFormulas([]);
       });
   }, [isAuthenticated]);
+
+  function refetchFormulas() {
+    listWorkFormulas()
+      .then((res) => {
+        setAllFormulas(res.items);
+        setLoadError(null);
+      })
+      .catch((err) => {
+        console.error("WF refetch error:", err);
+        setLoadError("Could not load formulas.");
+      });
+  }
 
   function handleLogout() {
     logout();
@@ -106,6 +119,13 @@ export default function WorkFormulaPage() {
           Log out
         </button>
       </div>
+
+      {isAdmin() && (
+        <AdminWorkFormulaMatrix
+          members={allFormulas}
+          onApplied={refetchFormulas}
+        />
+      )}
 
       {loadError && <p className="error">{loadError}</p>}
 

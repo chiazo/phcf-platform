@@ -8,6 +8,55 @@ import MemberSnapshot from "../models/MemberSnapshot";
 
 export const pb = new PocketBase(config.pbUrl);
 
+export interface WorkFormulaCriteria {
+  memberType?: MemberType | "";
+  boardStatus?: "board" | "non_board" | "";
+  boxSharing?: "shared" | "individual" | "unassigned" | "";
+  memberId?: string;
+}
+
+export interface WorkFormulaPreviewResult {
+  matchedCount: number;
+  memberIds: string[];
+}
+
+export interface WorkFormulaBulkUpdateResult {
+  updatedCount: number;
+  memberIds: string[];
+}
+
+export async function previewWorkFormulaBulkUpdate(
+  criteria: WorkFormulaCriteria,
+) {
+  pb.autoCancellation(false);
+  return await pb.send<WorkFormulaPreviewResult>(
+    "/api/app/admin/work-formula/bulk-update",
+    {
+      method: "POST",
+      body: { criteria, preview: true },
+    },
+  );
+}
+
+export async function applyWorkFormulaBulkUpdate(
+  criteria: WorkFormulaCriteria,
+  workHoursRequired: number,
+  openHoursRequired: number,
+) {
+  pb.autoCancellation(false);
+  return await pb.send<WorkFormulaBulkUpdateResult>(
+    "/api/app/admin/work-formula/bulk-update",
+    {
+      method: "POST",
+      body: {
+        criteria,
+        workHoursRequired,
+        openHoursRequired,
+        preview: false,
+      },
+    },
+  );
+}
 
 export interface RegisterFarmMemberInput {
   email: string;

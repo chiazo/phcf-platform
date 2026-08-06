@@ -67,6 +67,24 @@ main {
     margin-bottom: 2rem;
 }
 
+.button-row, .matrix-row {
+    margin-top: 1rem;
+}
+
+.matrix-row label {
+    margin-top: 1rem;
+}
+
+#navigation-buttons {
+    display: flex;
+    min-width: 800px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: .75rem;
+    flex: 1 1 auto;
+}
+
 .signed-in-line {
     display: flex;
     align-items: center;
