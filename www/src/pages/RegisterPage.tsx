@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
+import { phonePattern } from "../models/enums";
 import { registerFarmMember } from "../lib/pocketbase";
 
 export default function RegisterPage() {
@@ -26,6 +26,13 @@ export default function RegisterPage() {
       return;
     }
 
+    const phone = String(form.get("phone") ?? "").trim();
+
+    if (phone && !phonePattern.test(phone)) {
+      setError("Enter a valid phone number.");
+      return;
+    }
+
     if (
       !orientationDate ||
       Number.isNaN(new Date(`${orientationDate}T00:00:00`).getTime())
@@ -44,7 +51,7 @@ export default function RegisterPage() {
         lastName: String(form.get("lastName") ?? ""),
         pronouns,
         orientationDate,
-        phone: String(form.get("phone") ?? ""),
+        phone: phone,
         addressLine1: String(form.get("addressLine1") ?? ""),
         city: String(form.get("city") ?? ""),
         zipCode: String(form.get("zipCode") ?? ""),
@@ -131,12 +138,21 @@ export default function RegisterPage() {
 
         <label>
           Phone
-          <input autoComplete="tel" name="phone" type="tel" />
+          <input
+            autoComplete="tel"
+            name="phone"
+            type="tel"
+            pattern="^\+?[0-9\s\-().]{7,20}$"
+          />
         </label>
 
         <label className="full-width">
           Address
-          <input autoComplete="street-address" name="addressLine1" type="text" />
+          <input
+            autoComplete="street-address"
+            name="addressLine1"
+            type="text"
+          />
         </label>
 
         <label>

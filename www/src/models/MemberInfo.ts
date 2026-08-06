@@ -1,5 +1,5 @@
 import BaseModel from "./BaseModel";
-import { MemberState, DueState } from "./enums";
+import { MemberState, MemberRole, DueState } from "./enums";
 
 /* -------------------------
    DUES
@@ -60,6 +60,7 @@ export class Requirements extends BaseModel<any> {
 --------------------------*/
 export default class MemberInfo extends BaseModel<any> {
   memberState?: MemberState;
+  memberRole?: MemberRole;
 
   dues: Dues;
   requirements: Requirements;
@@ -68,6 +69,7 @@ export default class MemberInfo extends BaseModel<any> {
     super(data);
 
     this.memberState = data.memberState;
+    this.memberRole = data.role;
 
     this.dues = new Dues(data.dues ?? {});
     this.requirements = new Requirements(data.requirements ?? {});

@@ -1,4 +1,10 @@
 {
+  "scripts": {
+    "start": "./run.sh",
+    "build": "./build.sh",
+    "deploy": "./deploy.sh",
+    "reset-db": "cd server && rm pb_data/data.db"
+  },
   "dependencies": {
     "@astrojs/node": "^11.0.2",
     "astro": "^7.0.6",
