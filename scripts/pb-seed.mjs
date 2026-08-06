@@ -258,13 +258,35 @@ function fakeBoxPayload(memberIdsPool) {
 function fakeWorkFormulaPayload(memberIdTextPool) {
   const workRequired = faker.number.int({ min: 10, max: 60 });
   const openRequired = faker.number.int({ min: 5, max: 30 });
+  const type_of_acitivties = [
+    "Advertising/Outreach",
+    "Compost Specific Repairs",
+    "Construction",
+    "Event: Garden-Hosted",
+    "Event: Non-School-Visit External Event",
+    "Event: School Visit",
+    "Filling Water Barrels and/or Watering Large, Widespread, General Areas of Garden",
+    "Greenhouse work/maintenance",
+    "Leafdrop",
+    "Mulch/Woodchip Spreading",
+    "Opening Gate for Delivery",
+    "Plant Sale",
+    "Pruning",
+    "Rat Abatement",
+    "Snow/Ice Removal/Prevention",
+    "Victory Garden",
+    "Work Day",
+    "Taking trash to curb"
+  ]
 
   return {
     member_id: memberIdTextPool.length
       ? faker.helpers.arrayElement(memberIdTextPool)
       : faker.string.alphanumeric(8).toUpperCase(),
+    work_activity: faker.helpers.arrayElement(type_of_acitivties),
     work_hours_required: workRequired,
     work_hours_completed: faker.number.int({ min: 0, max: workRequired }),
+    volunteer_date: Math.floor(faker.date.recent({ days: 90 }).getTime() / 1000,),
     open_hours_required: openRequired,
     open_hours_completed: faker.number.int({ min: 0, max: openRequired }),
     [SEED_MARKER_FIELD]: true,
