@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useId } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isAdmin, isLoggedIn, listMemberSnapshots, logout, listApprovalUpdates } from "../lib/pocketbase";
+import { currentUser, isAdmin, isLoggedIn, listLegacySnapshots, logout } from "../lib/pocketbase";
 import { config } from "../lib/config";
 
 import Box from '@mui/material/Box';
@@ -13,65 +13,44 @@ import SearchIcon from '@mui/icons-material/Search';
 
 import AdminStatusButton from "../components/AdminStatusButton";
 import MemberTable from "../components/MemberTable";
-import ModalTable from "../components/ModalTable";
 
-export default function MembersPage() {
+export default function LegacySnapshotPage() {
   //holds all of the members fetched from the server
-  const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
-  const [approvedMembers, setApprovedMembers] = useState<Array<Record<string, any>>>([]);
+  const [allSnapshots, setAllSnapshots] = useState<Array<Record<string, any>>>([]);
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
 
-  function refreshApprovedMembers() {
-    return listApprovalUpdates()
-      .then((res) => {
-        setApprovedMembers(res.items)
-      })
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setApprovedMembers([]);
-      });
-  }
-
-  function refreshAllMembers() {
-    return listMemberSnapshots()
-      .then((res) => setAllMembers(res.items))
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setAllMembers([]);
-      });
-  }
-
-  function refreshMembers() {
-    return Promise.all([refreshApprovedMembers(), refreshAllMembers()]);
-  }
-
   //listMemberSnapshots is a GET Request
   //gives back at least 1 member and at most 50 members
   useEffect(() => {
-    document.title = "Overview";
+    document.title = "Legacy Snapshots";
 
     if (!isAuthenticated) {
-      setAllMembers([]);
+        setAllSnapshots([]);
       return;
     }
 
-    refreshMembers();
+    listLegacySnapshots()
+      .then((res) => setAllSnapshots(res.items))
+      .catch((err) => {
+        console.error("member fetch error:", err);
+        setAllSnapshots([]);
+      });
   }, [isAuthenticated]);
 
   //filters the already-loaded members as the user types, so the table
   //updates immediately without waiting on a network request
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return allMembers;
+    if (!q) return allSnapshots;
 
-    return allMembers.filter((record) => {
+    return allSnapshots.filter((record) => {
       const firstName = record.personal_info?.firstName?.toLowerCase() ?? "";
       const lastName = record.personal_info?.lastName?.toLowerCase() ?? "";
       return firstName.includes(q) || lastName.includes(q);
     });
-  }, [allMembers, query]);
+  }, [allSnapshots, query]);
 
   function handleLogout() {
     logout();
@@ -101,30 +80,30 @@ export default function MembersPage() {
     <>
       <div className="page-header">
         <div>
-          <h1>Members</h1>
+          <h1>Legacy Snapshots</h1>
           <p className="muted signed-in-line">
             Signed in as {currentUser()?.email}
             <AdminStatusButton />
           </p>
         </div>
         <div id='navigation-buttons'>
-          <Link className="button-link secondary" to="/box-info">
-            Box Info
-          </Link>
-          <Link className="button-link secondary" to="/work-formula">
-            Work Formulas
-          </Link>
-          <Link className="button-link secondary" to="/legacy-snapshots">
-            Legacy Snapshots
-          </Link>
-          {isAdmin() && (
-            <Link className="button-link secondary" to="/admin">
-              Admin access
+            <Link className="button-link secondary" to="/">
+                ← Back to Members
             </Link>
-          )}
-          <button className="secondary" onClick={handleLogout} type="button">
+            <Link className="button-link secondary" to="/box-info">
+            Box Info
+            </Link>
+            <Link className="button-link secondary" to="/work-formula">
+            Work Formulas
+            </Link>
+            {isAdmin() && (
+            <Link className="button-link secondary" to="/admin">
+                Admin access
+            </Link>
+            )}
+            <button className="secondary" onClick={handleLogout} type="button">
             Log out
-          </button>
+            </button>
         </div>
       </div>
 
@@ -144,8 +123,6 @@ export default function MembersPage() {
     
 
       <MemberTable members={items}/>
-
-      <ModalTable members={approvedMembers} onActionComplete={refreshMembers}/>
 
       <br />
 

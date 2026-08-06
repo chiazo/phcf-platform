@@ -49,6 +49,8 @@ export default function RegisterPage() {
         city: String(form.get("city") ?? ""),
         zipCode: String(form.get("zipCode") ?? ""),
         onMailingList: form.get("onMailingList") === "on",
+        // created_at: new Date(),
+        // modified_at: new Date(),
       });
 
       navigate("/");

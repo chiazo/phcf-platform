@@ -71,6 +71,9 @@ export default function WorkFormulaPage() {
           <Link className="button-link secondary" to="/box-info">
             Box Info
           </Link>
+          <Link className="button-link secondary" to="/legacy-snapshots">
+            Legacy Snapshots
+          </Link>
             {isAdmin() && (
                 <Link className="button-link secondary" to="/admin">
                     Admin access

@@ -174,6 +174,8 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
         waitlistNumber: 0,
       },
     },
+    created_at: new Date(),////add fresh date pull here
+    modified_at: new Date(),
   });
 
   await pb.collection("member").create({
@@ -233,10 +235,24 @@ export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newR
     const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
     `member_id = "${oldMemberInfo.memberId}"`
   );
+    console.log('currentMemberSnapshot:',currentMemberSnapshot)
+    console.log("modified_at:",currentMemberSnapshot.modified_at)
+
+    // check if created_at history, if not, set to now
+    if (!currentMemberSnapshot.created_at){
+      currentMemberSnapshot.created_at = new Date()
+      console.log('currentMemberSnapshot.created_at:', currentMemberSnapshot.created_at)
+    }
+    // check if modified history, if not, set to now
+    if (!currentMemberSnapshot.modified_at){
+      currentMemberSnapshot.modified_at = new Date()
+      console.log('currentMemberSnapshot.modified_at:', currentMemberSnapshot.modified_at)
+    }
 
     // update the info in the member table
     const record = await pb.collection('member_snapshot').update(`${currentMemberSnapshot.id}`, {
     personal_info : newRecord,
+    modified_at: new Date(),
     }); 
 
   }
@@ -315,6 +331,8 @@ export async function acceptRequest(currentSnapshot: Record<string, any>){
   })
 }
 
+
+
 export async function getMemberWorkFormula(memberSnapshot: Record <string, any>){
   pb.autoCancellation(false);
   return await pb
@@ -322,3 +340,13 @@ export async function getMemberWorkFormula(memberSnapshot: Record <string, any>)
     .getFirstListItem(`member_id = "${memberSnapshot.member_id}"`);
 }
 
+
+
+
+
+
+// gets the full list of legacy snapshots from the legacy_snapshots collection
+export async function listLegacySnapshots() {
+  pb.autoCancellation(false);
+  return await pb.collection("legacy_snapshots").getList(1, 50);
+}
