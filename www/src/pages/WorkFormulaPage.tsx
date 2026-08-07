@@ -92,6 +92,9 @@ export default function WorkFormulaPage() {
             <tr>
               {/* <th>ID</th> */}
               <th>Member ID</th>
+              <th>Volunteer Activity</th>
+              <th>Volunteer Date</th>
+              <th>Volunteer Hours</th>
               <th>Work Hours Required</th>
               <th>Work Hours Completed</th>
               <th>Open Hours Required</th>
@@ -104,6 +107,9 @@ export default function WorkFormulaPage() {
             {allFormulas.map((wf) => (
               <tr key={wf.id}>
                 <td>{wf.member_id}</td>
+                <td>{wf.volunteer_activity}</td>
+                <td>{wf.volunteer_date}</td>
+                <td>{wf.volunteer_hours}</td>
                 <td>{wf.work_hours_required}</td>
                 <td>{wf.work_hours_completed}</td>
                 <td>{wf.open_hours_required}</td>

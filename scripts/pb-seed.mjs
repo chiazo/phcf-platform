@@ -283,10 +283,11 @@ function fakeWorkFormulaPayload(memberIdTextPool) {
     member_id: memberIdTextPool.length
       ? faker.helpers.arrayElement(memberIdTextPool)
       : faker.string.alphanumeric(8).toUpperCase(),
-    work_activity: faker.helpers.arrayElement(type_of_acitivties),
+    volunteer_activity: faker.helpers.arrayElement(type_of_acitivties),
+    volunteer_date: Math.floor(faker.date.recent({ days: 90 }).getTime() / 1000,),
+    volunteer_hours: faker.number.int({ min: 0, max: 12}),
     work_hours_required: workRequired,
     work_hours_completed: faker.number.int({ min: 0, max: workRequired }),
-    volunteer_date: Math.floor(faker.date.recent({ days: 90 }).getTime() / 1000,),
     open_hours_required: openRequired,
     open_hours_completed: faker.number.int({ min: 0, max: openRequired }),
     [SEED_MARKER_FIELD]: true,

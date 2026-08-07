@@ -471,7 +471,7 @@ func configureBoxesCollection(collection *core.Collection) {
 
 	log.Println("work_formula rules updated")
 	addTimeAttributeFields(collection)
-	addFieldIfMissing(collection, &core.NumberField{Name: "box_state"})
+	addFieldIfMissing(collection, &core.TextField{Name: "box_state"})
 	addFieldIfMissing(collection, &core.TextField{Name: "updated_by"})
 	addFieldIfMissing(collection, &core.JSONField{Name: "box_member_s"})
 	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist_list"})
@@ -498,13 +498,13 @@ func configureBoxesCollection(collection *core.Collection) {
 	// create/update/delete stay unset (nil = superuser-only): editing box
 	// assignments is an administrative action, not self-service.
 
-	collection.Fields.Add(
-		&core.NumberField{Name: "box_state"},
-		&core.TextField{Name: "updated_by"},
-		&core.JSONField{Name: "box_member_s"},
-		&core.JSONField{Name: "waitlist_list"},
-		&core.TextField{Name: "notes"},
-	)
+	// collection.Fields.Add(
+	// 	&core.NumberField{Name: "box_state"},
+	// 	&core.TextField{Name: "updated_by"},
+	// 	&core.JSONField{Name: "box_member_s"},
+	// 	&core.JSONField{Name: "waitlist_list"},
+	// 	&core.TextField{Name: "notes"},
+	// )
 }
 
 // ensureWorkFormulaCollection creates/updates the work_formula collection,
@@ -545,10 +545,11 @@ func configureWorkFormulaCollection(collection *core.Collection) {
 	// collection.DeleteRule = types.Pointer(authenticatedRule)
 	addTimeAttributeFields(collection)
 	addFieldIfMissing(collection, &core.TextField{Name: "member_id"})
-	addFieldIfMissing(collection, &core.TextField{Name: "work_activity"})
+	addFieldIfMissing(collection, &core.TextField{Name: "volunteer_activity"})
+	addFieldIfMissing(collection, &core.NumberField{Name: "volunteer_date", OnlyInt: true})
+	addFieldIfMissing(collection, &core.NumberField{Name: "volunteer_hours", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_required", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_completed", OnlyInt: true})
-	addFieldIfMissing(collection, &core.NumberField{Name: "volunteer_date"})
 	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_required", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_completed", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "created_at", OnlyInt: true})
