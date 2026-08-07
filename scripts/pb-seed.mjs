@@ -398,7 +398,7 @@ async function seedLegacySnaphots(pb, count, memberIdsPool) {
   const created = [];
 
   for (let i = 0; i < count; i++) {
-    const payload = fakeBoxPayload(memberIdsPool);
+    const payload = fakeMemberSnapshotPayload(memberIdsPool); //change to snapshot payload
 
     if (DRY_RUN) {
       console.log(

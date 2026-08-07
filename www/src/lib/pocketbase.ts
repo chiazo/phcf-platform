@@ -298,15 +298,21 @@ export async function addToBoxWaitlist(allBoxes: Record<string, any>[]) {
     throw new Error("No boxes available to join.");
   }
 
+  console.log('user',user)
+
+  if (user.collectionName == '_superusers'){
+    console.log('user.email',user.email)
+  }
+
   // member_id isn't guaranteed to equal the auth user's id, so resolve it
   // via that user's member_snapshot, same as acceptRequest/updatePronouns do.
-  const memberSnapshot = await pb
+  const memberSnapshotID = await pb
     .collection("member_snapshot")
-    .getFirstListItem(`user_id = "${user.id}"`);
+    .getFirstListItem(`member_id = "${user.id}"`);
 
-  const memberId = memberSnapshot.member_id;
-  console.log('memberId',memberId)
-  if (!memberId) {
+  // const memberId = memberSnapshot.member_id;
+  console.log('memberSnapshotID',memberSnapshotID)
+  if (!memberSnapshotID) {
     throw new Error("Current user has no associated member_id.");
   }
 
@@ -331,8 +337,9 @@ export async function addToBoxWaitlist(allBoxes: Record<string, any>[]) {
     );
   }
 
-  const updatedWaitlist = [...(targetBox.waitlist_list ?? []), memberId];
+  const updatedWaitlist = [...(targetBox.waitlist_list ?? []), memberSnapshotID.member_id];
   console.log('updatedWaitlist',updatedWaitlist)
+  console.log('targetBox.id',targetBox.id) //<- this is correct but isnt adding onto the found box
   // Persist the change to PocketBase.
   return await pb.collection("boxes").update(`${targetBox.id}`, {
     waitlist_list: updatedWaitlist,
