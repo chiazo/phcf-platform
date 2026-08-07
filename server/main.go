@@ -482,7 +482,7 @@ func configureBoxesCollection(collection *core.Collection) {
 	collection.DeleteRule = types.Pointer(authenticatedRule)
 
 	addTimeAttributeFields(collection)
-	addFieldIfMissing(collection, &core.NumberField{Name: "box_state"})
+	addFieldIfMissing(collection, &core.TextField{Name: "box_state"})
 	addFieldIfMissing(collection, &core.TextField{Name: "updated_by"})
 	addFieldIfMissing(collection, &core.JSONField{Name: "box_member_s"})
 	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist_list"})
