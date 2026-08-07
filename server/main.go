@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -23,6 +24,14 @@ var boardRoles = map[string]bool{
 	"VICE_PRESIDENT": true,
 	"SECRETARY":      true,
 	"TREASURER":      true,
+}
+
+var serviceHourCategories = []string{
+	"GOOD_STANDING",
+	"BOARD",
+	"EMERITUS",
+	"SENIOR",
+	"NEW",
 }
 
 type workFormulaCriteria struct {
@@ -97,6 +106,10 @@ func main() {
 
 func ensureAppCollections(app core.App) error {
 	if err := ensureUsersCollectionRules(app); err != nil {
+		return err
+	}
+
+	if _, err := ensureServiceHourRatesCollection(app); err != nil {
 		return err
 	}
 
@@ -309,6 +322,112 @@ func demoteAdminUser(app core.App) func(e *core.RequestEvent) error {
 			"collection_id": record.Collection().Id,
 		})
 	}
+}
+
+func ensureServiceHourRatesCollection(app core.App) (*core.Collection, error) {
+	if existing, err := app.FindCollectionByNameOrId("service_hour_rates"); err == nil {
+		if err := configureServiceHourRatesCollection(app, existing); err != nil {
+			return nil, err
+		}
+		if err := app.Save(existing); err != nil {
+			return nil, err
+		}
+		if err := seedServiceHourRates(app); err != nil {
+			return nil, err
+		}
+		return existing, nil
+	}
+
+	collection := core.NewBaseCollection("service_hour_rates")
+	if err := configureServiceHourRatesCollection(app, collection); err != nil {
+		return nil, err
+	}
+	if err := app.Save(collection); err != nil {
+		return nil, err
+	}
+
+	if err := seedServiceHourRates(app); err != nil {
+		return nil, err
+	}
+
+	return collection, nil
+}
+
+func configureServiceHourRatesCollection(app core.App, collection *core.Collection) error {
+	authenticatedRule := "@request.auth.id != ''"
+	adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
+
+	// Any signed-in member can read the rates (so the export/UI can show
+	// them), but only admins can change what each category is worth.
+	collection.ListRule = types.Pointer(authenticatedRule)
+	collection.ViewRule = types.Pointer(authenticatedRule)
+	collection.CreateRule = types.Pointer(adminRule)
+	collection.UpdateRule = types.Pointer(adminRule)
+	collection.DeleteRule = types.Pointer(adminRule)
+
+	if err := addTimeAttributeFields(app, collection); err != nil {
+		return err
+	}
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name:     "category",
+		Required: true,
+	})
+	addFieldIfMissing(collection, &core.NumberField{
+		Name:     "percentage",
+		Required: false,
+	})
+
+	return nil
+}
+
+// seedServiceHourRates ensures one row exists per known category, defaulting
+// to sensible starting percentages. It never overwrites a percentage an
+// admin has already set — it only fills in rows that are missing entirely.
+func seedServiceHourRates(app core.App) error {
+	defaults := map[string]float64{
+		"GOOD_STANDING": 100,
+		"BOARD":         50,
+		"EMERITUS":      0,
+		"SENIOR":        0,
+		"NEW":           100,
+	}
+
+	collection, err := app.FindCollectionByNameOrId("service_hour_rates")
+	if err != nil {
+		return err
+	}
+
+	for _, category := range serviceHourCategories {
+		percentage, ok := defaults[category]
+		if !ok {
+			return fmt.Errorf("no default percentage for category %q", category)
+		}
+
+		existing, err := app.FindFirstRecordByFilter(
+			"service_hour_rates",
+			"category = {:category}",
+			dbx.Params{"category": category},
+		)
+		if err == nil && existing != nil {
+			continue
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+
+		record := core.NewRecord(collection)
+		record.Set("category", category)
+		record.Set("percentage", percentage)
+		record.Set("created_at", time.Now())
+		record.Set("modified_at", time.Now())
+
+		if err := app.Save(record); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func bulkUpdateWorkFormula(app core.App) func(e *core.RequestEvent) error {

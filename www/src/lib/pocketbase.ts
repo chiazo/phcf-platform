@@ -2,7 +2,7 @@ import PocketBase from "pocketbase";
 
 import { config } from "./config";
 
-import {MemberType, DueState, MemberState, PaymentType, MemberRole} from "../models/enums";
+import { MemberType } from "../models/enums";
 import MemberSnapshot from "../models/MemberSnapshot";
 
 
@@ -15,6 +15,12 @@ export interface WorkFormulaCriteria {
   memberId?: string;
 }
 
+export interface ServiceHourRate {
+  id: string;
+  category: string;
+  percentage: number;
+}
+
 export interface WorkFormulaPreviewResult {
   matchedCount: number;
   memberIds: string[];
@@ -23,6 +29,22 @@ export interface WorkFormulaPreviewResult {
 export interface WorkFormulaBulkUpdateResult {
   updatedCount: number;
   memberIds: string[];
+}
+
+export async function exportMembersCSV() {
+  pb.autoCancellation(false);
+
+  const response = await fetch(`${config.pbUrl}/api/app/admin/export/members`, {
+    headers: {
+      Authorization: pb.authStore.token,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return await response.blob();
 }
 
 export async function previewWorkFormulaBulkUpdate(
@@ -36,6 +58,20 @@ export async function previewWorkFormulaBulkUpdate(
       body: { criteria, preview: true },
     },
   );
+}
+
+export async function listServiceHourRates() {
+  pb.autoCancellation(false);
+  return await pb
+    .collection("service_hour_rates")
+    .getFullList<ServiceHourRate>({
+      sort: "category",
+    });
+}
+
+export async function updateServiceHourRate(id: string, percentage: number) {
+  pb.autoCancellation(false);
+  return await pb.collection("service_hour_rates").update(id, { percentage });
 }
 
 export async function applyWorkFormulaBulkUpdate(

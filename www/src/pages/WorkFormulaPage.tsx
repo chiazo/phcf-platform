@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminWorkFormulaMatrix from "../components/AdminWorkFormulaMatrix";
+import AdminServiceHourRates from "../components/AdminServiceHourRates";
 
 import {
   currentUser,
@@ -121,11 +122,16 @@ export default function WorkFormulaPage() {
       </div>
 
       {isAdmin() && (
-        <AdminWorkFormulaMatrix
-          members={allFormulas}
-          onApplied={refetchFormulas}
-        />
+        <>
+          <AdminWorkFormulaMatrix
+            members={allFormulas}
+            onApplied={refetchFormulas}
+          />
+          <AdminServiceHourRates />
+        </>
       )}
+
+      <br></br>
 
       {loadError && <p className="error">{loadError}</p>}
 

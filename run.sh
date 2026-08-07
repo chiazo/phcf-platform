@@ -29,7 +29,7 @@ if [ "$MODE" = "dev" ]; then
 
   # Start PocketBase FIRST
   echo "📦 Starting PocketBase..."
-  (cd "$SERVER_DIR" && go run main.go serve) &
+  (cd "$SERVER_DIR" && go run export.go main.go serve) &
   PB_PID=$!
 
   # wait for PocketBase
