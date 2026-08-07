@@ -57,8 +57,11 @@ func ensureAppCollections(app core.App) error {
 	if _, err := ensureBoxesCollection(app); err != nil {
 		return err
 	}
+	if _, err := ensureWorkFormulaCollection(app); err != nil {
+		return err
+	}
 
-	_, err = ensureWorkFormulaCollection(app)
+	_, err = ensureLegacySnapshotCollection(app, snapshotCollection.Id)
 	return err
 }
 
@@ -462,12 +465,12 @@ func ensureBoxesCollection(app core.App) (*core.Collection, error) {
 
 func configureBoxesCollection(collection *core.Collection) {
 	authenticatedRule := "@request.auth.id != ''"
-	memberOfBoxRule := "@request.auth.id != '' && " +
-		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
-		"@collection.member_snapshot.member_id ?= box_member_s " + "|| @request.auth.is_admin = true"
+	// memberOfBoxRule := "@request.auth.id != '' && " +
+	// 	"@collection.member_snapshot.user_id ?= @request.auth.id && " +
+	// 	"@collection.member_snapshot.member_id ?= box_member_s " + "|| @request.auth.is_admin = true"
 	// ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
-	collection.ListRule = types.Pointer(memberOfBoxRule)
-	collection.ViewRule = types.Pointer(memberOfBoxRule)
+	collection.ListRule = types.Pointer(authenticatedRule)
+	collection.ViewRule = types.Pointer(authenticatedRule)
 
 	// collection.ListRule = types.Pointer(authenticatedRule)
 	// collection.ViewRule = types.Pointer(authenticatedRule)
@@ -577,4 +580,81 @@ func addTimeAttributeFields(collection *core.Collection) {
 			},
 		)
 	}
+}
+
+// legacy snapshot
+// ensureLegacySnapshotCollection mirrors the idempotent find-or-create
+// pattern used by ensureBoxesCollection: look up the collection by name,
+// and only create it if it doesn't already exist.
+func ensureLegacySnapshotCollection(app core.App, usersCollectionId string) (*core.Collection, error) {
+	log.Println("ensureLegacySnapshotCollection running")
+
+	if existing, err := app.FindCollectionByNameOrId("legacy_snapshots"); err == nil {
+		if err := configureLegacySnapshotCollection(app, existing, usersCollectionId); err != nil {
+			return nil, err
+		}
+		if err := app.Save(existing); err != nil {
+			return nil, err
+		}
+
+		return existing, nil
+	}
+
+	collection := core.NewBaseCollection("legacy_snapshots")
+	if err := configureLegacySnapshotCollection(app, collection, usersCollectionId); err != nil {
+		return nil, err
+	}
+
+	if err := app.Save(collection); err != nil {
+		return nil, err
+	}
+
+	return collection, nil
+}
+
+func configureLegacySnapshotCollection(app core.App, collection *core.Collection, usersCollectionId string) error {
+	authenticatedRule := "@request.auth.id != ''"
+
+	collection.ListRule = types.Pointer(authenticatedRule)
+	collection.ViewRule = types.Pointer(authenticatedRule)
+	collection.CreateRule = types.Pointer(authenticatedRule)
+	collection.UpdateRule = types.Pointer(authenticatedRule)
+	collection.DeleteRule = types.Pointer(authenticatedRule)
+
+	addTimeAttributeFields(collection)
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "user_id",
+		CollectionId: usersCollectionId,
+		Required:     true,
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "member_id",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "updated_by",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "notes",
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "personal_info",
+		Required: true,
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "member_info",
+		Required: true,
+	})
+
+	addFieldIfMissing(collection, &core.JSONField{
+		Name:     "box_info",
+		Required: true,
+	})
+
+	return nil
 }
