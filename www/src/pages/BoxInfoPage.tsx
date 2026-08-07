@@ -35,17 +35,7 @@ export default function BoxInfoPage() {
   }
 
   function handleRequestBox(){
-    console.log('box requested')
-    console.log(listBoxes)
     addToBoxWaitlist(allBoxes)
-    console.log('request processed')
-
-
-    // GET the boxes collection from pocketbase, 
-    // check if any boxes have no members, 
-      // if yes, add current logged user to waitlist for that box AND set box notes to admin review requested;
-      // if no, check all waitlists and return the first 0 length waitlist, add user to waitlist for that box AND set box notes to admin review requested;
-        // if no 0 length waitlist, find the shortest waitlist, add user to waitlist for that box AND set box notes to admin review requested;
   }
 
   // box_member_s / waitlist_list are stored as free-form JSON on each box
@@ -133,8 +123,8 @@ export default function BoxInfoPage() {
                 <td>
                   <span className="badge">{box.box_state ?? "—"}</span>
                 </td>
-                <td>{countEntries(box.box_member_s)}</td>
-                <td>{countEntries(box.waitlist_list)}</td>
+                <td>{box.box_member_s}</td>
+                <td>{box.waitlist_list}</td>
                 <td>{box.updated_by || "—"}</td>
                 <td className="muted">{box.notes || "—"}</td>
               </tr>
