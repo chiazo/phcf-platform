@@ -92,15 +92,15 @@ export default function WorkFormulaPage() {
             <tr>
               {/* <th>ID</th> */}
               <th>Member ID</th>
-              <th>Volunteer Activity</th>
+              <th className="col-volunteer-activity">Volunteer Activity</th>
               <th>Volunteer Date</th>
               <th>Volunteer Hours</th>
               <th>Work Hours Required</th>
               <th>Work Hours Completed</th>
               <th>Open Hours Required</th>
               <th>Open Hours Completed</th>
-              <th>Created At</th>
-              <th>Modified At</th>
+              {/* <th>Created At</th>
+              <th>Modified At</th> */}
             </tr>
           </thead>
           <tbody>
@@ -114,8 +114,8 @@ export default function WorkFormulaPage() {
                 <td>{wf.work_hours_completed}</td>
                 <td>{wf.open_hours_required}</td>
                 <td>{wf.open_hours_completed}</td>
-                <td>{wf.created_at}</td>
-                <td>{wf.modified_at}</td>
+                {/* <td>{wf.created_at}</td>
+                <td>{wf.modified_at}</td> */}
               </tr>
             ))}
           </tbody>

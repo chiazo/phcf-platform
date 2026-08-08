@@ -38,7 +38,7 @@ export default function MemberSnapshotPage() {
   const [editMode, setEditMode] = useState(false);
   const [isCurrentUserAdmin, setIsCurrentUserAdmin] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
-  const [workFormula, setWorkFormula] = useState<Record<string, any> | null>(null);
+  const [workFormulas, setWorkFormula] = useState<Array<Record<string, any>>>([]);
 
   const { register, handleSubmit } = useForm<IFormInput>()
 
@@ -55,13 +55,11 @@ export default function MemberSnapshotPage() {
 
         getMemberWorkFormula(raw)
         .then((result) => {
-          setWorkFormula(result)
+          setWorkFormula(result.items)
         })
         .catch((err) => {
           console.error("issues with fetching work formula:", err);
         })
-
-        console.log(workFormula)
 
         setMember(new MemberSnapshot(raw as any));
       })
@@ -347,18 +345,40 @@ export default function MemberSnapshotPage() {
         <section className="full">
           <h2>Service Requirements</h2>
 
-          {serviceRequirements.length ? (
+          {workFormulas.length > 0 ? (
             <ul>
-              {serviceRequirements.map((service: any, i: number) => (
-                <li key={i}>
-                  {service.workFormulaId && (
-                    <>
-                      <strong>{service.workFormulaId}</strong> —{" "}
-                    </>
-                  )}
-                  {service.hoursCompleted} hours
+              {workFormulas.map((singleFormula) => (
+                <>
+                <li key={singleFormula.id}>
+                  <p>
+                    <strong>Volunteer Activity</strong>
+                    {singleFormula.volunteer_activity || "—"}
+                  </p>
+                  <p>
+                    <strong>Volunteer Date</strong>
+                    {singleFormula.volunteer_date
+                      ? new Date(singleFormula.volunteer_date * 1000).toLocaleDateString(
+                          "en-US",
+                          { year: "numeric", month: "long", day: "numeric" },
+                        )
+                      : "—"}
+                  </p>
+                  <p>
+                    <strong>Volunteer Hours</strong>
+                    {singleFormula.volunteer_hours}
+                  </p>
+                  <p>
+                    <strong>Work Hours</strong>
+                    {singleFormula.work_hours_completed}/{singleFormula.work_hours_required}
+                  </p>
+                  <p>
+                    <strong>Open Hours</strong>
+                    {singleFormula.open_hours_completed}/{singleFormula.open_hours_required}
+                  </p>
                 </li>
+                  </>
               ))}
+
             </ul>
           ) : (
             <p>No service requirements recorded.</p>
