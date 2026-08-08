@@ -29,10 +29,23 @@ import {listApprovalUpdates} from "../lib/pocketbase";
 interface Data {
   id: string;
   fullName: string;
+  allMemberRequirementsMet: string;
   dueStatus: string; //DueState
+  duesStatusMet: string;
   amountPaid: number; //Amount Paid
   meetingsRequired: number; //Meetings Required
   meetingsCompleted: number;
+  meetingsRequiredMet: string;
+  serviceHoursMet: string;
+}
+
+function toNumber(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function yesNo(value: boolean): string {
+  return value ? 'YES' : 'NO';
 }
 
 // Raw PocketBase member_snapshot records (see MemberSnapshotDTO) are nested
@@ -45,33 +58,64 @@ function toRow(member: Record<string, any>): Data {
   const firstName = personalInfo.firstName ?? ''
   const lastName = personalInfo.lastName ?? ''
   const fullName = firstName + ' ' + lastName
-
+  const dueStatus = dues.dueState ?? '';
+  const meetingsRequired = toNumber(requirements.meetingsRequired);
+  const meetingsCompleted = toNumber(requirements.meetingsCompleted);
+  const serviceHoursRequired = toNumber(requirements.serviceHoursRequired);
+  const serviceHoursCompleted = serviceRequirements.reduce(
+    (sum: number, s: any) => sum + toNumber(s.hoursCompleted),
+    0,
+  );
+  const duesPaid = dueStatus === 'PAID' || dueStatus === 'COMPLETE';
+  const meetingsMet = meetingsCompleted >= meetingsRequired;
+  const serviceHoursMet = serviceHoursCompleted >= serviceHoursRequired;
+  const allMemberRequirementsMet =
+    duesPaid && meetingsMet && serviceHoursMet;
+  
 
   return createData(
     member.id,
     fullName,
-    dues.dueState ?? '',
-    dues.amountPaid ?? 0,
-    requirements.meetingsRequired ?? 0,
-    requirements.meetingsCompleted ?? 0,
+    yesNo(allMemberRequirementsMet),
+    dueStatus,
+    yesNo(duesPaid),
+    toNumber(dues.amountPaid),
+    meetingsRequired,
+    meetingsCompleted,
+    yesNo(meetingsMet),
+    serviceHoursRequired,
+    serviceHoursCompleted,
+    yesNo(serviceHoursMet),
   );
 }
 
 function createData(
   id: string,
   fullName: string,
+  allMemberRequirementsMet: string,
   dueStatus: string, //DueState
+  duesStatusMet: string,
   amountPaid: number, //Amount Paid
   meetingsRequired: number, //Meetings Required
   meetingsCompleted: number,
+  meetingsRequiredMet: string,
+  serviceHoursRequired: number, //hours completed
+  serviceHoursCompleted:number,
+  serviceHoursMet: string,
 ): Data {
   return {
     id,
     fullName,
+    allMemberRequirementsMet,
     dueStatus, //DueState
+    duesStatusMet,
     amountPaid, //Amount Paid
     meetingsRequired, //Meetings Required
     meetingsCompleted,
+    meetingsRequiredMet,
+    serviceHoursRequired, //hours completed
+    serviceHoursCompleted,
+    serviceHoursMet,
   };
 }
 
@@ -87,6 +131,21 @@ function descendingComparator<T>(a: T, b: T, orderBy: keyof T) {
 }
 
 type Order = 'asc' | 'desc';
+type RequirementFilter =
+  | 'serviceHoursMet'
+  | 'meetingsRequiredMet'
+  | 'duesStatusMet'
+  | 'allMemberRequirementsMet';
+
+const requirementFilters: Array<{
+  id: RequirementFilter;
+  label: string;
+}> = [
+  { id: 'serviceHoursMet', label: 'Service hours met' },
+  { id: 'meetingsRequiredMet', label: 'Meetings required met' },
+  { id: 'duesStatusMet', label: 'Dues status met' },
+  { id: 'allMemberRequirementsMet', label: 'All requirements met' },
+];
 
 function getComparator<Key extends keyof any>(
   order: Order,
@@ -113,6 +172,12 @@ const headCells: readonly HeadCell[] = [
     numeric: false,
     disablePadding: true,
     label: 'Full Name',
+  },
+  {
+    id: 'allMemberRequirementsMet',
+    numeric: false,
+    disablePadding: false,
+    label: 'All Member Requirements Met',
   },
   {
     id: 'dueStatus',
@@ -248,7 +313,7 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
           id="tableTitle"
           component="div"
         >
-          Prospect Heights Community Farm Members 
+          Prospect Heights Community Farm Members
         </Typography>
       )}
       {numSelected > 0 ? (
@@ -273,6 +338,7 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
   const [selected, setSelected] = React.useState<readonly string[]>([]);
   const [page, setPage] = React.useState(0);
   const [rowsPerPage, setRowsPerPage] = React.useState(5);
+  const [activeFilters, setActiveFilters] = React.useState<RequirementFilter[]>([]);
 
 
   const handleRequestSort = (
@@ -284,9 +350,30 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
     setOrderBy(property);
   };
 
+  const allRows = React.useMemo(() => members.map(toRow), [members]);
+
+  const filteredRows = React.useMemo(
+    () =>
+      allRows.filter((row) =>
+        activeFilters.every((filterId) => row[filterId] === 'YES'),
+      ),
+    [activeFilters, allRows],
+  );
+
+  const handleFilterChange =
+    (filterId: RequirementFilter) =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setActiveFilters((current) =>
+        event.target.checked
+          ? [...current, filterId]
+          : current.filter((id) => id !== filterId),
+      );
+      setPage(0);
+    };
+
   const handleSelectAllClick = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.checked) {
-      const newSelected = members.map((n) => n.id);
+      const newSelected = filteredRows.map((n) => n.id);
       setSelected(newSelected);
       return;
     }
@@ -323,15 +410,14 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
 
   // Avoid a layout jump when reaching the last page with empty rows.
   const emptyRows =
-    page > 0 ? Math.max(0, (1 + page) * rowsPerPage - members.length) : 0;
+    page > 0 ? Math.max(0, (1 + page) * rowsPerPage - filteredRows.length) : 0;
 
   const visibleRows = React.useMemo(
     () =>
-      members
-        .map(toRow)
+      [...filteredRows]
         .sort(getComparator(order, orderBy))
         .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [members, order, orderBy, page, rowsPerPage],
+    [filteredRows, order, orderBy, page, rowsPerPage],
   );
 
   return (
@@ -339,6 +425,37 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
       <Box sx={{ width: '100%' }}>
         <Paper sx={{ width: '100%', mb: 2 }}>
           <EnhancedTableToolbar numSelected={selected.length} />
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 1,
+              px: 2,
+              py: 1,
+              borderTop: 1,
+              borderColor: 'divider',
+            }}
+          >
+            <Typography
+              component="span"
+              sx={{ alignSelf: 'center', fontWeight: 600, mr: 1 }}
+            >
+              Filters:
+            </Typography>
+            {requirementFilters.map((filter) => (
+              <FormControlLabel
+                key={filter.id}
+                control={
+                  <Checkbox
+                    checked={activeFilters.includes(filter.id)}
+                    onChange={handleFilterChange(filter.id)}
+                    size="small"
+                  />
+                }
+                label={filter.label}
+              />
+            ))}
+          </Box>
           <TableContainer>
             <Table
               sx={{ minWidth: 750 }}
@@ -351,7 +468,7 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
                 orderBy={orderBy}
                 onSelectAllClick={handleSelectAllClick}
                 onRequestSort={handleRequestSort}
-                rowCount={members.length}
+                rowCount={filteredRows.length}
               />
               <TableBody>
                 {visibleRows.map((row, index) => {
@@ -396,6 +513,7 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
                           {row.fullName}
                           </Link>
                       </TableCell>
+                      <TableCell align="center">{row.allMemberRequirementsMet}</TableCell>
                       <TableCell align="center">{row.dueStatus}</TableCell>
                       <TableCell align="center">{row.amountPaid}</TableCell>
                       <TableCell align="center">{row.meetingsRequired}</TableCell>
@@ -433,7 +551,7 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
           <TablePagination
             rowsPerPageOptions={[5, 10, 25]}
             component="div"
-            count={members.length}
+            count={filteredRows.length}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}
