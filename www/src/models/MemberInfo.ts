@@ -37,6 +37,7 @@ export class Requirements extends BaseModel<any> {
   meetingsRequired: number;
   meetingsCompleted: number;
   serviceRequirements: any[];
+  volunteerInterests: string[];
 
   constructor(data: any = {}) {
     super(data);
@@ -44,6 +45,7 @@ export class Requirements extends BaseModel<any> {
     this.meetingsRequired = data.meetingsRequired ?? 0;
     this.meetingsCompleted = data.meetingsCompleted ?? 0;
     this.serviceRequirements = data.serviceRequirements ?? [];
+    this.volunteerInterests = data.volunteerInterests ?? [];
   }
 
   get meetingsRemaining(): number {

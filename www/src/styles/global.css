@@ -161,6 +161,39 @@ section {
     margin: 0 auto;
 }
 
+.home-panel {
+    text-align: center;
+}
+
+.home-title {
+    display: grid;
+    gap: .25rem;
+    margin-bottom: 1rem;
+}
+
+.home-title-name,
+.home-title-subtitle {
+    font-weight: 600;
+}
+
+.home-title-name {
+    font-size: 1.7rem;
+}
+
+.home-title-subtitle {
+    font-size: 1.35rem;
+}
+
+.home-blurb {
+    margin: 1rem auto 1.5rem;
+    max-width: 38rem;
+}
+
+.home-panel .button-row {
+    gap: 3rem;
+    justify-content: center;
+}
+
 .form-grid {
     display: grid;
     gap: 1rem;
@@ -215,6 +248,32 @@ select:focus {
 
 .checkbox-row input {
     width: auto;
+}
+
+.checkbox-fieldset {
+    border: 0;
+    display: grid;
+    gap: .75rem;
+    margin: 0;
+    padding: 0;
+}
+
+.checkbox-fieldset legend {
+    font-weight: 600;
+    margin-bottom: .5rem;
+}
+
+.checkbox-fieldset .checkbox-row {
+    color: var(--text);
+    font-weight: 400;
+}
+
+.other-checkbox-row {
+    grid-template-columns: auto auto minmax(12rem, 1fr);
+}
+
+.mailing-list-note {
+    margin-top: -.5rem;
 }
 
 .button-row{

@@ -120,14 +120,21 @@ export default function MembersPage() {
 
   if (!isAuthenticated) {
     return (
-      <section className="auth-panel">
-        <h1>PHCF Members</h1>
-        <p>Register or log in.</p>
+      <section className="auth-panel home-panel">
+        <h1 className="home-title">
+          <span className="home-title-name">Prospect Heights Community Farm</span>
+          <span className="home-title-subtitle">Membership Platform</span>
+        </h1>
+        <p className="home-blurb">
+          Welcome new and returning members! Check your membership standing and
+          request to join a box waitlist on our platform. New members: you may
+          register after attending your first general meeting.
+        </p>
         <div className="button-row">
           <Link className="button-link" to="/register">
             Register
           </Link>
-          <Link className="button-link secondary" to="/login">
+          <Link className="button-link" to="/login">
             Log in
           </Link>
         </div>

@@ -1,6 +1,6 @@
-import { FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { phonePattern } from "../models/enums";
+import { VOLUNTEER_INTEREST_OPTIONS, phonePattern } from "../models/enums";
 import { registerFarmMember } from "../lib/pocketbase";
 
 export default function RegisterPage() {
@@ -8,6 +8,25 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pronounsSelection, setPronounsSelection] = useState("");
+  const [phone, setPhone] = useState("");
+
+  function formatPhoneNumber(value: string) {
+    const digits = value.replace(/\D/g, "").slice(0, 10);
+
+    if (digits.length <= 3) {
+      return digits;
+    }
+
+    if (digits.length <= 6) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    }
+
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+
+  function handlePhoneChange(event: ChangeEvent<HTMLInputElement>) {
+    setPhone(formatPhoneNumber(event.target.value));
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -20,13 +39,28 @@ export default function RegisterPage() {
         ? String(form.get("pronounsOther") ?? "").trim()
         : pronounsSelection;
     const orientationDate = String(form.get("orientationDate") ?? "");
+    const volunteerInterests = form
+      .getAll("volunteerInterests")
+      .map((value) => String(value));
+    const otherVolunteerInterest = String(
+      form.get("volunteerInterestOther") ?? "",
+    ).trim();
+
+    if (
+      form.get("volunteerInterestOtherSelected") === "on" ||
+      otherVolunteerInterest
+    ) {
+      volunteerInterests.push(
+        otherVolunteerInterest
+          ? `Other: ${otherVolunteerInterest}`
+          : "Other",
+      );
+    }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError("Enter a valid email address.");
       return;
     }
-
-    const phone = String(form.get("phone") ?? "").trim();
 
     if (phone && !phonePattern.test(phone)) {
       setError("Enter a valid phone number.");
@@ -56,6 +90,7 @@ export default function RegisterPage() {
         city: String(form.get("city") ?? ""),
         zipCode: String(form.get("zipCode") ?? ""),
         onMailingList: form.get("onMailingList") === "on",
+        volunteerInterests,
         // created_at: new Date(),
         // modified_at: new Date(),
       });
@@ -73,7 +108,7 @@ export default function RegisterPage() {
 
   return (
     <section className="auth-panel">
-      <Link to="/">← Back to Members</Link>
+      <Link to="/">← Back to Home</Link>
       <h1>Register</h1>
 
       <form className="form-grid two-column" onSubmit={handleSubmit}>
@@ -137,12 +172,14 @@ export default function RegisterPage() {
         </label>
 
         <label>
-          Phone
+          Phone Number
           <input
             autoComplete="tel"
             name="phone"
+            onChange={handlePhoneChange}
             type="tel"
             pattern="^\+?[0-9\s\-().]{7,20}$"
+            value={phone}
           />
         </label>
 
@@ -166,9 +203,33 @@ export default function RegisterPage() {
         </label>
 
         <label className="checkbox-row full-width">
-          <input name="onMailingList" type="checkbox" />
+          <input name="onMailingList" required type="checkbox" />
           Join the mailing list
         </label>
+        <p className="mailing-list-note full-width">Please acknowledge that you will be added to the email listserv, which is the primary means of communication for the garden and that you must accept the invitation you will receive to complete the process. Failure to do so may impact your ability to be "in the know" and therefore learn of fun garden events and complete your membership requirements.</p>
+
+        <fieldset className="checkbox-fieldset full-width">
+          <legend>
+            All members are asked to volunteer time toward the garden's
+            maintenance. How are you most looking forward to helping in the
+            garden?
+          </legend>
+          {VOLUNTEER_INTEREST_OPTIONS.map((option) => (
+            <label className="checkbox-row" key={option}>
+              <input name="volunteerInterests" type="checkbox" value={option} />
+              {option}
+            </label>
+          ))}
+          <label className="checkbox-row other-checkbox-row">
+            <input name="volunteerInterestOtherSelected" type="checkbox" />
+            Other:
+            <input
+              aria-label="Other volunteer interest"
+              name="volunteerInterestOther"
+              type="text"
+            />
+          </label>
+        </fieldset>
 
         {error && <p className="error full-width">{error}</p>}
 

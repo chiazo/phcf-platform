@@ -72,7 +72,7 @@ export default function WorkFormulaPage() {
         </div>
         <div id="navigation-buttons">
           <Link className="button-link secondary" to="/">
-            ← Back to Members
+            ← Back to Home
           </Link>
           <Link className="button-link secondary" to="/box-info">
             Box Info

@@ -25,6 +25,7 @@ export interface RegisterFarmMemberInput {
   city?: string;
   zipCode?: string;
   onMailingList: boolean;
+  volunteerInterests?: string[];
 }
 
 export function currentUser() {
@@ -167,6 +168,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
         meetingsRequired: 0,
         serviceHoursRequired: 0,
         serviceRequirements: [],
+        volunteerInterests: input.volunteerInterests ?? [],
       },
     },
     box_info: {
