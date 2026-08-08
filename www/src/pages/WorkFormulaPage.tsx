@@ -10,6 +10,14 @@ import {
 } from "../lib/pocketbase";
 import AdminStatusButton from "../components/AdminStatusButton";
 
+function getMemberLabel(workFormula: Record<string, any>) {
+  const expandedUserName =
+    workFormula.expand?.member_id?.expand?.user_id?.name ??
+    workFormula.expand?.member_id?.name;
+
+  return expandedUserName || workFormula.member_id || "—";
+}
+
 export default function WorkFormulaPage() {
   const [allFormulas, setAllFormulas] = useState<Array<Record<string, any>>>(
     [],
@@ -119,6 +127,7 @@ export default function WorkFormulaPage() {
                 <td>{wf.volunteer_activity}</td>
                 <td>{wf.volunteer_date}</td>
                 <td>{wf.volunteer_hours}</td>
+                <td>{getMemberLabel(wf)}</td>
                 <td>{wf.work_hours_required}</td>
                 <td>{wf.work_hours_completed}</td>
                 <td>{wf.open_hours_required}</td>
