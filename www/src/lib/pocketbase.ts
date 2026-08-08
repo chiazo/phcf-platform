@@ -208,6 +208,36 @@ export async function listMemberSnapshots() {
   return await pb.collection("member_snapshot").getList(1, 50, { filter });
 }
 
+export async function correspondingWorkFormulas(allMembers: Array<Record<string, any>>) {
+  pb.autoCancellation(false);
+
+  //gets all of the member_ids of all of the members
+  const memberIds = allMembers
+    .map((m) => m.member_id)
+    .filter(Boolean);
+
+  //if there are no ids then every member has no work formula
+  if (memberIds.length === 0) {
+    return { items: allMembers.map(() => null) as Array<Record<string, any> | null> };
+  }
+
+  //Defines the filter for the work formulas in the list
+  const filter = memberIds.map((id) => `member_id = "${id}"`).join(" || ");
+
+  //looks for the work formulas belonging to the members defined in the filter variable
+  const workFormulas = await pb.collection("work_formula").getFullList({ filter });
+  const workFormulaByMemberId = new Map(
+    workFormulas.map((formula) => [formula.member_id, formula]),
+  );
+
+  //corresponds each member (by position) to its work formula, or null if it has none
+  return {
+    items: allMembers.map(
+      (member) => workFormulaByMemberId.get(member.member_id) ?? null,
+    ),
+  };
+}
+
 //gets the member of the given id
 export async function getMemberSnapshot(id: string) {
   pb.autoCancellation(false);
@@ -321,5 +351,6 @@ export async function getMemberWorkFormula(memberSnapshot: Record <string, any>)
       filter: `member_id = "${memberSnapshot.member_id}"` ,
   });
 }
+
 
 

@@ -16,10 +16,10 @@ import Paper from '@mui/material/Paper';
 import Checkbox from '@mui/material/Checkbox';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Switch from '@mui/material/Switch';
+import RuleIcon from '@mui/icons-material/Rule';
 import DeleteIcon from '@mui/icons-material/Delete';
-import FilterListIcon from '@mui/icons-material/FilterList';
+import MoodRoundedIcon from '@mui/icons-material/MoodRounded';
+import SentimentDissatisfiedRoundedIcon from '@mui/icons-material/SentimentDissatisfiedRounded';
 import { visuallyHidden } from '@mui/utils';
 import { useState } from "react";
 
@@ -33,8 +33,6 @@ interface Data {
   amountPaid: number; //Amount Paid
   meetingsRequired: number; //Meetings Required
   meetingsCompleted: number;
-  serviceHoursRequired: number; //hours completed
-  serviceHoursCompleted:number; //hours completed
 }
 
 // Raw PocketBase member_snapshot records (see MemberSnapshotDTO) are nested
@@ -44,11 +42,10 @@ function toRow(member: Record<string, any>): Data {
   const memberInfo = member.member_info ?? {};
   const dues = memberInfo.dues ?? {};
   const requirements = memberInfo.requirements ?? {};
-  const serviceRequirements = requirements.serviceRequirements ?? [];
   const firstName = personalInfo.firstName ?? ''
   const lastName = personalInfo.lastName ?? ''
   const fullName = firstName + ' ' + lastName
-  
+
 
   return createData(
     member.id,
@@ -57,11 +54,6 @@ function toRow(member: Record<string, any>): Data {
     dues.amountPaid ?? 0,
     requirements.meetingsRequired ?? 0,
     requirements.meetingsCompleted ?? 0,
-    requirements.serviceHoursRequired ?? 0,
-    serviceRequirements.reduce(
-      (sum: number, s: any) => sum + (s.hoursCompleted ?? 0),
-      0,
-    ),
   );
 }
 
@@ -72,8 +64,6 @@ function createData(
   amountPaid: number, //Amount Paid
   meetingsRequired: number, //Meetings Required
   meetingsCompleted: number,
-  serviceHoursRequired: number, //hours completed
-  serviceHoursCompleted:number
 ): Data {
   return {
     id,
@@ -82,8 +72,6 @@ function createData(
     amountPaid, //Amount Paid
     meetingsRequired, //Meetings Required
     meetingsCompleted,
-    serviceHoursRequired, //hours completed
-    serviceHoursCompleted
   };
 }
 
@@ -150,18 +138,6 @@ const headCells: readonly HeadCell[] = [
     disablePadding: false,
     label: 'Meetings Completed',
   },
-   {
-    id: 'serviceHoursRequired',
-    numeric: false,
-    disablePadding: false,
-    label: 'Service Hours Required',
-  },
-   {
-    id: 'serviceHoursCompleted',
-    numeric: false,
-    disablePadding: false,
-    label: 'Service Hours Completed',
-  },
 ];
 
 interface EnhancedTableProps {
@@ -216,6 +192,11 @@ function EnhancedTableHead(props: EnhancedTableProps) {
             </TableSortLabel>
           </TableCell>
         ))}
+        <TableCell align="center">Work Hours Required</TableCell>
+        <TableCell align="center">Work Hours Completed</TableCell>
+        <TableCell align="center">Open Hours Required</TableCell>
+        <TableCell align="center">Open Hours Completed</TableCell>
+        <TableCell align="center">Status</TableCell>
       </TableRow>
     </TableHead>
   );
@@ -277,16 +258,16 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
           </IconButton>
         </Tooltip>
       ) : (
-        <Tooltip title="Needs Approval List" onClick={displayModal}>
+        <Tooltip title="Needs Admin Approval List" onClick={displayModal}>
           <IconButton >
-            <FilterListIcon />
+            <RuleIcon fontSize={'large'} sx={{ color: 'green' }} />
           </IconButton>
         </Tooltip>
       )}
     </Toolbar>
   );
 }
-export default function EnhancedTable({ members }: { members: Array<Record<string, any>> } ) {
+export default function EnhancedTable({ members, work_formulas }: { members: Array<Record<string, any>>, work_formulas: Array<Record<string, any> | null> } ) {
   const [order, setOrder] = React.useState<Order>('asc');
   const [orderBy, setOrderBy] = React.useState<keyof Data>('dueStatus');
   const [selected, setSelected] = React.useState<readonly string[]>([]);
@@ -376,6 +357,14 @@ export default function EnhancedTable({ members }: { members: Array<Record<strin
                 {visibleRows.map((row, index) => {
                   const isItemSelected = selected.includes(row.id);
                   const labelId = `enhanced-table-checkbox-${index}`;
+                  const workFormula = work_formulas[index];
+                  const workHoursRequired = workFormula?.work_hours_required ?? 0;
+                  const workHoursCompleted = workFormula?.work_hours_completed ?? 0;
+                  const openHoursRequired = workFormula?.open_hours_required ?? 0;
+                  const openHoursCompleted = workFormula?.open_hours_completed ?? 0;
+                  const isWorkFormulaSatisfied =
+                    workHoursRequired === workHoursCompleted &&
+                    openHoursRequired === openHoursCompleted;
 
                   return (
                     <TableRow
@@ -411,8 +400,21 @@ export default function EnhancedTable({ members }: { members: Array<Record<strin
                       <TableCell align="center">{row.amountPaid}</TableCell>
                       <TableCell align="center">{row.meetingsRequired}</TableCell>
                       <TableCell align="center">{row.meetingsCompleted}</TableCell>
-                      <TableCell align="center">{row.serviceHoursRequired}</TableCell>
-                      <TableCell align="center">{row.serviceHoursCompleted}</TableCell>
+                      <TableCell align="center">{workHoursRequired}</TableCell>
+                      <TableCell align="center">{workHoursCompleted}</TableCell>
+                      <TableCell align="center">{openHoursRequired}</TableCell>
+                      <TableCell align="center">{openHoursCompleted}</TableCell>
+                      <TableCell align="center">
+                        {workFormula ? (
+                          isWorkFormulaSatisfied ? (
+                            <MoodRoundedIcon sx={{ color: 'green' }} />
+                          ) : (
+                            <SentimentDissatisfiedRoundedIcon sx={{ color: 'red' }} />
+                          )
+                        ) : (
+                          'N/A'
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -422,7 +424,7 @@ export default function EnhancedTable({ members }: { members: Array<Record<strin
                       height: 53 * emptyRows,
                     }}
                   >
-                    <TableCell colSpan={9} />
+                    <TableCell colSpan={11} />
                   </TableRow>
                 )}
               </TableBody>

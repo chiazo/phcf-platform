@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useId } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isAdmin, isLoggedIn, listMemberSnapshots, logout, listApprovalUpdates } from "../lib/pocketbase";
+import { currentUser, isAdmin, isLoggedIn, listMemberSnapshots, logout, listApprovalUpdates, correspondingWorkFormulas } from "../lib/pocketbase";
 import { config } from "../lib/config";
 
 import Box from '@mui/material/Box';
@@ -18,25 +18,39 @@ import ModalTable from "../components/ModalTable";
 export default function MembersPage() {
   //holds all of the members fetched from the server
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
+  const [workFormulas, setAllFormulas] = useState<Array<Record<string, any> | null>>([]);
   const [approvedMembers, setApprovedMembers] = useState<Array<Record<string, any>>>([]);
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
 
-  function refreshApprovedMembers() {
-    return listApprovalUpdates()
-      .then((res) => {
-        setApprovedMembers(res.items)
-      })
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setApprovedMembers([]);
-      });
+  async function refreshApprovedMembers() {
+    try {
+      const res = await listApprovalUpdates();
+      setApprovedMembers(res.items);
+    } catch (err) {
+      console.error("member fetch error:", err);
+      setApprovedMembers([]);
+    }
+  }
+
+  async function memberWorkFormulas(members: Array<Record<string, any>>){
+   try {
+      const res = await correspondingWorkFormulas(members);
+      return setAllFormulas(res.items);
+    } catch (err) {
+      console.error("work formula fetch error:", err);
+      setAllMembers([]);
+    }
   }
 
   function refreshAllMembers() {
     return listMemberSnapshots()
-      .then((res) => setAllMembers(res.items))
+      .then((res) => {
+        setAllMembers(res.items)
+        memberWorkFormulas(res.items)
+        console.log(workFormulas)
+      })
       .catch((err) => {
         console.error("member fetch error:", err);
         setAllMembers([]);
@@ -140,7 +154,7 @@ export default function MembersPage() {
     </Box>
     
 
-      <MemberTable members={items}/>
+      <MemberTable members={items} work_formulas={workFormulas}/>
 
       <ModalTable members={approvedMembers} onActionComplete={refreshMembers}/>
 
