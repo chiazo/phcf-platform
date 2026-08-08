@@ -101,7 +101,7 @@ export default function AdminPage() {
   if (!isAdmin()) {
     return (
       <section className="auth-panel">
-        <Link to="/">← Back to Members</Link>
+        <Link to="/">← Back to Home</Link>
         <h1>Admin</h1>
         <p className="error">Admin access is required.</p>
       </section>
@@ -120,7 +120,7 @@ export default function AdminPage() {
         </div>
         <div id="navigation-buttons">
           <Link className="button-link secondary" to="/">
-            ← Back to Members
+            ← Back to Home
           </Link>
           <button className="secondary" onClick={handleLogout} type="button">
             Log out

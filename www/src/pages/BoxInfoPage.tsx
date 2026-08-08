@@ -77,7 +77,7 @@ export default function BoxInfoPage() {
         </div>
         <div id="navigation-buttons">
           <Link className="button-link secondary" to="/">
-            ← Back to Members
+            ← Back to Home
           </Link>
           <Link className="button-link secondary" to="/work-formula">
             Work Formulas

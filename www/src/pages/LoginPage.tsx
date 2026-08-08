@@ -28,7 +28,7 @@ export default function LoginPage() {
 
   return (
     <section className="auth-panel">
-      <Link to="/">← Back to Members</Link>
+      <Link to="/">← Back to Home</Link>
       <h1>Member Login</h1>
 
       <form className="form-grid" onSubmit={handleSubmit}>

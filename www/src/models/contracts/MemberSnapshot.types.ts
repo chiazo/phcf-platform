@@ -51,6 +51,7 @@ export interface MemberSnapshotDTO {
         workFormulaId?: string;
         hoursCompleted: number;
       }>;
+      volunteerInterests?: string[];
     };
   };
 
