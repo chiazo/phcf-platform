@@ -806,7 +806,6 @@ export async function getMemberWorkFormula(memberSnapshot: Record <string, any>)
   });
 }
 
-
 // gets the full list of legacy snapshots from the legacy_snapshots collection
 export async function listLegacySnapshots() {
   pb.autoCancellation(false);

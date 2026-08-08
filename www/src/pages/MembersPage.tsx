@@ -472,6 +472,7 @@ export default function MembersPage() {
   const navigate = useNavigate();
   //holds all of the members fetched from the server
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
+  const [workFormulas, setAllFormulas] = useState<Array<Record<string, any> | null>>([]);
   const [approvedMembers, setApprovedMembers] = useState<
     Array<Record<string, any>>
   >([]);
@@ -491,15 +492,24 @@ export default function MembersPage() {
     Array<Record<string, any> | null>
   >([]);
 
-  function refreshApprovedMembers() {
-    return listApprovalUpdates()
-      .then((res) => {
-        setApprovedMembers(res.items);
-      })
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setApprovedMembers([]);
-      });
+  async function refreshApprovedMembers() {
+    try {
+      const res = await listApprovalUpdates();
+      setApprovedMembers(res.items);;
+    } catch (err) {
+      console.error("member fetch error:", err);
+      setApprovedMembers([]);
+    }
+  }
+
+  async function memberWorkFormulas(members: Array<Record<string, any>>){
+   try {
+      const res = await correspondingWorkFormulas(members);
+      return setAllFormulas(res.items);
+    } catch (err) {
+      console.error("work formula fetch error:", err);
+      setAllMembers([]);
+    }
   }
 
    async function memberWorkFormulas(members: Array<Record<string, any>>){
@@ -514,7 +524,11 @@ export default function MembersPage() {
 
   function refreshAllMembers() {
     return listMemberSnapshots()
-      .then((res) => setAllMembers(res.items))
+      .then((res) => {
+        setAllMembers(res.items)
+        memberWorkFormulas(res.items)
+        console.log(workFormulas)
+      })
       .catch((err) => {
         console.error("member fetch error:", err);
         setAllMembers([]);
