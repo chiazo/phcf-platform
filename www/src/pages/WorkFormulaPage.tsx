@@ -10,6 +10,14 @@ import {
 } from "../lib/pocketbase";
 import AdminStatusButton from "../components/AdminStatusButton";
 
+function getMemberLabel(workFormula: Record<string, any>) {
+  const expandedUserName =
+    workFormula.expand?.member_id?.expand?.user_id?.name ??
+    workFormula.expand?.member_id?.name;
+
+  return expandedUserName || workFormula.member_id || "—";
+}
+
 export default function WorkFormulaPage() {
   const [allFormulas, setAllFormulas] = useState<Array<Record<string, any>>>(
     [],
@@ -18,9 +26,9 @@ export default function WorkFormulaPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "Work Formula Info";
+    document.title = "PHCF Platform";
 
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !isAdmin()) {
       setAllFormulas([]);
       return;
     }
@@ -60,6 +68,16 @@ export default function WorkFormulaPage() {
     );
   }
 
+  if (!isAdmin()) {
+    return (
+      <section className="auth-panel">
+        <Link to="/">← Back to Home</Link>
+        <h1>Work Formula Info</h1>
+        <p className="error">Admin access is required.</p>
+      </section>
+    );
+  }
+
   return (
     <>
       <div className="page-header">
@@ -69,26 +87,24 @@ export default function WorkFormulaPage() {
             Signed in as {currentUser()?.email}
             <AdminStatusButton />
           </p>
-        </div>
-        <div id="navigation-buttons">
-          <Link className="button-link secondary" to="/">
-            ← Back to Members
-          </Link>
-          <Link className="button-link secondary" to="/box-info">
-            Box Info
-          </Link>
-          <Link className="button-link secondary" to="/legacy-snapshots">
-            Legacy Snapshots
-          </Link>
-          {isAdmin() && (
+          <div id="navigation-buttons">
+            <Link className="button-link secondary" to="/">
+              ← Back to Home
+            </Link>
+            <Link className="button-link secondary" to="/box-info">
+              Box Info
+            </Link>
+            <Link className="button-link secondary" to="/legacy-snapshots">
+              Legacy Snapshots
+            </Link>
             <Link className="button-link secondary" to="/admin">
               Admin access
             </Link>
-          )}
-          <button className="secondary" onClick={handleLogout} type="button">
-            Log out
-          </button>
+          </div>
         </div>
+        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+          Log out
+        </button>
       </div>
 
       {loadError && <p className="error">{loadError}</p>}
@@ -112,7 +128,7 @@ export default function WorkFormulaPage() {
           <tbody>
             {allFormulas.map((wf) => (
               <tr key={wf.id}>
-                <td>{wf.expand.member_id.expand.user_id.name}</td>
+                <td>{getMemberLabel(wf)}</td>
                 <td>{wf.work_hours_required}</td>
                 <td>{wf.work_hours_completed}</td>
                 <td>{wf.open_hours_required}</td>

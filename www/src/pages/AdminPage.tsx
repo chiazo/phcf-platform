@@ -28,7 +28,7 @@ export default function AdminPage() {
   const searchInputId = useId();
 
   useEffect(() => {
-    document.title = "Admin";
+    document.title = "PHCF Platform";
 
     if (!isAuthenticated || !isAdmin()) {
       setUsers([]);
@@ -101,7 +101,7 @@ export default function AdminPage() {
   if (!isAdmin()) {
     return (
       <section className="auth-panel">
-        <Link to="/">← Back to Members</Link>
+        <Link to="/">← Back to Home</Link>
         <h1>Admin</h1>
         <p className="error">Admin access is required.</p>
       </section>
@@ -117,15 +117,15 @@ export default function AdminPage() {
             Signed in as {currentUser()?.email}
             <AdminStatusButton />
           </p>
+          <div id="navigation-buttons">
+            <Link className="button-link secondary" to="/">
+              ← Back to Home
+            </Link>
+          </div>
         </div>
-        <div id="navigation-buttons">
-          <Link className="button-link secondary" to="/">
-            ← Back to Members
-          </Link>
-          <button className="secondary" onClick={handleLogout} type="button">
-            Log out
-          </button>
-        </div>
+        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+          Log out
+        </button>
       </div>
 
       {loadError && <p className="error">{loadError}</p>}

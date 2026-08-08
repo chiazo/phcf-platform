@@ -10,7 +10,7 @@ export default function BoxInfoPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "Box Info";
+    document.title = "PHCF Platform";
 
     if (!isAuthenticated) {
       setAllBoxes([]);
@@ -72,32 +72,28 @@ export default function BoxInfoPage() {
             Signed in as {currentUser()?.email}
             <AdminStatusButton />
           </p>
-        </div>
-        <div id='navigation-buttons'>
-          <div>
+          <div id='navigation-buttons'>
             <Link className="button-link secondary" to="/">
-                  ← Back to Members
-              </Link>
-              <Link className="button-link secondary" to="/work-formula">
+              ← Back to Members
+            </Link>
+            {isAdmin() && (
+              <>
+                <Link className="button-link secondary" to="/work-formula">
                   Work Formulas
-              </Link>
-              {isAdmin() && (
-                  <Link className="button-link secondary" to="/admin">
-                      Admin access
-                  </Link>
-              )}
-              <button className="secondary" onClick={handleLogout} type="button">
-                  Log out
-              </button>
+                </Link>
+                <Link className="button-link secondary" to="/admin">
+                  Admin access
+                </Link>
+              </>
+            )}
+            <button id='requestBoxButton' className="secondary" onClick={handleRequestBox} type="button">
+              Request a Box
+            </button>
           </div>
-          <div>
-            <div id='requestBoxSection'>
-              <button id='requestBoxButton' className="secondary" onClick={handleRequestBox} type="button">
-                  Request a Box
-              </button>
-            </div>
-          </div>  
-        </div> 
+        </div>
+        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+          Log out
+        </button>
       </div>
 
       {loadError && <p className="error">{loadError}</p>}
@@ -135,4 +131,3 @@ export default function BoxInfoPage() {
     </>
   );
 }
-

@@ -24,9 +24,9 @@ export default function LegacySnapshotPage() {
   //listMemberSnapshots is a GET Request
   //gives back at least 1 member and at most 50 members
   useEffect(() => {
-    document.title = "Legacy Snapshots";
+    document.title = "PHCF Platform";
 
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !isAdmin()) {
         setAllSnapshots([]);
       return;
     }
@@ -76,6 +76,16 @@ export default function LegacySnapshotPage() {
     );
   }
 
+  if (!isAdmin()) {
+    return (
+      <section className="auth-panel">
+        <Link to="/">← Back to Home</Link>
+        <h1>Legacy Snapshots</h1>
+        <p className="error">Admin access is required.</p>
+      </section>
+    );
+  }
+
   return (
     <>
       <div className="page-header">
@@ -85,10 +95,9 @@ export default function LegacySnapshotPage() {
             Signed in as {currentUser()?.email}
             <AdminStatusButton />
           </p>
-        </div>
-        <div id='navigation-buttons'>
+          <div id='navigation-buttons'>
             <Link className="button-link secondary" to="/">
-                ← Back to Members
+                ← Back to Home
             </Link>
             <Link className="button-link secondary" to="/box-info">
             Box Info
@@ -96,15 +105,14 @@ export default function LegacySnapshotPage() {
             <Link className="button-link secondary" to="/work-formula">
             Work Formulas
             </Link>
-            {isAdmin() && (
             <Link className="button-link secondary" to="/admin">
                 Admin access
             </Link>
-            )}
-            <button className="secondary" onClick={handleLogout} type="button">
-            Log out
-            </button>
+          </div>
         </div>
+        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+          Log out
+        </button>
       </div>
 
        <Box sx={{ display: 'flex', flexWrap: 'wrap', bgcolor: 'primary' }}>

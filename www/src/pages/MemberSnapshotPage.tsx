@@ -10,6 +10,7 @@ import {
   getMemberWorkFormula,
   isAdmin,
   newFormUpdate,
+  updateMemberSnapshotDirect,
   updatePronouns,
 } from "../lib/pocketbase";
 
@@ -21,6 +22,8 @@ import {
   MemberState,
   MemberType,
   PaymentType,
+  VOLUNTEER_INTEREST_EMOJIS,
+  VOLUNTEER_INTEREST_OPTIONS,
   emailPattern,
   phonePattern,
 } from "../models/enums";
@@ -45,11 +48,26 @@ interface IFormInput {
   meetingsCompleted: number;
   //box_info
   dueState: DueState;
+  volunteerInterests?: string[];
+  volunteerInterestOther?: string;
+  volunteerInterestOtherSelected?: boolean;
 }
 
 function toDateInputValue(unixSeconds: number | undefined): string {
   const date = unixSeconds ? new Date(unixSeconds * 1000) : new Date();
   return date.toISOString().split("T")[0]; // "YYYY-MM-DD"
+}
+
+function normalizeCheckboxValues(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item));
+  }
+
+  if (typeof value === "string") {
+    return [value];
+  }
+
+  return [];
 }
 
 export default function MemberSnapshotPage() {
@@ -101,7 +119,7 @@ export default function MemberSnapshotPage() {
 
   useEffect(() => {
     if (member) {
-      document.title = `${member.personalInfo.firstName} ${member.personalInfo.lastName}`;
+      document.title = "PHCF Platform";
     }
   }, [member]);
 
@@ -130,10 +148,21 @@ export default function MemberSnapshotPage() {
 
   const {
     serviceRequirements = [],
+    volunteerInterests = [],
     meetingsCompleted = 0,
     meetingsRequired = 0,
     serviceHoursRequired = 0,
   } = requirements;
+  const customVolunteerInterest =
+    volunteerInterests.find(
+      (interest: string) =>
+        interest.startsWith("Other:") ||
+        !VOLUNTEER_INTEREST_OPTIONS.includes(interest as any),
+    ) ?? "";
+  const customVolunteerInterestText =
+    customVolunteerInterest === "Other"
+      ? ""
+      : customVolunteerInterest.replace(/^Other:\s*/, "").trim();
 
   const onSubmit: SubmitHandler<IFormInput> = async (data) => {
     //check all of the inputs
@@ -146,7 +175,7 @@ export default function MemberSnapshotPage() {
     setSubmitMessage(null);
     let hadError = false;
 
-    if (data.pronouns !== pronouns) {
+    if (!isAdmin() && data.pronouns !== pronouns) {
       const newPersonalData = {
         address: {
           city: city,
@@ -212,18 +241,40 @@ export default function MemberSnapshotPage() {
         meetingsRequired: meetingsRequired,
         serviceHoursRequired: serviceHoursRequired,
         serviceRequirements: serviceRequirements,
+        volunteerInterests: [
+          ...normalizeCheckboxValues(data.volunteerInterests),
+          ...(data.volunteerInterestOtherSelected ||
+          data.volunteerInterestOther?.trim()
+            ? [
+                data.volunteerInterestOther?.trim()
+                  ? `Other: ${data.volunteerInterestOther.trim()}`
+                  : "Other",
+              ]
+            : []),
+        ],
       },
       role: `${data.memberRole}`,
     };
 
-    await newFormUpdate(
-      member,
-      JSON.stringify(needsApprovalPersonal),
-      JSON.stringify(needsApprovalMember),
-    ).catch((err) => {
-      console.error("error in member snapshot updates: ", err);
-      hadError = true;
-    });
+    if (isAdmin()) {
+      await updateMemberSnapshotDirect(
+        member,
+        needsApprovalPersonal,
+        needsApprovalMember,
+      ).catch((err) => {
+        console.error("error in direct member snapshot update: ", err);
+        hadError = true;
+      });
+    } else {
+      await newFormUpdate(
+        member,
+        JSON.stringify(needsApprovalPersonal),
+        JSON.stringify(needsApprovalMember),
+      ).catch((err) => {
+        console.error("error in member snapshot updates: ", err);
+        hadError = true;
+      });
+    }
 
     await refreshMember();
 
@@ -234,7 +285,9 @@ export default function MemberSnapshotPage() {
     setSubmitMessage(
       hadError
         ? "Something went wrong submitting the form. Please try again."
-        : "Form was successfully completed.",
+        : isAdmin()
+          ? "Snapshot was successfully updated."
+          : "Form was successfully completed.",
     );
   };
 
@@ -245,7 +298,7 @@ export default function MemberSnapshotPage() {
           {submitMessage}
         </p>
       )}
-      <Link to="/">← Back to Members</Link>
+      <Link to="/">← Back to Home</Link>
       <form onSubmit={handleSubmit(onSubmit)}>
         <div
           style={{
@@ -263,7 +316,7 @@ export default function MemberSnapshotPage() {
             variant="contained"
             color={editMode ? "secondary" : "primary"}
           >
-            {editMode ? "Submit Changes" : "Edit Status"}
+            {editMode ? (isAdmin() ? "Save Changes" : "Submit Changes") : "Edit Status"}
           </Button>
         </div>
         <div className="grid">
@@ -526,6 +579,45 @@ export default function MemberSnapshotPage() {
               />{" "}
               / {meetingsRequired}
             </p>
+          </section>
+
+          {/* Volunteer Interests */}
+          <section className="full">
+            <fieldset className="checkbox-fieldset">
+              <legend>
+                All members are asked to volunteer time toward the garden's
+                maintenance. How are you most looking forward to helping in the
+                garden?
+              </legend>
+              {VOLUNTEER_INTEREST_OPTIONS.map((option) => (
+                <label className="checkbox-row" key={option}>
+                  <input
+                    {...register("volunteerInterests")}
+                    defaultChecked={volunteerInterests.includes(option)}
+                    disabled={!editMode}
+                    type="checkbox"
+                    value={option}
+                  />
+                  {VOLUNTEER_INTEREST_EMOJIS[option]} {option}
+                </label>
+              ))}
+              <label className="checkbox-row other-checkbox-row">
+                <input
+                  {...register("volunteerInterestOtherSelected")}
+                  defaultChecked={Boolean(customVolunteerInterest)}
+                  disabled={!editMode}
+                  type="checkbox"
+                />
+                Other:
+                <input
+                  {...register("volunteerInterestOther")}
+                  aria-label="Other volunteer interest"
+                  defaultValue={customVolunteerInterestText}
+                  disabled={!editMode}
+                  type="text"
+                />
+              </label>
+            </fieldset>
           </section>
 
           {/* Service Requirements */}

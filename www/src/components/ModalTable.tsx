@@ -64,7 +64,7 @@ export default function ModalTable( { members, onActionComplete }: { members: Ar
                 <td>{singleMember.member_info.memberType}</td>
                 <td>{singleMember.member_info.memberState}</td>
                 <td>{singleMember.member_info.dues.dueState}</td>
-                <td>{singleMember.member_info.dues.paymentType}</td>
+                <td>{singleMember.member_info.dues.amountPaid}</td>
                 <td>{singleMember.member_info.dues.paymentType}</td>
                 <td>{singleMember.member_info.requirements.meetingsCompleted}</td>
                 <td><CheckIcon style={{ color: "green" }} onClick={() => {handleAccept(singleMember)}}/></td>
