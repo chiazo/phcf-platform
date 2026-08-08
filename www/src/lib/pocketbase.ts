@@ -130,6 +130,10 @@ function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value ?? {}));
 }
 
+function escapePocketBaseString(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 export async function registerFarmMember(input: RegisterFarmMemberInput) {
   pb.autoCancellation(false);
 
@@ -279,6 +283,137 @@ export async function getMemberSnapshot(id: string) {
   return res.items?.[0] ?? null;
 }
 
+export async function getCurrentUserMemberSnapshot() {
+  pb.autoCancellation(false);
+
+  const appUser = await getCurrentAppUserRecord();
+  if (!appUser) {
+    return null;
+  }
+
+  return await getMemberSnapshotForUserId(appUser.id);
+}
+
+export async function getOrCreateCurrentUserMemberSnapshot() {
+  pb.autoCancellation(false);
+
+  const existingSnapshot = await getCurrentUserMemberSnapshot();
+  if (existingSnapshot) {
+    return existingSnapshot;
+  }
+
+  const appUser = await getCurrentAppUserRecord();
+  if (!appUser) {
+    throw new Error("No app user account found for this admin.");
+  }
+
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+  const nameParts = String(appUser.name || "").trim().split(/\s+/);
+  const firstName = nameParts[0] || "";
+  const lastName = nameParts.slice(1).join(" ");
+  const snapshot = await pb.collection("member_snapshot").create({
+    user_id: appUser.id,
+    updated_by: currentUser()?.name || currentUser()?.email || "Admin",
+    notes: "Created for admin self-service snapshot editing.",
+    personal_info: {
+      firstName,
+      lastName,
+      pronouns: "",
+      address: {
+        line1: "",
+        city: "",
+        zipCode: "",
+      },
+      emailInfo: {
+        primaryEmail: appUser.email || currentUser()?.email || "",
+        onMailingList: false,
+      },
+      phoneInfo: {
+        primaryPhoneNumber: "",
+      },
+    },
+    member_info: {
+      orientationDate: nowInSeconds,
+      memberState: "ACTIVE",
+      role: "ROLE_INVALID",
+      memberType: "GENERAL",
+      dues: {
+        amountPaid: 0,
+        dueState: "UNPAID",
+        paymentType: "",
+        duesPaidAt: 0,
+      },
+      requirements: {
+        meetingsCompleted: 0,
+        meetingsRequired: 0,
+        serviceHoursRequired: 0,
+        serviceRequirements: [],
+        volunteerInterests: [],
+      },
+    },
+    box_info: {
+      boxState: "UNASSIGNED",
+      boxId: "",
+      changeRequester: appUser.name || appUser.email || "",
+      waitlistInfo: {
+        joinedWaitlistAt: nowInSeconds,
+        waitlistNumber: 0,
+      },
+    },
+  });
+
+  const member = await pb.collection("member").create({
+    user_id: appUser.id,
+    member_snapshot_id: snapshot.id,
+  });
+
+  try {
+    return await pb.collection("member_snapshot").update(snapshot.id, {
+      member_id: member.id,
+    });
+  } catch (err: any) {
+    if (err?.status !== 400) {
+      throw err;
+    }
+
+    return snapshot;
+  }
+}
+
+async function getCurrentAppUserRecord() {
+  const user = currentUser();
+  if (!user) {
+    return null;
+  }
+
+  if (user.collectionName === "users") {
+    return user;
+  }
+
+  if (!user.email) {
+    return null;
+  }
+
+  return await pb
+    .collection("users")
+    .getFirstListItem(`email = "${escapePocketBaseString(user.email)}"`);
+}
+
+async function getMemberSnapshotForUserId(userId: string) {
+  try {
+    const member = await pb
+      .collection("member")
+      .getFirstListItem(`user_id = "${escapePocketBaseString(userId)}"`);
+    return await pb.collection("member_snapshot").getOne(member.member_snapshot_id);
+  } catch (err: any) {
+    if (err?.status === 404) {
+      return null;
+    }
+
+    throw err;
+  }
+}
+
 export async function getSingleMember(name: string) {
   pb.autoCancellation(false);
   return await pb
@@ -323,6 +458,25 @@ export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newP
     personal_info: newPersonalData,
     member_info: newMemberData,
     box_info: oldMemberInfo?.boxInfo,
+  });
+}
+
+export async function updateMemberSnapshotDirect(
+  oldMemberInfo: MemberSnapshot | null,
+  newPersonalData: Record<string, any>,
+  newMemberData: Record<string, any>,
+) {
+  pb.autoCancellation(false);
+
+  if (!oldMemberInfo?.id) {
+    throw new Error("No member snapshot selected.");
+  }
+
+  return await pb.collection("member_snapshot").update(oldMemberInfo.id, {
+    updated_by: currentUser()?.name || currentUser()?.email || "Admin",
+    notes: "Updated directly by an admin.",
+    personal_info: newPersonalData,
+    member_info: newMemberData,
   });
 }
 

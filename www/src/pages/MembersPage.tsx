@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState, useId } from "react";
 import type { FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import {
   currentUser,
+  getCurrentUserMemberSnapshot,
+  getOrCreateCurrentUserMemberSnapshot,
   isAdmin,
   isLoggedIn,
   listMemberSnapshots,
@@ -62,16 +64,16 @@ function formatRequestType(type: string) {
   return type.toLowerCase().replace(/_/g, " ");
 }
 
-function getRequestMemberLabel(request: Record<string, any>) {
-  const requester = request.expand?.user_id;
-  return requester?.name || requester?.email || request.member_id || "—";
-}
-
 function formatDateFromInput(value: string) {
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return 0;
 
   return Math.floor(date.getTime() / 1000);
+}
+
+function getRequestMemberLabel(request: Record<string, any>) {
+  const requester = request.expand?.user_id;
+  return requester?.name || requester?.email || request.member_id || "—";
 }
 
 function todayInputValue() {
@@ -95,7 +97,6 @@ function MemberPersonalView({
   const address = personalInfo.address ?? {};
   const emailInfo = personalInfo.emailInfo ?? {};
   const phoneInfo = personalInfo.phoneInfo ?? {};
-
   const dueStatus = dues.dueState ?? "—";
   const duesPaid = dueStatus === "PAID" || dueStatus === "COMPLETE";
   const meetingsRequired = toNumber(requirements.meetingsRequired);
@@ -211,7 +212,9 @@ function MemberPersonalView({
             <select
               value={requestType}
               onChange={(event) =>
-                setRequestType(event.target.value as RequirementUpdateRequestType)
+                setRequestType(
+                  event.target.value as RequirementUpdateRequestType,
+                )
               }
             >
               <option value={RequirementUpdateRequestType.AMOUNT_PAID}>
@@ -466,6 +469,7 @@ function RequirementUpdateRequestTable({
 }
 
 export default function MembersPage() {
+  const navigate = useNavigate();
   //holds all of the members fetched from the server
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
   const [approvedMembers, setApprovedMembers] = useState<
@@ -476,52 +480,63 @@ export default function MembersPage() {
   >([]);
   const [myRequirementUpdateRequests, setMyRequirementUpdateRequests] =
     useState<Array<Record<string, any>>>([]);
-  const [workFormulas, setWorkFormulas] = useState<
-    Array<Record<string, any> | null>
-  >([]);
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
+  const [adminSnapshot, setAdminSnapshot] = useState<Record<
+    string,
+    any
+  > | null>(null);
+  const [workFormulas, setAllFormulas] = useState<
+    Array<Record<string, any> | null>
+  >([]);
 
-  async function refreshApprovedMembers() {
-    try {
-      const res = await listApprovalUpdates();
-      setApprovedMembers(res.items);
-    } catch (err) {
-      console.error("member fetch error:", err);
-      setApprovedMembers([]);
-    }
+  function refreshApprovedMembers() {
+    return listApprovalUpdates()
+      .then((res) => {
+        setApprovedMembers(res.items);
+      })
+      .catch((err) => {
+        console.error("member fetch error:", err);
+        setApprovedMembers([]);
+      });
   }
 
-  async function memberWorkFormulas(members: Array<Record<string, any>>){
+   async function memberWorkFormulas(members: Array<Record<string, any>>){
    try {
       const res = await correspondingWorkFormulas(members);
-      return setWorkFormulas(res.items);
+      return setAllFormulas(res.items);
     } catch (err) {
       console.error("work formula fetch error:", err);
-      setWorkFormulas([]);
-    }
-  }
-
-
-  async function refreshAllMembers() {
-    try {
-      const res = await listMemberSnapshots();
-      return setAllMembers(res.items);
-    } catch (err) {
-      console.error("member fetch error:", err);
       setAllMembers([]);
     }
   }
 
-  async function refreshMyRequirementUpdateRequests() {
-    try {
-      const res = await listMyRequirementUpdateRequests();
-      return setMyRequirementUpdateRequests(res.items);
-    } catch (err) {
-      console.error("my requirement update request fetch error:", err);
-      setMyRequirementUpdateRequests([]);
-    }
+  function refreshAllMembers() {
+    return listMemberSnapshots()
+      .then((res) => setAllMembers(res.items))
+      .catch((err) => {
+        console.error("member fetch error:", err);
+        setAllMembers([]);
+      });
+  }
+
+  function refreshRequirementUpdateRequests() {
+    return listPendingRequirementUpdateRequests()
+      .then((res) => setRequirementUpdateRequests(res.items))
+      .catch((err) => {
+        console.error("requirement update request fetch error:", err);
+        setRequirementUpdateRequests([]);
+      });
+  }
+
+  function refreshMyRequirementUpdateRequests() {
+    return listMyRequirementUpdateRequests()
+      .then((res) => setMyRequirementUpdateRequests(res.items))
+      .catch((err) => {
+        console.error("my requirement update request fetch error:", err);
+        setMyRequirementUpdateRequests([]);
+      });
   }
 
   function refreshMembers() {
@@ -529,7 +544,7 @@ export default function MembersPage() {
       return Promise.all([
         refreshApprovedMembers(),
         refreshAllMembers(),
-        refreshMyRequirementUpdateRequests(),
+        refreshRequirementUpdateRequests(),
       ]);
     }
 
@@ -551,23 +566,7 @@ export default function MembersPage() {
       return;
     }
 
-    listApprovalUpdates()
-      .then((res) => {
-        setApprovedMembers(res.items)
-      })
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setAllMembers([]);
-      });
-
-      refreshMembers();
-
-    listMemberSnapshots()
-      .then((res) => setAllMembers(res.items))
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setAllMembers([]);
-      });
+    refreshMembers();
   }, [isAuthenticated]);
 
   //filters the already-loaded members as the user types, so the table
@@ -588,26 +587,54 @@ export default function MembersPage() {
     setIsAuthenticated(false);
   }
 
+  async function handleMySnapshotClick() {
+    if (adminSnapshot?.id) {
+      navigate(`/snapshot/${adminSnapshot.id}`);
+      return;
+    }
+
+    try {
+      const snapshot = await getOrCreateCurrentUserMemberSnapshot();
+      setAdminSnapshot(snapshot);
+      navigate(`/snapshot/${snapshot.id}`);
+    } catch (err) {
+      console.error("admin snapshot create/fetch error:", err);
+    }
+  }
+
   const signedInUser = currentUser();
   const signedInEmail = signedInUser?.email ?? "";
   const signedInName = String(signedInUser?.name ?? "").trim();
-  const signedInLabel = signedInName
-    ? `${signedInName} (${signedInEmail})`
-    : signedInEmail;
   const currentIsAdmin = isAdmin();
+  const adminSnapshotName = currentIsAdmin
+    ? [
+        adminSnapshot?.personal_info?.firstName,
+        adminSnapshot?.personal_info?.lastName,
+      ]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+        .join(" ")
+    : "";
+  const displayName = adminSnapshotName || signedInName;
+  const signedInLabel = displayName
+    ? `${displayName} (${signedInEmail})`
+    : signedInEmail;
   const currentMember = allMembers[0];
 
   if (!isAuthenticated) {
     return (
       <section className="auth-panel home-panel">
         <h1 className="home-title">
-          <span className="home-title-name">Prospect Heights Community Farm</span>
+          <span className="home-title-name">
+            Prospect Heights Community Farm
+          </span>
           <span className="home-title-subtitle">Membership Platform</span>
         </h1>
         <p className="home-blurb">
-          Welcome new and returning members! Check your membership standing, track your work/volunteer hours, and
-          request to join a box waitlist on our platform. New members: you may
-          register after attending your first general meeting.
+          Welcome new and returning members! Check your membership standing,
+          track your work/volunteer hours, and request to join a box waitlist on
+          our platform. New members: you may register after attending your first
+          general meeting.
         </p>
         <div className="button-row">
           <Link className="button-link" to="/register">
@@ -645,17 +672,29 @@ export default function MembersPage() {
                 <Link className="button-link secondary" to="/admin">
                   Admin access
                 </Link>
+                <button
+                  className="secondary"
+                  onClick={handleMySnapshotClick}
+                  type="button"
+                >
+                  My Info
+                </button>
               </>
             )}
           </div>
           {!currentIsAdmin && (
             <p className="muted">
-              Welcome! Check your membership status and log requirements if needed.
-              An admin will approve and update your info as soon as possible.
+              Welcome! Check your membership status and log requirements if
+              needed. An admin will approve and update your info as soon as
+              possible.
             </p>
           )}
         </div>
-        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+        <button
+          className="secondary page-logout-button"
+          onClick={handleLogout}
+          type="button"
+        >
           Log out
         </button>
       </div>
@@ -663,7 +702,7 @@ export default function MembersPage() {
       {currentIsAdmin ? (
         <>
           <Box sx={{ display: "flex", flexWrap: "wrap", bgcolor: "primary" }}>
-            <div>
+            <Box sx={{ width: { xs: "100%", sm: 420, md: 560 } }}>
               <FormControl fullWidth sx={{ m: 1 }}>
                 <InputLabel htmlFor={`${outlinedAmountId}-input`}>
                   Search
@@ -679,7 +718,7 @@ export default function MembersPage() {
                   onChange={(e) => setQuery(e.target.value)}
                 />
               </FormControl>
-            </div>
+            </Box>
           </Box>
 
           <MemberTable members={items} work_formulas={workFormulas} />
@@ -689,7 +728,10 @@ export default function MembersPage() {
             onActionComplete={refreshMembers}
           />
 
-          <ModalTable members={approvedMembers} onActionComplete={refreshMembers}/>
+          <ModalTable
+            members={approvedMembers}
+            onActionComplete={refreshMembers}
+          />
         </>
       ) : currentMember ? (
         <MemberPersonalView

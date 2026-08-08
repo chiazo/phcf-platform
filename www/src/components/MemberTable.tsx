@@ -20,6 +20,7 @@ import RuleIcon from '@mui/icons-material/Rule';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MoodRoundedIcon from '@mui/icons-material/MoodRounded';
 import SentimentDissatisfiedRoundedIcon from '@mui/icons-material/SentimentDissatisfiedRounded';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import { visuallyHidden } from '@mui/utils';
 import { useState } from "react";
 
@@ -36,6 +37,8 @@ interface Data {
   meetingsRequired: number; //Meetings Required
   meetingsCompleted: number;
   meetingsRequiredMet: string;
+  serviceHoursRequired: number; //hours completed
+  serviceHoursCompleted:number; //hours completed
   serviceHoursMet: string;
 }
 
@@ -58,6 +61,7 @@ function toRow(member: Record<string, any>): Data {
   const firstName = personalInfo.firstName ?? ''
   const lastName = personalInfo.lastName ?? ''
   const fullName = firstName + ' ' + lastName
+  const serviceRequirements = requirements.serviceRequirements ?? [];
   const dueStatus = dues.dueState ?? '';
   const meetingsRequired = toNumber(requirements.meetingsRequired);
   const meetingsCompleted = toNumber(requirements.meetingsCompleted);
@@ -104,7 +108,7 @@ function createData(
   serviceHoursMet: string,
 ): Data {
   return {
-    id,
+     id,
     fullName,
     allMemberRequirementsMet,
     dueStatus, //DueState

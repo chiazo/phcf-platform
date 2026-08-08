@@ -9,6 +9,7 @@ import {
   getMemberWorkFormula,
   isAdmin,
   newFormUpdate,
+  updateMemberSnapshotDirect,
   updatePronouns,
 } from "../lib/pocketbase";
 
@@ -173,7 +174,7 @@ export default function MemberSnapshotPage() {
     setSubmitMessage(null);
     let hadError = false;
 
-    if (data.pronouns !== pronouns) {
+    if (!isAdmin() && data.pronouns !== pronouns) {
       const newPersonalData = {
         address: {
           city: city,
@@ -254,14 +255,25 @@ export default function MemberSnapshotPage() {
       role: `${data.memberRole}`,
     };
 
-    await newFormUpdate(
-      member,
-      JSON.stringify(needsApprovalPersonal),
-      JSON.stringify(needsApprovalMember),
-    ).catch((err) => {
-      console.error("error in member snapshot updates: ", err);
-      hadError = true;
-    });
+    if (isAdmin()) {
+      await updateMemberSnapshotDirect(
+        member,
+        needsApprovalPersonal,
+        needsApprovalMember,
+      ).catch((err) => {
+        console.error("error in direct member snapshot update: ", err);
+        hadError = true;
+      });
+    } else {
+      await newFormUpdate(
+        member,
+        JSON.stringify(needsApprovalPersonal),
+        JSON.stringify(needsApprovalMember),
+      ).catch((err) => {
+        console.error("error in member snapshot updates: ", err);
+        hadError = true;
+      });
+    }
 
     await refreshMember();
 
@@ -272,7 +284,9 @@ export default function MemberSnapshotPage() {
     setSubmitMessage(
       hadError
         ? "Something went wrong submitting the form. Please try again."
-        : "Form was successfully completed.",
+        : isAdmin()
+          ? "Snapshot was successfully updated."
+          : "Form was successfully completed.",
     );
   };
 
@@ -301,7 +315,7 @@ export default function MemberSnapshotPage() {
             variant="contained"
             color={editMode ? "secondary" : "primary"}
           >
-            {editMode ? "Submit Changes" : "Edit Status"}
+            {editMode ? (isAdmin() ? "Save Changes" : "Submit Changes") : "Edit Status"}
           </Button>
         </div>
         <div className="grid">

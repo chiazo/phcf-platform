@@ -75,6 +75,13 @@ main {
     margin-top: -.75rem;
 }
 
+#navigation-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    padding: 0 .25rem;
+}
+
 a {
     color: var(--primary);
     text-decoration: none;
