@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState, useId } from "react";
 import type { FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import {
   currentUser,
+  getCurrentUserMemberSnapshot,
+  getOrCreateCurrentUserMemberSnapshot,
   isAdmin,
   isLoggedIn,
   listMemberSnapshots,
@@ -465,6 +467,7 @@ function RequirementUpdateRequestTable({
 }
 
 export default function MembersPage() {
+  const navigate = useNavigate();
   //holds all of the members fetched from the server
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
   const [approvedMembers, setApprovedMembers] = useState<
@@ -475,6 +478,9 @@ export default function MembersPage() {
   >([]);
   const [myRequirementUpdateRequests, setMyRequirementUpdateRequests] =
     useState<Array<Record<string, any>>>([]);
+  const [adminSnapshot, setAdminSnapshot] = useState<Record<string, any> | null>(
+    null,
+  );
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
@@ -508,6 +514,15 @@ export default function MembersPage() {
       });
   }
 
+  function refreshAdminSnapshot() {
+    return getCurrentUserMemberSnapshot()
+      .then((snapshot) => setAdminSnapshot(snapshot ?? null))
+      .catch((err) => {
+        console.error("admin snapshot fetch error:", err);
+        setAdminSnapshot(null);
+      });
+  }
+
   function refreshMyRequirementUpdateRequests() {
     return listMyRequirementUpdateRequests()
       .then((res) => setMyRequirementUpdateRequests(res.items))
@@ -523,11 +538,13 @@ export default function MembersPage() {
         refreshApprovedMembers(),
         refreshAllMembers(),
         refreshRequirementUpdateRequests(),
+        refreshAdminSnapshot(),
       ]);
     }
 
     setApprovedMembers([]);
     setRequirementUpdateRequests([]);
+    setAdminSnapshot(null);
     return Promise.all([
       refreshAllMembers(),
       refreshMyRequirementUpdateRequests(),
@@ -565,13 +582,38 @@ export default function MembersPage() {
     setIsAuthenticated(false);
   }
 
+  async function handleMySnapshotClick() {
+    if (adminSnapshot?.id) {
+      navigate(`/snapshot/${adminSnapshot.id}`);
+      return;
+    }
+
+    try {
+      const snapshot = await getOrCreateCurrentUserMemberSnapshot();
+      setAdminSnapshot(snapshot);
+      navigate(`/snapshot/${snapshot.id}`);
+    } catch (err) {
+      console.error("admin snapshot create/fetch error:", err);
+    }
+  }
+
   const signedInUser = currentUser();
   const signedInEmail = signedInUser?.email ?? "";
   const signedInName = String(signedInUser?.name ?? "").trim();
-  const signedInLabel = signedInName
-    ? `${signedInName} (${signedInEmail})`
-    : signedInEmail;
   const currentIsAdmin = isAdmin();
+  const adminSnapshotName = currentIsAdmin
+    ? [
+        adminSnapshot?.personal_info?.firstName,
+        adminSnapshot?.personal_info?.lastName,
+      ]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+        .join(" ")
+    : "";
+  const displayName = adminSnapshotName || signedInName;
+  const signedInLabel = displayName
+    ? `${displayName} (${signedInEmail})`
+    : signedInEmail;
   const currentMember = allMembers[0];
 
   if (!isAuthenticated) {
@@ -622,6 +664,13 @@ export default function MembersPage() {
                 <Link className="button-link secondary" to="/admin">
                   Admin access
                 </Link>
+                <button
+                  className="secondary"
+                  onClick={handleMySnapshotClick}
+                  type="button"
+                >
+                  My Info
+                </button>
               </>
             )}
           </div>
@@ -640,7 +689,7 @@ export default function MembersPage() {
       {currentIsAdmin ? (
         <>
           <Box sx={{ display: "flex", flexWrap: "wrap", bgcolor: "primary" }}>
-            <div>
+            <Box sx={{ width: { xs: "100%", sm: 420, md: 560 } }}>
               <FormControl fullWidth sx={{ m: 1 }}>
                 <InputLabel htmlFor={`${outlinedAmountId}-input`}>
                   Search
@@ -656,7 +705,7 @@ export default function MembersPage() {
                   onChange={(e) => setQuery(e.target.value)}
                 />
               </FormControl>
-            </div>
+            </Box>
           </Box>
 
           <MemberTable members={items} />
