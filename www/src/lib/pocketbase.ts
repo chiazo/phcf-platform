@@ -812,3 +812,8 @@ export async function listLegacySnapshots() {
   return await pb.collection("legacy_snapshots").getList(1, 50);
 }
 
+// gets the full list of legacy snapshots from the legacy_snapshots collection
+export async function listLegacySnapshots() {
+  pb.autoCancellation(false);
+  return await pb.collection("legacy_snapshot").getList(1, 50);
+}

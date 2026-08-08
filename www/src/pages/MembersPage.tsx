@@ -64,6 +64,11 @@ function formatRequestType(type: string) {
   return type.toLowerCase().replace(/_/g, " ");
 }
 
+function getRequestMemberLabel(request: Record<string, any>) {
+  const requester = request.expand?.user_id;
+  return requester?.name || requester?.email || request.member_id || "—";
+}
+
 function formatDateFromInput(value: string) {
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return 0;
@@ -97,6 +102,7 @@ function MemberPersonalView({
   const address = personalInfo.address ?? {};
   const emailInfo = personalInfo.emailInfo ?? {};
   const phoneInfo = personalInfo.phoneInfo ?? {};
+
   const dueStatus = dues.dueState ?? "—";
   const duesPaid = dueStatus === "PAID" || dueStatus === "COMPLETE";
   const meetingsRequired = toNumber(requirements.meetingsRequired);
@@ -212,9 +218,7 @@ function MemberPersonalView({
             <select
               value={requestType}
               onChange={(event) =>
-                setRequestType(
-                  event.target.value as RequirementUpdateRequestType,
-                )
+                setRequestType(event.target.value as RequirementUpdateRequestType)
               }
             >
               <option value={RequirementUpdateRequestType.AMOUNT_PAID}>
@@ -472,7 +476,6 @@ export default function MembersPage() {
   const navigate = useNavigate();
   //holds all of the members fetched from the server
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
-  const [workFormulas, setAllFormulas] = useState<Array<Record<string, any> | null>>([]);
   const [approvedMembers, setApprovedMembers] = useState<
     Array<Record<string, any>>
   >([]);
@@ -481,6 +484,9 @@ export default function MembersPage() {
   >([]);
   const [myRequirementUpdateRequests, setMyRequirementUpdateRequests] =
     useState<Array<Record<string, any>>>([]);
+  const [adminSnapshot, setAdminSnapshot] = useState<Record<string, any> | null>(
+    null,
+  );
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
@@ -540,17 +546,46 @@ export default function MembersPage() {
       });
   }
 
+  function refreshRequirementUpdateRequests() {
+    return listPendingRequirementUpdateRequests()
+      .then((res) => setRequirementUpdateRequests(res.items))
+      .catch((err) => {
+        console.error("requirement update request fetch error:", err);
+        setRequirementUpdateRequests([]);
+      });
+  }
+
+  function refreshAdminSnapshot() {
+    return getCurrentUserMemberSnapshot()
+      .then((snapshot) => setAdminSnapshot(snapshot ?? null))
+      .catch((err) => {
+        console.error("admin snapshot fetch error:", err);
+        setAdminSnapshot(null);
+      });
+  }
+
+  function refreshMyRequirementUpdateRequests() {
+    return listMyRequirementUpdateRequests()
+      .then((res) => setMyRequirementUpdateRequests(res.items))
+      .catch((err) => {
+        console.error("my requirement update request fetch error:", err);
+        setMyRequirementUpdateRequests([]);
+      });
+  }
+
   function refreshMembers() {
     if (isAdmin()) {
       return Promise.all([
         refreshApprovedMembers(),
         refreshAllMembers(),
         refreshRequirementUpdateRequests(),
+        refreshAdminSnapshot(),
       ]);
     }
 
     setApprovedMembers([]);
     setRequirementUpdateRequests([]);
+    setAdminSnapshot(null);
     return Promise.all([
       refreshAllMembers(),
       refreshMyRequirementUpdateRequests(),
