@@ -117,15 +117,15 @@ export default function AdminPage() {
             Signed in as {currentUser()?.email}
             <AdminStatusButton />
           </p>
+          <div id="navigation-buttons">
+            <Link className="button-link secondary" to="/">
+              ← Back to Home
+            </Link>
+          </div>
         </div>
-        <div id="navigation-buttons">
-          <Link className="button-link secondary" to="/">
-            ← Back to Home
-          </Link>
-          <button className="secondary" onClick={handleLogout} type="button">
-            Log out
-          </button>
-        </div>
+        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+          Log out
+        </button>
       </div>
 
       {loadError && <p className="error">{loadError}</p>}

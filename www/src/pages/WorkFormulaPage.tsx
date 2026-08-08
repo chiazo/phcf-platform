@@ -28,7 +28,7 @@ export default function WorkFormulaPage() {
   useEffect(() => {
     document.title = "PHCF Platform";
 
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !isAdmin()) {
       setAllFormulas([]);
       return;
     }
@@ -68,6 +68,16 @@ export default function WorkFormulaPage() {
     );
   }
 
+  if (!isAdmin()) {
+    return (
+      <section className="auth-panel">
+        <Link to="/">← Back to Home</Link>
+        <h1>Work Formula Info</h1>
+        <p className="error">Admin access is required.</p>
+      </section>
+    );
+  }
+
   return (
     <>
       <div className="page-header">
@@ -77,26 +87,24 @@ export default function WorkFormulaPage() {
             Signed in as {currentUser()?.email}
             <AdminStatusButton />
           </p>
-        </div>
-        <div id="navigation-buttons">
-          <Link className="button-link secondary" to="/">
-            ← Back to Home
-          </Link>
-          <Link className="button-link secondary" to="/box-info">
-            Box Info
-          </Link>
-          <Link className="button-link secondary" to="/legacy-snapshots">
-            Legacy Snapshots
-          </Link>
-          {isAdmin() && (
+          <div id="navigation-buttons">
+            <Link className="button-link secondary" to="/">
+              ← Back to Home
+            </Link>
+            <Link className="button-link secondary" to="/box-info">
+              Box Info
+            </Link>
+            <Link className="button-link secondary" to="/legacy-snapshots">
+              Legacy Snapshots
+            </Link>
             <Link className="button-link secondary" to="/admin">
               Admin access
             </Link>
-          )}
-          <button className="secondary" onClick={handleLogout} type="button">
-            Log out
-          </button>
+          </div>
         </div>
+        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+          Log out
+        </button>
       </div>
 
       {loadError && <p className="error">{loadError}</p>}

@@ -332,8 +332,14 @@ export default function MembersPage() {
               </>
             )}
           </div>
+          {!currentIsAdmin && (
+            <p className="muted">
+              Welcome! Check your membership status and log requirements if needed.
+              An admin will approve and update your info as soon as possible.
+            </p>
+          )}
         </div>
-        <button className="secondary" onClick={handleLogout} type="button">
+        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
           Log out
         </button>
       </div>

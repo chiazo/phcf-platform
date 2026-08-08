@@ -72,28 +72,28 @@ export default function BoxInfoPage() {
             Signed in as {currentUser()?.email}
             <AdminStatusButton />
           </p>
+          <div id='navigation-buttons'>
+            <Link className="button-link secondary" to="/">
+              ← Back to Members
+            </Link>
+            {isAdmin() && (
+              <>
+                <Link className="button-link secondary" to="/work-formula">
+                  Work Formulas
+                </Link>
+                <Link className="button-link secondary" to="/admin">
+                  Admin access
+                </Link>
+              </>
+            )}
+            <button id='requestBoxButton' className="secondary" onClick={handleRequestBox} type="button">
+              Request a Box
+            </button>
+          </div>
         </div>
-        <div id="navigation-buttons">
-          <Link className="button-link secondary" to="/">
-            ← Back to Home
-          </Link>
-          <Link className="button-link secondary" to="/work-formula">
-            Work Formulas
-          </Link>
-          {isAdmin() && (
-            <>
-              <Link className="button-link secondary" to="/legacy-snapshots">
-                Legacy Snapshots
-              </Link>
-              <Link className="button-link secondary" to="/admin">
-                Admin access
-              </Link>
-            </>
-          )}
-          <button className="secondary" onClick={handleLogout} type="button">
-            Log out
-          </button>
-        </div>
+        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+          Log out
+        </button>
       </div>
 
       {loadError && <p className="error">{loadError}</p>}
@@ -131,4 +131,3 @@ export default function BoxInfoPage() {
     </>
   );
 }
-

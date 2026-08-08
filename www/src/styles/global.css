@@ -305,6 +305,11 @@ button.secondary,
     background: white;
 }
 
+.page-logout-button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
 .admin-status {
     display: inline-flex;
     align-items: center;
