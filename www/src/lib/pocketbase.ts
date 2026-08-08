@@ -1,4 +1,5 @@
 import PocketBase from "pocketbase";
+import { escapePocketBaseString } from "../lib/pocketbase"; 
 
 import { config } from "./config";
 
@@ -778,4 +779,91 @@ export async function getMemberWorkFormula(memberSnapshot: Record <string, any>)
 export async function listLegacySnapshots() {
   pb.autoCancellation(false);
   return await pb.collection("legacy_snapshot").getList(1, 50);
+}
+
+
+/**
+ * Fetches the current snapshot's modified_at via getMemberSnapshot.
+ * - If it's stale (> 3 months old), archives a new legacy_snapshot record.
+ * - If it's not stale, updates the existing legacy_snapshot record for this
+ *   member instead (or creates one if none exists yet), so repeated calls
+ *   within the 3-month window don't pile up duplicate legacy rows.
+ *
+ * modified_at is assumed to be a unix-seconds NumberField (matching the
+ * pattern used by duesPaidAt / orientationDate elsewhere in this file) —
+ * update the parsing below if your schema stores it as an ISO date string
+ * instead.
+ */
+const THREE_MONTHS_MS = 1000 * 60 * 60 * 24 * 30 * 3;
+export async function archiveSnapshotIfStale(
+  snapshotId: string,
+  member: MemberSnapshot,
+): Promise<void> {
+  const current = await getMemberSnapshot(snapshotId);
+  if (!current) {
+    console.error("archiveSnapshotIfStale: could not fetch current snapshot");
+    return;
+  }
+
+  const modifiedAtRaw = (current as any).modified_at;
+  if (!modifiedAtRaw) {
+    console.error("archiveSnapshotIfStale: snapshot has no modified_at");
+    return;
+  }
+
+  // Handle both unix-seconds numbers and ISO date strings defensively.
+  const modifiedAtMs =
+    typeof modifiedAtRaw === "number"
+      ? modifiedAtRaw * 1000
+      : new Date(modifiedAtRaw).getTime();
+
+  if (Number.isNaN(modifiedAtMs)) {
+    console.error("archiveSnapshotIfStale: could not parse modified_at", modifiedAtRaw);
+    return;
+  }
+
+  const isStale = Date.now() - modifiedAtMs > THREE_MONTHS_MS;
+
+  const { notes, updatedBy, memberId, personalInfo, memberInfo } = member as any;
+  const legacyPayload = {
+    user_id: (current as any).user_id,
+    member_id: memberId,
+    updated_by: updatedBy,
+    notes: notes ?? "",
+    personal_info: personalInfo,
+    member_info: memberInfo,
+    box_info: (current as any).box_info ?? {},
+  };
+
+  if (isStale) {
+    try {
+      await pb.collection("legacy_snapshot").create(legacyPayload);
+    } catch (err) {
+      console.error("archiveSnapshotIfStale: failed to archive stale snapshot:", err);
+    }
+    return;
+  }
+
+  // Not stale: update the existing legacy_snapshot record for this member
+  // rather than creating a new one.
+  try {
+    const existingLegacy = await pb
+      .collection("legacy_snapshot")
+      .getFirstListItem(`member_id = "${escapePocketBaseString(memberId)}"`);
+
+    await pb.collection("legacy_snapshot").update(existingLegacy.id, legacyPayload);
+  } catch (err: any) {
+    if (err?.status === 404) {
+      // No legacy record exists yet for this member — create one so
+      // future updates have something to target.
+      try {
+        await pb.collection("legacy_snapshot").create(legacyPayload);
+      } catch (createErr) {
+        console.error("archiveSnapshotIfStale: failed to create initial legacy snapshot:", createErr);
+      }
+      return;
+    }
+
+    console.error("archiveSnapshotIfStale: failed to update legacy snapshot:", err);
+  }
 }

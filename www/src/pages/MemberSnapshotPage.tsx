@@ -12,6 +12,7 @@ import {
   newFormUpdate,
   updateMemberSnapshotDirect,
   updatePronouns,
+  archiveSnapshotIfStale,
 } from "../lib/pocketbase";
 
 import MemberSnapshot from "../models/MemberSnapshot";
@@ -170,6 +171,11 @@ export default function MemberSnapshotPage() {
     if (!editMode) {
       setEditMode(true);
       return; // first click just enters edit mode, don't process the form yet
+    }
+
+    // archive old snapshots instead of creating new semi-copies
+    if (id) {
+      await archiveSnapshotIfStale(id, member);
     }
 
     setSubmitMessage(null);
