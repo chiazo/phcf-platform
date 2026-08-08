@@ -75,9 +75,13 @@ export default function MemberSnapshotPage() {
   const [notFound, setNotFound] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+<<<<<<< HEAD
   const [workFormula, setWorkFormula] = useState<Record<string, any> | null>(
     null,
   );
+=======
+  const [workFormulas, setWorkFormula] = useState<Array<Record<string, any>>>([]);
+>>>>>>> 61264f1 (Can display the new col's on the work formula page)
 
   const {
     register,
@@ -580,6 +584,7 @@ export default function MemberSnapshotPage() {
             </p>
           </section>
 
+<<<<<<< HEAD
           {/* Volunteer Interests */}
           <section className="full">
             <fieldset className="checkbox-fieldset">
@@ -618,6 +623,65 @@ export default function MemberSnapshotPage() {
               </label>
             </fieldset>
           </section>
+=======
+          <p>
+            <strong>Orientation</strong>
+            {new Date(orientationDate * 1000).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </p>
+          <p>
+            <strong>Meetings Completed</strong>
+            <input id={"meetingsInput"} {...register("meetingsCompleted")} defaultValue={meetingsCompleted}/> / {meetingsRequired}
+          </p>
+        </section>
+
+        {/* Service Requirements */}
+        <section className="full">
+          <h2>Service Requirements</h2>
+
+          {workFormulas.length > 0 ? (
+            <ul>
+              {workFormulas.map((singleFormula) => (
+                <>
+                <li key={singleFormula.id}>
+                  <p>
+                    <strong>Volunteer Activity</strong>
+                    {singleFormula.volunteer_activity || "—"}
+                  </p>
+                  <p>
+                    <strong>Volunteer Date</strong>
+                    {singleFormula.volunteer_date
+                      ? new Date(singleFormula.volunteer_date * 1000).toLocaleDateString(
+                          "en-US",
+                          { year: "numeric", month: "long", day: "numeric" },
+                        )
+                      : "—"}
+                  </p>
+                  <p>
+                    <strong>Volunteer Hours</strong>
+                    {singleFormula.volunteer_hours}
+                  </p>
+                  <p>
+                    <strong>Work Hours</strong>
+                    {singleFormula.work_hours_completed}/{singleFormula.work_hours_required}
+                  </p>
+                  <p>
+                    <strong>Open Hours</strong>
+                    {singleFormula.open_hours_completed}/{singleFormula.open_hours_required}
+                  </p>
+                </li>
+                  </>
+              ))}
+
+            </ul>
+          ) : (
+            <p>No service requirements recorded.</p>
+          )}
+        </section>
+>>>>>>> 61264f1 (Can display the new col's on the work formula page)
 
           {/* Service Requirements */}
           <section className="full">

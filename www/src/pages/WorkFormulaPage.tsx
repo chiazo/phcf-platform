@@ -116,6 +116,8 @@ export default function WorkFormulaPage() {
           <thead>
             <tr>
               {/* <th>ID</th> */}
+              <th>Member</th>
+              <th>Volunteer Activity</th>
               <th>Member ID</th>
               <th className="col-volunteer-activity">Volunteer Activity</th>
               <th>Volunteer Date</th>
