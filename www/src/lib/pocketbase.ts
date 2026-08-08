@@ -5,7 +5,6 @@ import { config } from "./config";
 import { MemberType } from "../models/enums";
 import MemberSnapshot from "../models/MemberSnapshot";
 
-
 export const pb = new PocketBase(config.pbUrl);
 
 export interface WorkFormulaCriteria {
@@ -363,7 +362,9 @@ export async function getOrCreateCurrentUserMemberSnapshot() {
   }
 
   const nowInSeconds = Math.floor(Date.now() / 1000);
-  const nameParts = String(appUser.name || "").trim().split(/\s+/);
+  const nameParts = String(appUser.name || "")
+    .trim()
+    .split(/\s+/);
   const firstName = nameParts[0] || "";
   const lastName = nameParts.slice(1).join(" ");
   const snapshot = await pb.collection("member_snapshot").create({
@@ -459,7 +460,9 @@ async function getMemberSnapshotForUserId(userId: string) {
     const member = await pb
       .collection("member")
       .getFirstListItem(`user_id = "${escapePocketBaseString(userId)}"`);
-    return await pb.collection("member_snapshot").getOne(member.member_snapshot_id);
+    return await pb
+      .collection("member_snapshot")
+      .getOne(member.member_snapshot_id);
   } catch (err: any) {
     if (err?.status === 404) {
       return null;
@@ -476,33 +479,42 @@ export async function getSingleMember(name: string) {
     .getFirstListItem(`personal_info.firstName = "${name}"`);
 }
 
-export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newRecord: string){
-   pb.autoCancellation(false);
-  
-  if (oldMemberInfo){
+export async function updatePronouns(
+  oldMemberInfo: MemberSnapshot | null,
+  newRecord: string,
+) {
+  pb.autoCancellation(false);
+
+  if (oldMemberInfo) {
     //find the member through the member_id on the member_snapshot table
-    const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
-    `member_id = "${oldMemberInfo.memberId}"`
-  );
+    const currentMemberSnapshot = await pb
+      .collection("member_snapshot")
+      .getFirstListItem(`member_id = "${oldMemberInfo.memberId}"`);
 
     // update the info in the member table
-    const record = await pb.collection('member_snapshot').update(`${currentMemberSnapshot.id}`, {
-    personal_info : newRecord,
-    }); 
-
+    const record = await pb
+      .collection("member_snapshot")
+      .update(`${currentMemberSnapshot.id}`, {
+        personal_info: newRecord,
+      });
   }
 }
 
-export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newPersonalData: string, newMemberData: string){
-   pb.autoCancellation(false);
+export async function newFormUpdate(
+  oldMemberInfo: MemberSnapshot | null,
+  newPersonalData: string,
+  newMemberData: string,
+) {
+  pb.autoCancellation(false);
 
-   const author = await pb.collection("users").getFirstListItem(
-    `email = "${currentUser()?.email}"`
-   )
+  const author = await pb
+    .collection("users")
+    .getFirstListItem(`email = "${currentUser()?.email}"`);
 
   //find the member through the member_id on the member_snapshot table
-  const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
-  `member_id = "${oldMemberInfo?.memberId}"`)
+  const currentMemberSnapshot = await pb
+    .collection("member_snapshot")
+    .getFirstListItem(`member_id = "${oldMemberInfo?.memberId}"`);
 
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: currentMemberSnapshot?.user_id,
@@ -535,13 +547,12 @@ export async function updateMemberSnapshotDirect(
 }
 
 export async function listApprovalUpdates() {
-
   // fetch a paginated records list
-  const resultList = await pb.collection('member_snapshot').getList(1, 50, {
-      filter: 'notes = "Update needs approval by an admin." ',
+  const resultList = await pb.collection("member_snapshot").getList(1, 50, {
+    filter: 'notes = "Update needs approval by an admin." ',
   });
 
-  return resultList
+  return resultList;
 }
 
 export async function submitRequirementUpdateRequest(
@@ -741,15 +752,63 @@ function formatRequirementRequestType(type: string) {
 }
 
 //gets the full list of boxes from the boxes collection
-export async function listBoxes() {
+export interface BoxWithNames extends Record<string, any> {
+  box_members_names: string[];
+  waitlist_names: string[];
+}
+
+export async function listBoxes(): Promise<{ items: BoxWithNames[] }> {
   pb.autoCancellation(false);
-  return await pb.collection("boxes").getList(1, 50);
+
+  // box_members is a real relation field, so PocketBase can expand it (and
+  // the nested user_id relation on each member) in one request.
+  const res = await pb.collection("boxes").getList(1, 50, {
+    expand: "box_members.user_id",
+  });
+
+  // waitlist is a plain JSON array of member ids, not a relation — it isn't
+  // auto-expanded, so we resolve those member records ourselves in one
+  // batched query rather than one request per id.
+  const allWaitlistIds = Array.from(
+    new Set(res.items.flatMap((box) => (box.waitlist ?? []) as string[])),
+  );
+
+  const waitlistMembersById: Record<string, any> = {};
+  if (allWaitlistIds.length > 0) {
+    const filter = allWaitlistIds.map((id) => `id = "${id}"`).join(" || ");
+    const waitlistMembers = await pb.collection("member").getFullList({
+      filter,
+      expand: "user_id",
+    });
+    for (const m of waitlistMembers) {
+      waitlistMembersById[m.id] = m;
+    }
+  }
+
+  const items: BoxWithNames[] = res.items.map((box) => {
+    const expandedMembers = (box.expand?.box_members ?? []) as Array<
+      Record<string, any>
+    >;
+
+    const box_members_names = expandedMembers.map(
+      (m) => m.expand?.user_id?.name ?? "(unknown member)",
+    );
+
+    const waitlist_names = ((box.waitlist ?? []) as string[]).map(
+      (id) =>
+        waitlistMembersById[id]?.expand?.user_id?.name ?? "(unknown member)",
+    );
+
+    return { ...box, box_members_names, waitlist_names };
+  });
+
+  return { ...res, items };
 }
 
 // Adds the currently logged-in user's member_id to a box waitlist, choosing
 // the box in this priority order:
-//   1. any box with zero members (box_member_s is empty)
-//   2. any box with an empty waitlist (waitlist_list is empty)
+//   1. any box with zero members (box_members is empty)
+//   2. any box with an empty waitlist (waitlist is empty)
 //   3. the box with the shortest waitlist
 // The chosen box's notes are flagged for admin review and the change is
 // persisted back to the boxes collection.
@@ -764,51 +823,46 @@ export async function addToBoxWaitlist(allBoxes: Record<string, any>[]) {
     throw new Error("No boxes available to join.");
   }
 
-  console.log('user',user)
+  console.log("user", user);
 
-  if (user.collectionName == '_superusers'){
-    console.log('user.email',user.email)
+  if (user.collectionName == "_superusers") {
+    console.log("user.email", user.email);
   }
 
   // member_id isn't guaranteed to equal the auth user's id, so resolve it
   // via that user's member_snapshot, same as acceptRequest/updatePronouns do.
-  const memberSnapshotID = await pb
-    .collection("member_snapshot")
-    .getFirstListItem(`member_id = "${user.id}"`);
+  const member = await pb
+    .collection("member")
+    .getFirstListItem(`user_id = "${user.id}"`);
 
-  // const memberId = memberSnapshot.member_id;
-  console.log('memberSnapshotID',memberSnapshotID)
-  if (!memberSnapshotID) {
-    throw new Error("Current user has no associated member_id.");
+  if (!member) {
+    throw new Error("Current user has no associated member record.");
   }
 
+  const memberId = member.id;
   // 1. Prefer a box with no members at all.
-  let targetBox = allBoxes.find(
-    (box) => countEntries(box.box_member_s) === 0,
-  );
+  let targetBox = allBoxes.find((box) => countEntries(box.box_members) === 0);
 
   // 2. Otherwise, prefer a box with an empty waitlist.
   if (!targetBox) {
-    targetBox = allBoxes.find(
-      (box) => countEntries(box.waitlist_list) === 0,
-    );
+    targetBox = allBoxes.find((box) => countEntries(box.waitlist) === 0);
   }
 
   // 3. Otherwise, fall back to the box with the shortest waitlist.
   if (!targetBox) {
     targetBox = allBoxes.reduce((shortest, box) =>
-      countEntries(box.waitlist_list) < countEntries(shortest.waitlist_list)
+      countEntries(box.waitlist) < countEntries(shortest.waitlist)
         ? box
         : shortest,
     );
   }
 
-  const updatedWaitlist = [...(targetBox.waitlist_list ?? []), memberSnapshotID.member_id];
-  console.log('updatedWaitlist',updatedWaitlist)
-  console.log('targetBox.id',targetBox.id) //<- this is correct but isnt adding onto the found box
+  const updatedWaitlist = [...(targetBox.waitlist ?? []), memberId];
+  console.log("updatedWaitlist", updatedWaitlist);
+  console.log("targetBox.id", targetBox.id); //<- this is correct but isnt adding onto the found box
   // Persist the change to PocketBase.
   return await pb.collection("boxes").update(`${targetBox.id}`, {
-    waitlist_list: updatedWaitlist,
+    waitlist: updatedWaitlist,
     notes: "Update needs approval by an admin.",
   });
 }
@@ -823,36 +877,38 @@ export async function listWorkFormulas() {
   return await pb.collection("work_formula").getList(1, 50);
 }
 
-export async function deleteRequest(currentSnapshot: Record<string, any>){
+export async function deleteRequest(currentSnapshot: Record<string, any>) {
   pb.autoCancellation(false);
   await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
-    notes: "Recently Denied"
-  })
+    notes: "Recently Denied",
+  });
 }
 
-export async function acceptRequest(currentSnapshot: Record<string, any>){
+export async function acceptRequest(currentSnapshot: Record<string, any>) {
   pb.autoCancellation(false);
   //find the user with that id from the currentSnapshot's user_id
-  const currentUser = await pb.collection("users").getFirstListItem(
-    `id = "${currentSnapshot.user_id}"`
-  )
+  const currentUser = await pb
+    .collection("users")
+    .getFirstListItem(`id = "${currentSnapshot.user_id}"`);
 
   //use the id from currentUser and find the member with that user_id
-  const currentMember = await pb.collection("member").getFirstListItem(
-    `user_id = "${currentUser.id}"`
-  )
+  const currentMember = await pb
+    .collection("member")
+    .getFirstListItem(`user_id = "${currentUser.id}"`);
 
   //update the currentSnapshot id to the currentMember's member_snapshot_id
   await pb.collection("member").update(`${currentMember.id}`, {
-    member_snapshot_id: `${currentSnapshot.id}`
-  })
+    member_snapshot_id: `${currentSnapshot.id}`,
+  });
 
   await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
-    notes: "Recently Updated"
-  })
+    notes: "Recently Updated",
+  });
 }
 
-export async function getMemberWorkFormula(memberSnapshot: Record <string, any>){
+export async function getMemberWorkFormula(
+  memberSnapshot: Record<string, any>,
+) {
   pb.autoCancellation(false);
   return await pb
     .collection("work_formula")
