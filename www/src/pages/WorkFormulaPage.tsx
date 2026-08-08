@@ -117,8 +117,6 @@ export default function WorkFormulaPage() {
             <tr>
               {/* <th>ID</th> */}
               <th>Member</th>
-              <th>Volunteer Activity</th>
-              <th>Member ID</th>
               <th className="col-volunteer-activity">Volunteer Activity</th>
               <th>Volunteer Date</th>
               <th>Volunteer Hours</th>
@@ -133,10 +131,6 @@ export default function WorkFormulaPage() {
           <tbody>
             {allFormulas.map((wf) => (
               <tr key={wf.id}>
-                <td>{wf.expand.member_id.expand.user_id.name}</td>
-                <td>{wf.volunteer_activity}</td>
-                <td>{wf.volunteer_date}</td>
-                <td>{wf.volunteer_hours}</td>
                 <td>{getMemberLabel(wf)}</td>
                 <td>{wf.volunteer_activity}</td>
                 <td>{wf.volunteer_date}</td>

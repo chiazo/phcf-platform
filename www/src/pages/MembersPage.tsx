@@ -488,9 +488,6 @@ export default function MembersPage() {
     string,
     any
   > | null>(null);
-  const [workFormulas, setAllFormulas] = useState<
-    Array<Record<string, any> | null>
-  >([]);
 
   async function refreshApprovedMembers() {
     try {
@@ -499,16 +496,6 @@ export default function MembersPage() {
     } catch (err) {
       console.error("member fetch error:", err);
       setApprovedMembers([]);
-    }
-  }
-
-  async function memberWorkFormulas(members: Array<Record<string, any>>){
-   try {
-      const res = await correspondingWorkFormulas(members);
-      return setAllFormulas(res.items);
-    } catch (err) {
-      console.error("work formula fetch error:", err);
-      setAllMembers([]);
     }
   }
 

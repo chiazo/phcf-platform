@@ -320,7 +320,7 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
           Prospect Heights Community Farm Members
         </Typography>
       )}
-      {numSelected > 0 ? (
+      {/* {numSelected > 0 ? (
         <Tooltip title="Delete">
           <IconButton>
             <DeleteIcon />
@@ -332,7 +332,7 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
             <RuleIcon fontSize={'large'} sx={{ color: 'green' }} />
           </IconButton>
         </Tooltip>
-      )}
+      )} */}
     </Toolbar>
   );
 }
