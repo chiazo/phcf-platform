@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useId } from "react";
+import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -8,6 +9,12 @@ import {
   listMemberSnapshots,
   logout,
   listApprovalUpdates,
+  listPendingRequirementUpdateRequests,
+  listMyRequirementUpdateRequests,
+  submitRequirementUpdateRequest,
+  approveRequirementUpdateRequest,
+  denyRequirementUpdateRequest,
+  RequirementUpdateRequestType,
   correspondingWorkFormulas,
 } from "../lib/pocketbase";
 import { config } from "../lib/config";
@@ -51,7 +58,35 @@ function formatList(values: unknown) {
   return Array.isArray(values) && values.length ? values.join(", ") : "—";
 }
 
-function MemberPersonalView({ member }: { member: Record<string, any> }) {
+function formatRequestType(type: string) {
+  return type.toLowerCase().replace(/_/g, " ");
+}
+
+function getRequestMemberLabel(request: Record<string, any>) {
+  const requester = request.expand?.user_id;
+  return requester?.name || requester?.email || request.member_id || "—";
+}
+
+function formatDateFromInput(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return 0;
+
+  return Math.floor(date.getTime() / 1000);
+}
+
+function todayInputValue() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function MemberPersonalView({
+  member,
+  requests,
+  onRequestSubmitted,
+}: {
+  member: Record<string, any>;
+  requests: Array<Record<string, any>>;
+  onRequestSubmitted?: () => void;
+}) {
   const personalInfo = member.personal_info ?? {};
   const memberInfo = member.member_info ?? {};
   const dues = memberInfo.dues ?? {};
@@ -77,6 +112,57 @@ function MemberPersonalView({ member }: { member: Record<string, any> }) {
   const firstName = personalInfo.firstName ?? "";
   const lastName = personalInfo.lastName ?? "";
   const fullName = `${firstName} ${lastName}`.trim() || "—";
+  const [requestType, setRequestType] = useState<RequirementUpdateRequestType>(
+    RequirementUpdateRequestType.AMOUNT_PAID,
+  );
+  const [quantity, setQuantity] = useState("");
+  const [paymentType, setPaymentType] = useState("cash");
+  const [occurredAt, setOccurredAt] = useState(todayInputValue());
+  const [requestNotes, setRequestNotes] = useState("");
+  const [requestMessage, setRequestMessage] = useState<string | null>(null);
+
+  async function handleRequirementRequestSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    setRequestMessage(null);
+
+    const parsedQuantity = Number(quantity);
+    if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+      setRequestMessage("Enter an amount greater than zero.");
+      return;
+    }
+
+    const occurredAtSeconds = formatDateFromInput(occurredAt);
+    if (!occurredAtSeconds) {
+      setRequestMessage("Enter a valid date.");
+      return;
+    }
+
+    try {
+      await submitRequirementUpdateRequest({
+        userId: member.user_id || currentUser()?.id || "",
+        memberId: member.member_id || currentUser()?.id || "",
+        memberSnapshotId: member.id,
+        requestType,
+        quantity: parsedQuantity,
+        paymentType:
+          requestType === RequirementUpdateRequestType.AMOUNT_PAID
+            ? paymentType
+            : "",
+        occurredAt: occurredAtSeconds,
+        notes: requestNotes,
+      });
+
+      setQuantity("");
+      setRequestNotes("");
+      setRequestMessage("Request submitted for admin approval.");
+      onRequestSubmitted?.();
+    } catch (err) {
+      console.error("requirement request error:", err);
+      setRequestMessage("Could not submit request. Please try again.");
+    }
+  }
 
   return (
     <>
@@ -111,6 +197,85 @@ function MemberPersonalView({ member }: { member: Record<string, any> }) {
           </tbody>
         </table>
       </section>
+
+      <section>
+        <h2>Submit Membership Requirement Progress</h2>
+        {requestMessage && (
+          <p role="status" className="muted">
+            {requestMessage}
+          </p>
+        )}
+        <form className="form-grid" onSubmit={handleRequirementRequestSubmit}>
+          <label>
+            Update type
+            <select
+              value={requestType}
+              onChange={(event) =>
+                setRequestType(event.target.value as RequirementUpdateRequestType)
+              }
+            >
+              <option value={RequirementUpdateRequestType.AMOUNT_PAID}>
+                Amount paid
+              </option>
+              <option value={RequirementUpdateRequestType.SERVICE_HOURS}>
+                Service hours
+              </option>
+              <option value={RequirementUpdateRequestType.MEETING_HOURS}>
+                Meeting hours
+              </option>
+            </select>
+          </label>
+          <label>
+            {requestType === RequirementUpdateRequestType.AMOUNT_PAID
+              ? "Amount to add"
+              : "Hours to add"}
+            <input
+              min="0"
+              step="0.25"
+              type="number"
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+              required
+            />
+          </label>
+          {requestType === RequirementUpdateRequestType.AMOUNT_PAID && (
+            <label>
+              Payment type
+              <select
+                value={paymentType}
+                onChange={(event) => setPaymentType(event.target.value)}
+              >
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="check">Check</option>
+                <option value="venmo">Venmo</option>
+                <option value="paypal">PayPal</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+          )}
+          <label>
+            Date completed or paid
+            <input
+              type="date"
+              value={occurredAt}
+              onChange={(event) => setOccurredAt(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Notes
+            <input
+              value={requestNotes}
+              onChange={(event) => setRequestNotes(event.target.value)}
+              placeholder="Optional details"
+            />
+          </label>
+          <button type="submit">Submit for approval</button>
+        </form>
+      </section>
+
+      <MemberRequirementRequestStatusTable requests={requests} />
 
       <section>
         <h2>My Info</h2>
@@ -172,12 +337,145 @@ function MemberPersonalView({ member }: { member: Record<string, any> }) {
   );
 }
 
+function MemberRequirementRequestStatusTable({
+  requests,
+}: {
+  requests: Array<Record<string, any>>;
+}) {
+  if (requests.length === 0) {
+    return (
+      <section>
+        <h2>My Submitted Progress</h2>
+        <p className="muted">No submitted progress requests yet.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <h2>My Submitted Progress</h2>
+      <div className="modal-table-wrapper always-visible-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Amount/Hours</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Notes</th>
+              <th>Reviewed By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map((request) => (
+              <tr key={request.id}>
+                <td>{formatRequestType(request.request_type)}</td>
+                <td>{request.quantity}</td>
+                <td>{request.status}</td>
+                <td>{formatDateFromSeconds(request.occurred_at)}</td>
+                <td>{request.notes || "—"}</td>
+                <td>{request.reviewed_by || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function RequirementUpdateRequestTable({
+  requests,
+  onActionComplete,
+}: {
+  requests: Array<Record<string, any>>;
+  onActionComplete: () => void;
+}) {
+  async function handleApprove(request: Record<string, any>) {
+    await approveRequirementUpdateRequest(request);
+    onActionComplete();
+  }
+
+  async function handleDeny(request: Record<string, any>) {
+    await denyRequirementUpdateRequest(request);
+    onActionComplete();
+  }
+
+  if (requests.length === 0) {
+    return (
+      <section>
+        <h2>Membership Requirement Update Requests</h2>
+        <p className="muted">No pending requirement updates.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <h2>Membership Requirement Update Requests</h2>
+      <div className="modal-table-wrapper always-visible-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Type</th>
+              <th>Amount/Hours</th>
+              <th>Payment Type</th>
+              <th>Date</th>
+              <th>Notes</th>
+              <th></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map((request) => (
+              <tr key={request.id}>
+                <td>{getRequestMemberLabel(request)}</td>
+                <td>{formatRequestType(request.request_type)}</td>
+                <td>{request.quantity}</td>
+                <td>{request.payment_type || "—"}</td>
+                <td>{formatDateFromSeconds(request.occurred_at)}</td>
+                <td>{request.notes || "—"}</td>
+                <td>
+                  <button
+                    className="icon-action approve-action"
+                    onClick={() => handleApprove(request)}
+                    type="button"
+                    title="Approve"
+                  >
+                    ✓
+                  </button>
+                </td>
+                <td>
+                  <button
+                    className="icon-action deny-action"
+                    onClick={() => handleDeny(request)}
+                    type="button"
+                    title="Deny"
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export default function MembersPage() {
   //holds all of the members fetched from the server
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
   const [approvedMembers, setApprovedMembers] = useState<
     Array<Record<string, any>>
   >([]);
+  const [requirementUpdateRequests, setRequirementUpdateRequests] = useState<
+    Array<Record<string, any>>
+  >([]);
+  const [myRequirementUpdateRequests, setMyRequirementUpdateRequests] =
+    useState<Array<Record<string, any>>>([]);
   const [workFormulas, setWorkFormulas] = useState<
     Array<Record<string, any> | null>
   >([]);
@@ -216,13 +514,31 @@ export default function MembersPage() {
     }
   }
 
+  async function refreshMyRequirementUpdateRequests() {
+    try {
+      const res = await listMyRequirementUpdateRequests();
+      return setMyRequirementUpdateRequests(res.items);
+    } catch (err) {
+      console.error("my requirement update request fetch error:", err);
+      setMyRequirementUpdateRequests([]);
+    }
+  }
+
   function refreshMembers() {
     if (isAdmin()) {
-      return Promise.all([refreshApprovedMembers(), refreshAllMembers()]);
+      return Promise.all([
+        refreshApprovedMembers(),
+        refreshAllMembers(),
+        refreshMyRequirementUpdateRequests(),
+      ]);
     }
 
     setApprovedMembers([]);
-    return refreshAllMembers();
+    setRequirementUpdateRequests([]);
+    return Promise.all([
+      refreshAllMembers(),
+      refreshMyRequirementUpdateRequests(),
+    ]);
   }
 
   //listMemberSnapshots is a GET Request
@@ -289,7 +605,7 @@ export default function MembersPage() {
           <span className="home-title-subtitle">Membership Platform</span>
         </h1>
         <p className="home-blurb">
-          Welcome new and returning members! Check your membership standin, track your work/volunteer hours, and
+          Welcome new and returning members! Check your membership standing, track your work/volunteer hours, and
           request to join a box waitlist on our platform. New members: you may
           register after attending your first general meeting.
         </p>
@@ -368,10 +684,19 @@ export default function MembersPage() {
 
           <MemberTable members={items} work_formulas={workFormulas} />
 
+          <RequirementUpdateRequestTable
+            requests={requirementUpdateRequests}
+            onActionComplete={refreshMembers}
+          />
+
           <ModalTable members={approvedMembers} onActionComplete={refreshMembers}/>
         </>
       ) : currentMember ? (
-        <MemberPersonalView member={currentMember} />
+        <MemberPersonalView
+          member={currentMember}
+          requests={myRequirementUpdateRequests}
+          onRequestSubmitted={refreshMembers}
+        />
       ) : (
         <p className="muted">No member snapshot found.</p>
       )}

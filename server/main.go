@@ -60,6 +60,9 @@ func ensureAppCollections(app core.App) error {
 	if _, err := ensureWorkFormulaCollection(app); err != nil {
 		return err
 	}
+	if _, err := ensureRequirementUpdateRequestCollection(app, snapshotCollection.Id); err != nil {
+		return err
+	}
 
 	_, err = ensureLegacySnapshotCollection(app, snapshotCollection.Id)
 	return err
@@ -539,12 +542,12 @@ func configureWorkFormulaCollection(collection *core.Collection) {
 	memberOfWFRule := "@request.auth.id != '' && " +
 		"@collection.member_snapshot.user_id ?= @request.auth.id && " +
 		"@collection.member_snapshot.member_id ?= member_id " + "|| @request.auth.is_admin = true"
-	// authenticatedRule := "@request.auth.id != ''"
+	adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
 
 	collection.ListRule = types.Pointer(memberOfWFRule)
 	collection.ViewRule = types.Pointer(memberOfWFRule)
 	// collection.CreateRule = types.Pointer(authenticatedRule)
-	// collection.UpdateRule = types.Pointer(authenticatedRule)
+	collection.UpdateRule = types.Pointer(adminRule)
 	// collection.DeleteRule = types.Pointer(authenticatedRule)
 	addTimeAttributeFields(collection)
 	addFieldIfMissing(collection, &core.TextField{Name: "member_id"})
@@ -557,6 +560,66 @@ func configureWorkFormulaCollection(collection *core.Collection) {
 	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_completed", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "created_at", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "modified_at", OnlyInt: true})
+}
+
+func ensureRequirementUpdateRequestCollection(app core.App, snapshotCollectionId string) (*core.Collection, error) {
+	log.Println("ensureRequirementUpdateRequestCollection running")
+
+	users, err := app.FindCollectionByNameOrId("users")
+	if err != nil {
+		return nil, err
+	}
+
+	if existing, err := app.FindCollectionByNameOrId("requirement_update_request"); err == nil {
+		configureRequirementUpdateRequestCollection(existing, users.Id, snapshotCollectionId)
+		if err := app.Save(existing); err != nil {
+			return nil, err
+		}
+
+		return existing, nil
+	}
+
+	collection := core.NewBaseCollection("requirement_update_request")
+	configureRequirementUpdateRequestCollection(collection, users.Id, snapshotCollectionId)
+
+	if err := app.Save(collection); err != nil {
+		return nil, err
+	}
+
+	return collection, nil
+}
+
+func configureRequirementUpdateRequestCollection(collection *core.Collection, usersCollectionId string, snapshotCollectionId string) {
+	ownerOrAdminRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
+	adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
+
+	collection.ListRule = types.Pointer(ownerOrAdminRule)
+	collection.ViewRule = types.Pointer(ownerOrAdminRule)
+	collection.CreateRule = types.Pointer("user_id = @request.auth.id && status = \"PENDING\"")
+	collection.UpdateRule = types.Pointer(adminRule)
+	collection.DeleteRule = types.Pointer(adminRule)
+
+	addTimeAttributeFields(collection)
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "user_id",
+		CollectionId: usersCollectionId,
+		Required:     true,
+	})
+	addFieldIfMissing(collection, &core.TextField{Name: "member_id", Required: true})
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "member_snapshot_id",
+		CollectionId: snapshotCollectionId,
+		Required:     true,
+	})
+	addFieldIfMissing(collection, &core.TextField{Name: "request_type", Required: true})
+	addFieldIfMissing(collection, &core.NumberField{Name: "quantity"})
+	addFieldIfMissing(collection, &core.TextField{Name: "payment_type"})
+	addFieldIfMissing(collection, &core.NumberField{Name: "occurred_at", OnlyInt: true})
+	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
+	addFieldIfMissing(collection, &core.TextField{Name: "status", Required: true})
+	addFieldIfMissing(collection, &core.TextField{Name: "reviewed_by"})
+	addFieldIfMissing(collection, &core.NumberField{Name: "reviewed_at", OnlyInt: true})
+	addFieldIfMissing(collection, &core.TextField{Name: "admin_notes"})
 }
 
 func addFieldIfMissing(collection *core.Collection, field core.Field) {
