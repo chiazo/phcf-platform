@@ -613,13 +613,13 @@ func ensureLegacySnapshotCollection(app core.App, usersCollectionId string) (*co
 }
 
 func configureLegacySnapshotCollection(app core.App, collection *core.Collection, usersCollectionId string) error {
-	authenticatedRule := "@request.auth.id != ''"
+	adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
 
-	collection.ListRule = types.Pointer(authenticatedRule)
-	collection.ViewRule = types.Pointer(authenticatedRule)
-	collection.CreateRule = types.Pointer(authenticatedRule)
-	collection.UpdateRule = types.Pointer(authenticatedRule)
-	collection.DeleteRule = types.Pointer(authenticatedRule)
+	collection.ListRule = types.Pointer(adminRule)
+	collection.ViewRule = types.Pointer(adminRule)
+	collection.CreateRule = types.Pointer(adminRule)
+	collection.UpdateRule = types.Pointer(adminRule)
+	collection.DeleteRule = types.Pointer(adminRule)
 
 	addTimeAttributeFields(collection)
 
