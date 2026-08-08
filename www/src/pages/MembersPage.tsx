@@ -17,6 +17,7 @@ import {
   approveRequirementUpdateRequest,
   denyRequirementUpdateRequest,
   RequirementUpdateRequestType,
+  exportMembersCSV,
 } from "../lib/pocketbase";
 import { config } from "../lib/config";
 
@@ -212,7 +213,9 @@ function MemberPersonalView({
             <select
               value={requestType}
               onChange={(event) =>
-                setRequestType(event.target.value as RequirementUpdateRequestType)
+                setRequestType(
+                  event.target.value as RequirementUpdateRequestType,
+                )
               }
             >
               <option value={RequirementUpdateRequestType.AMOUNT_PAID}>
@@ -478,9 +481,10 @@ export default function MembersPage() {
   >([]);
   const [myRequirementUpdateRequests, setMyRequirementUpdateRequests] =
     useState<Array<Record<string, any>>>([]);
-  const [adminSnapshot, setAdminSnapshot] = useState<Record<string, any> | null>(
-    null,
-  );
+  const [adminSnapshot, setAdminSnapshot] = useState<Record<
+    string,
+    any
+  > | null>(null);
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
@@ -494,6 +498,28 @@ export default function MembersPage() {
         console.error("member fetch error:", err);
         setApprovedMembers([]);
       });
+  }
+
+  async function handleExportMembers() {
+    try {
+      const blob = await exportMembersCSV();
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      link.href = url;
+      link.download = `members-${today}.csv`;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("CSV export failed:", err);
+    }
   }
 
   function refreshAllMembers() {
@@ -620,13 +646,16 @@ export default function MembersPage() {
     return (
       <section className="auth-panel home-panel">
         <h1 className="home-title">
-          <span className="home-title-name">Prospect Heights Community Farm</span>
+          <span className="home-title-name">
+            Prospect Heights Community Farm
+          </span>
           <span className="home-title-subtitle">Membership Platform</span>
         </h1>
         <p className="home-blurb">
-          Welcome new and returning members! Check your membership standing, track your work/volunteer hours, and
-          request to join a box waitlist on our platform. New members: you may
-          register after attending your first general meeting.
+          Welcome new and returning members! Check your membership standing,
+          track your work/volunteer hours, and request to join a box waitlist on
+          our platform. New members: you may register after attending your first
+          general meeting.
         </p>
         <div className="button-row">
           <Link className="button-link" to="/register">
@@ -676,12 +705,17 @@ export default function MembersPage() {
           </div>
           {!currentIsAdmin && (
             <p className="muted">
-              Welcome! Check your membership status and log requirements if needed.
-              An admin will approve and update your info as soon as possible.
+              Welcome! Check your membership status and log requirements if
+              needed. An admin will approve and update your info as soon as
+              possible.
             </p>
           )}
         </div>
-        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+        <button
+          className="secondary page-logout-button"
+          onClick={handleLogout}
+          type="button"
+        >
           Log out
         </button>
       </div>
@@ -715,7 +749,10 @@ export default function MembersPage() {
             onActionComplete={refreshMembers}
           />
 
-          <ModalTable members={approvedMembers} onActionComplete={refreshMembers} />
+          <ModalTable
+            members={approvedMembers}
+            onActionComplete={refreshMembers}
+          />
         </>
       ) : currentMember ? (
         <MemberPersonalView
@@ -729,14 +766,20 @@ export default function MembersPage() {
 
       <br />
       {currentIsAdmin && (
-        <a
-          className="fab"
-          href={`${config.pbUrl}/_/`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Open DB View →
-        </a>
+        <div className="fab-container">
+          <button className="fab" onClick={handleExportMembers} type="button">
+            Export Members CSV →
+          </button>
+
+          <a
+            className="fab"
+            href={`${config.pbUrl}/_/`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open DB View →
+          </a>
+        </div>
       )}
     </>
   );

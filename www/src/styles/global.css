@@ -67,6 +67,24 @@ main {
     margin-bottom: 2rem;
 }
 
+.button-row, .matrix-row {
+    margin-top: 1rem;
+}
+
+.matrix-row label {
+    margin-top: 1rem;
+}
+
+#navigation-buttons {
+    display: flex;
+    min-width: 800px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: .75rem;
+    flex: 1 1 auto;
+}
+
 .signed-in-line {
     display: flex;
     align-items: center;
@@ -91,15 +109,38 @@ a {
 a:hover {
     text-decoration: underline;
 }
-.fab {
+
+.fab-container {
     position: fixed;
-    bottom: 20px;
     right: 20px;
+    bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.fab {
     background: white;
+    color: #333;
     border: 1px solid #ddd;
     padding: 10px 14px;
     border-radius: 999px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 14px;
+    font-family: inherit;
+    line-height: 1.2;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fab:hover {
+    background: #f5f5f5;
 }
 
 .submit-toast {
@@ -202,6 +243,48 @@ section {
 
 .full-width {
     grid-column: 1 / -1;
+}
+
+.wf-admin-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.wf-admin-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    position: sticky;
+    top: 1rem;
+}
+
+.wf-admin-nav-item {
+    text-align: left;
+    padding: 0.6rem 0.9rem;
+    border-radius: 6px;
+    border: 1px solid #d0d0d0;
+    background: #ffffff;
+    color: #1a1a1a;
+    cursor: pointer;
+    font: inherit;
+}
+
+.wf-admin-nav-item:hover {
+    background: #f2f2f2;
+    color: #1a1a1a;
+}
+
+.wf-admin-nav-item.active {
+    background: #e4e4e4;
+    border-color: #999999;
+    color: #000000;
+    font-weight: 600;
+}
+
+.wf-admin-content {
+    min-width: 0;
 }
 
 label {
