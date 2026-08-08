@@ -95,7 +95,7 @@ export default function MembersPage() {
           <span className="home-title-subtitle">Membership Platform</span>
         </h1>
         <p className="home-blurb">
-          Welcome new and returning members! Check your membership standing and
+          Welcome new and returning members! Check your membership standin, track your work/volunteer hours, and
           request to join a box waitlist on our platform. New members: you may
           register after attending your first general meeting.
         </p>
