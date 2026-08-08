@@ -101,6 +101,35 @@ export async function demoteUserFromAdmin(id: string) {
   });
 }
 
+export const RequirementUpdateRequestType = {
+  AMOUNT_PAID: "AMOUNT_PAID",
+  MEETING_HOURS: "MEETING_HOURS",
+  SERVICE_HOURS: "SERVICE_HOURS",
+} as const;
+
+export type RequirementUpdateRequestType =
+  (typeof RequirementUpdateRequestType)[keyof typeof RequirementUpdateRequestType];
+
+export interface RequirementUpdateRequestInput {
+  userId: string;
+  memberId: string;
+  memberSnapshotId: string;
+  requestType: RequirementUpdateRequestType;
+  quantity: number;
+  paymentType?: string;
+  occurredAt: number;
+  notes?: string;
+}
+
+function toNumber(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value ?? {}));
+}
+
 export async function registerFarmMember(input: RegisterFarmMemberInput) {
   pb.autoCancellation(false);
 
@@ -274,6 +303,202 @@ export async function listApprovalUpdates() {
   });
 
   return resultList
+}
+
+export async function submitRequirementUpdateRequest(
+  input: RequirementUpdateRequestInput,
+) {
+  pb.autoCancellation(false);
+  const now = Math.floor(Date.now() / 1000);
+
+  return await pb.collection("requirement_update_request").create({
+    user_id: input.userId,
+    member_id: input.memberId,
+    member_snapshot_id: input.memberSnapshotId,
+    request_type: input.requestType,
+    quantity: input.quantity,
+    payment_type: input.paymentType ?? "",
+    occurred_at: input.occurredAt,
+    notes: input.notes ?? "",
+    status: "PENDING",
+    reviewed_by: "",
+    reviewed_at: 0,
+    admin_notes: "",
+    created_at: now,
+    modified_at: now,
+  });
+}
+
+export async function listPendingRequirementUpdateRequests() {
+  pb.autoCancellation(false);
+
+  return await pb.collection("requirement_update_request").getList(1, 50, {
+    filter: 'status = "PENDING"',
+    sort: "-created_at",
+    expand: "user_id",
+  });
+}
+
+export async function listMyRequirementUpdateRequests() {
+  pb.autoCancellation(false);
+
+  return await pb.collection("requirement_update_request").getList(1, 50, {
+    sort: "-created_at",
+  });
+}
+
+export async function denyRequirementUpdateRequest(
+  request: Record<string, any>,
+  adminNotes = "",
+) {
+  pb.autoCancellation(false);
+
+  return await pb.collection("requirement_update_request").update(request.id, {
+    status: "DENIED",
+    reviewed_by: currentUser()?.name || currentUser()?.email || "",
+    reviewed_at: Math.floor(Date.now() / 1000),
+    modified_at: Math.floor(Date.now() / 1000),
+    admin_notes: adminNotes,
+  });
+}
+
+export async function approveRequirementUpdateRequest(
+  request: Record<string, any>,
+) {
+  pb.autoCancellation(false);
+
+  const quantity = toNumber(request.quantity);
+  if (quantity <= 0) {
+    throw new Error("Request quantity must be greater than zero.");
+  }
+
+  const currentMember = await pb
+    .collection("member")
+    .getFirstListItem(`user_id = "${request.user_id}"`);
+  const currentSnapshot = await pb
+    .collection("member_snapshot")
+    .getOne(currentMember.member_snapshot_id);
+  const memberInfo = cloneJson(currentSnapshot.member_info ?? {});
+  const dues = cloneJson(memberInfo.dues ?? {});
+  const requirements = cloneJson(memberInfo.requirements ?? {});
+
+  memberInfo.dues = dues;
+  memberInfo.requirements = requirements;
+
+  if (request.request_type === RequirementUpdateRequestType.AMOUNT_PAID) {
+    dues.amountPaid = toNumber(dues.amountPaid) + quantity;
+    if (request.payment_type) {
+      dues.paymentType = request.payment_type;
+    }
+    if (request.occurred_at) {
+      dues.duesPaidAt = request.occurred_at;
+    }
+  }
+
+  if (request.request_type === RequirementUpdateRequestType.MEETING_HOURS) {
+    requirements.meetingsCompleted =
+      toNumber(requirements.meetingsCompleted) + quantity;
+  }
+
+  if (request.request_type === RequirementUpdateRequestType.SERVICE_HOURS) {
+    const serviceRequirements = Array.isArray(requirements.serviceRequirements)
+      ? [...requirements.serviceRequirements]
+      : [];
+
+    serviceRequirements.push({
+      workFormulaId: "Member-submitted service hours",
+      hoursCompleted: quantity,
+      completedAt: request.occurred_at,
+      notes: request.notes ?? "",
+    });
+
+    requirements.serviceRequirements = serviceRequirements;
+
+    await updateWorkFormulaHours(request.member_id, quantity);
+  }
+
+  const reviewer = currentUser()?.name || currentUser()?.email || "";
+  const newSnapshot = await createApprovedRequirementSnapshot({
+    currentMember,
+    currentSnapshot,
+    memberInfo,
+    reviewer,
+    request,
+  });
+
+  await pb.collection("member").update(currentMember.id, {
+    member_snapshot_id: newSnapshot.id,
+  });
+
+  return await pb.collection("requirement_update_request").update(request.id, {
+    status: "APPROVED",
+    reviewed_by: reviewer,
+    reviewed_at: Math.floor(Date.now() / 1000),
+    modified_at: Math.floor(Date.now() / 1000),
+  });
+}
+
+async function createApprovedRequirementSnapshot({
+  currentMember,
+  currentSnapshot,
+  memberInfo,
+  reviewer,
+  request,
+}: {
+  currentMember: Record<string, any>;
+  currentSnapshot: Record<string, any>;
+  memberInfo: Record<string, any>;
+  reviewer: string;
+  request: Record<string, any>;
+}) {
+  const candidateMemberIds = [
+    currentSnapshot.member_id,
+    currentMember.id,
+  ].filter(Boolean);
+  const uniqueMemberIds = Array.from(new Set(candidateMemberIds));
+  let lastError: unknown;
+
+  for (const memberId of uniqueMemberIds) {
+    try {
+      return await pb.collection("member_snapshot").create({
+        user_id: currentSnapshot.user_id,
+        member_id: memberId,
+        updated_by: reviewer,
+        notes: `Approved ${formatRequirementRequestType(request.request_type)} request.`,
+        personal_info: currentSnapshot.personal_info,
+        member_info: memberInfo,
+        box_info: currentSnapshot.box_info,
+      });
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError ?? new Error("Could not create approved member snapshot.");
+}
+
+async function updateWorkFormulaHours(memberId: string, hoursToAdd: number) {
+  try {
+    const workFormula = await pb
+      .collection("work_formula")
+      .getFirstListItem(`member_id = "${memberId}"`);
+
+    await pb.collection("work_formula").update(workFormula.id, {
+      work_hours_completed:
+        toNumber(workFormula.work_hours_completed) + hoursToAdd,
+      modified_at: Math.floor(Date.now() / 1000),
+    });
+  } catch (err: any) {
+    if (err?.status === 404) {
+      return;
+    }
+
+    throw err;
+  }
+}
+
+function formatRequirementRequestType(type: string) {
+  return type.toLowerCase().replace(/_/g, " ");
 }
 
 //gets the full list of boxes from the boxes collection

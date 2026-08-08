@@ -474,6 +474,32 @@ th {
   min-width: 100%;
 }
 
+.always-visible-table {
+  max-height: none;
+}
+
+.icon-action {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.approve-action {
+  background: var(--success);
+}
+
+.deny-action {
+  background: #dc2626;
+}
+
 /* The Close Button */
 .close {
   color: #aaa;
