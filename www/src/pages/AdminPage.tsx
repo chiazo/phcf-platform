@@ -28,7 +28,7 @@ export default function AdminPage() {
   const searchInputId = useId();
 
   useEffect(() => {
-    document.title = "Admin";
+    document.title = "PHCF Platform";
 
     if (!isAuthenticated || !isAdmin()) {
       setUsers([]);

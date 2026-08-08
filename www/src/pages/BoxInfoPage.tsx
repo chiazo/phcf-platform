@@ -16,7 +16,7 @@ export default function BoxInfoPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "Box Info";
+    document.title = "PHCF Platform";
 
     if (!isAuthenticated) {
       setAllBoxes([]);
