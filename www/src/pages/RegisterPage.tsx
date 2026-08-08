@@ -1,6 +1,10 @@
 import { ChangeEvent, FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { VOLUNTEER_INTEREST_OPTIONS, phonePattern } from "../models/enums";
+import {
+  VOLUNTEER_INTEREST_EMOJIS,
+  VOLUNTEER_INTEREST_OPTIONS,
+  phonePattern,
+} from "../models/enums";
 import { registerFarmMember } from "../lib/pocketbase";
 
 export default function RegisterPage() {
@@ -217,7 +221,7 @@ export default function RegisterPage() {
           {VOLUNTEER_INTEREST_OPTIONS.map((option) => (
             <label className="checkbox-row" key={option}>
               <input name="volunteerInterests" type="checkbox" value={option} />
-              {option}
+              {VOLUNTEER_INTEREST_EMOJIS[option]} {option}
             </label>
           ))}
           <label className="checkbox-row other-checkbox-row">

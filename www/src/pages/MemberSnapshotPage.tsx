@@ -21,6 +21,7 @@ import {
   MemberState,
   MemberType,
   PaymentType,
+  VOLUNTEER_INTEREST_EMOJIS,
   VOLUNTEER_INTEREST_OPTIONS,
   emailPattern,
   phonePattern,
@@ -117,7 +118,7 @@ export default function MemberSnapshotPage() {
 
   useEffect(() => {
     if (member) {
-      document.title = `${member.personalInfo.firstName} ${member.personalInfo.lastName}`;
+      document.title = "PHCF Platform";
     }
   }, [member]);
 
@@ -583,7 +584,7 @@ export default function MemberSnapshotPage() {
                     type="checkbox"
                     value={option}
                   />
-                  {option}
+                  {VOLUNTEER_INTEREST_EMOJIS[option]} {option}
                 </label>
               ))}
               <label className="checkbox-row other-checkbox-row">

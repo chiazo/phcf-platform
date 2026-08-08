@@ -24,7 +24,7 @@ export default function LegacySnapshotPage() {
   //listMemberSnapshots is a GET Request
   //gives back at least 1 member and at most 50 members
   useEffect(() => {
-    document.title = "Legacy Snapshots";
+    document.title = "PHCF Platform";
 
     if (!isAuthenticated) {
         setAllSnapshots([]);

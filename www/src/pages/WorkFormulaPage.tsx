@@ -18,7 +18,7 @@ export default function WorkFormulaPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "Work Formula Info";
+    document.title = "PHCF Platform";
 
     if (!isAuthenticated) {
       setAllFormulas([]);
