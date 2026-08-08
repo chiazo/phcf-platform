@@ -675,6 +675,13 @@ func ensureMemberSnapshotCollection(app core.App, usersCollectionId string) (*co
 
 func configureMemberSnapshotCollection(app core.App, collection *core.Collection, usersCollectionId string) error {
 	authenticatedRule := "@request.auth.id != ''"
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "user_id",
+		CollectionId: usersCollectionId,
+		Required:     true,
+	})
+
 	ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 
 	collection.ListRule = types.Pointer(authenticatedRule)
@@ -686,12 +693,6 @@ func configureMemberSnapshotCollection(app core.App, collection *core.Collection
 	if err := addTimeAttributeFields(app, collection); err != nil {
 		return err
 	}
-
-	addFieldIfMissing(collection, &core.RelationField{
-		Name:         "user_id",
-		CollectionId: usersCollectionId,
-		Required:     true,
-	})
 
 	// Plain string, not a relation — avoids a circular dependency with
 	// `member` (which points back at this collection via
@@ -756,6 +757,13 @@ func ensureMemberCollection(app core.App, usersCollectionId string, snapshotColl
 
 func configureMemberCollection(app core.App, collection *core.Collection, usersCollectionId string, snapshotCollectionId string) error {
 	authenticatedRule := "@request.auth.id != ''"
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "user_id",
+		CollectionId: usersCollectionId,
+		Required:     true,
+	})
+
 	ownerRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 
 	collection.ListRule = types.Pointer(ownerRule)
@@ -767,12 +775,6 @@ func configureMemberCollection(app core.App, collection *core.Collection, usersC
 	if err := addTimeAttributeFields(app, collection); err != nil {
 		return err
 	}
-
-	addFieldIfMissing(collection, &core.RelationField{
-		Name:         "user_id",
-		CollectionId: usersCollectionId,
-		Required:     true,
-	})
 
 	addFieldIfMissing(collection, &core.RelationField{
 		Name:         "member_snapshot_id",
@@ -869,6 +871,12 @@ func ensureWorkFormulaCollection(app core.App, memberCollectionId string) (*core
 }
 
 func configureWorkFormulaCollection(app core.App, collection *core.Collection, memberCollectionId string) error {
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "member_id",
+		CollectionId: memberCollectionId,
+		Required:     true,
+	})
 	// Any authenticated member can view/update their own row; admins can
 	// view/update all rows. Which specific fields a non-admin may change is
 	// enforced separately by the OnRecordUpdateRequest hook in main(),
@@ -886,11 +894,6 @@ func configureWorkFormulaCollection(app core.App, collection *core.Collection, m
 		return err
 	}
 
-	addFieldIfMissing(collection, &core.RelationField{
-		Name:         "member_id",
-		CollectionId: memberCollectionId,
-		Required:     true,
-	})
 	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_required", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_completed", OnlyInt: true})
 	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_required", OnlyInt: true})
@@ -929,6 +932,15 @@ func ensureRequirementUpdateRequestCollection(app core.App, usersCollectionId st
 }
 
 func configureRequirementUpdateRequestCollection(app core.App, collection *core.Collection, usersCollectionId string, snapshotCollectionId string) error {
+
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:         "user_id",
+		CollectionId: usersCollectionId,
+		Required:     true,
+	})
+
+	addFieldIfMissing(collection, &core.TextField{Name: "status", Required: true})
+
 	ownerOrAdminRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 	adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
 
@@ -942,11 +954,6 @@ func configureRequirementUpdateRequestCollection(app core.App, collection *core.
 		return err
 	}
 
-	addFieldIfMissing(collection, &core.RelationField{
-		Name:         "user_id",
-		CollectionId: usersCollectionId,
-		Required:     true,
-	})
 	addFieldIfMissing(collection, &core.TextField{Name: "member_id", Required: true})
 	addFieldIfMissing(collection, &core.RelationField{
 		Name:         "member_snapshot_id",
@@ -958,7 +965,6 @@ func configureRequirementUpdateRequestCollection(app core.App, collection *core.
 	addFieldIfMissing(collection, &core.TextField{Name: "payment_type"})
 	addFieldIfMissing(collection, &core.NumberField{Name: "occurred_at", OnlyInt: true})
 	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
-	addFieldIfMissing(collection, &core.TextField{Name: "status", Required: true})
 	addFieldIfMissing(collection, &core.TextField{Name: "reviewed_by"})
 	addFieldIfMissing(collection, &core.NumberField{Name: "reviewed_at", OnlyInt: true})
 	addFieldIfMissing(collection, &core.TextField{Name: "admin_notes"})

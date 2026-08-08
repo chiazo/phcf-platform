@@ -13,12 +13,16 @@ import {
 import AdminStatusButton from "../components/AdminStatusButton";
 
 function getMemberLabel(workFormula: Record<string, any>) {
-  const expandedUserName =
-    workFormula.expand?.member_id?.expand?.user_id?.name ??
-    workFormula.expand?.member_id?.name;
-
-  return expandedUserName || workFormula.member_id || "—";
+  return workFormula.member_name || workFormula.member_id || "—";
 }
+
+type AdminView = "matrix" | "rates" | "table";
+
+const ADMIN_VIEWS: Array<{ id: AdminView; label: string }> = [
+  { id: "matrix", label: "Update Requirements" },
+  { id: "rates", label: "Service Hour Rates" },
+  { id: "table", label: "All Existing Work" },
+];
 
 export default function WorkFormulaPage() {
   const [allFormulas, setAllFormulas] = useState<Array<Record<string, any>>>(
@@ -26,6 +30,7 @@ export default function WorkFormulaPage() {
   );
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedView, setSelectedView] = useState<AdminView>("matrix");
 
   useEffect(() => {
     document.title = "PHCF Platform";
@@ -116,56 +121,77 @@ export default function WorkFormulaPage() {
             </Link>
           </div>
         </div>
-        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+        <button
+          className="secondary page-logout-button"
+          onClick={handleLogout}
+          type="button"
+        >
           Log out
         </button>
       </div>
 
-      {isAdmin() && (
-        <>
-          <AdminWorkFormulaMatrix
-            members={allFormulas}
-            onApplied={refetchFormulas}
-          />
-          <AdminServiceHourRates />
-        </>
-      )}
-
-      <br></br>
-
       {loadError && <p className="error">{loadError}</p>}
 
-      {allFormulas.length === 0 && !loadError ? (
-        <p className="muted">No Work Formulas found.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              {/* <th>ID</th> */}
-              <th>Member</th>
-              <th>Work Hours Required</th>
-              <th>Work Hours Completed</th>
-              <th>Open Hours Required</th>
-              <th>Open Hours Completed</th>
-              <th>Created At</th>
-              <th>Modified At</th>
-            </tr>
-          </thead>
-          <tbody>
-            {allFormulas.map((wf) => (
-              <tr key={wf.id}>
-                <td>{getMemberLabel(wf)}</td>
-                <td>{wf.work_hours_required}</td>
-                <td>{wf.work_hours_completed}</td>
-                <td>{wf.open_hours_required}</td>
-                <td>{wf.open_hours_completed}</td>
-                <td>{wf.created_at}</td>
-                <td>{wf.modified_at}</td>
-              </tr>
+      <div className="wf-admin-layout">
+        <nav className="wf-admin-nav">
+          {ADMIN_VIEWS.map((view) => (
+            <button
+              key={view.id}
+              type="button"
+              className={
+                "wf-admin-nav-item" +
+                (selectedView === view.id ? " active" : "")
+              }
+              onClick={() => setSelectedView(view.id)}
+            >
+              {view.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="wf-admin-content">
+          {selectedView === "matrix" && (
+            <AdminWorkFormulaMatrix
+              members={allFormulas}
+              onApplied={refetchFormulas}
+            />
+          )}
+
+          {selectedView === "rates" && <AdminServiceHourRates />}
+
+          {selectedView === "table" &&
+            (allFormulas.length === 0 && !loadError ? (
+              <p className="muted">No Work Formulas found.</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Work Hours Required</th>
+                    <th>Work Hours Completed</th>
+                    <th>Open Hours Required</th>
+                    <th>Open Hours Completed</th>
+                    <th>Created At</th>
+                    <th>Modified At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allFormulas.map((wf) => (
+                    <tr key={wf.id}>
+                      <td>{getMemberLabel(wf)}</td>
+                      <td>{wf.work_hours_required}</td>
+                      <td>{wf.work_hours_completed}</td>
+                      <td>{wf.open_hours_required}</td>
+                      <td>{wf.open_hours_completed}</td>
+                      <td>{wf.created_at}</td>
+                      <td>{wf.modified_at}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             ))}
-          </tbody>
-        </table>
-      )}
+        </div>
+      </div>
     </>
   );
 }

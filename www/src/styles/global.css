@@ -245,6 +245,48 @@ section {
     grid-column: 1 / -1;
 }
 
+.wf-admin-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.wf-admin-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    position: sticky;
+    top: 1rem;
+}
+
+.wf-admin-nav-item {
+    text-align: left;
+    padding: 0.6rem 0.9rem;
+    border-radius: 6px;
+    border: 1px solid #d0d0d0;
+    background: #ffffff;
+    color: #1a1a1a;
+    cursor: pointer;
+    font: inherit;
+}
+
+.wf-admin-nav-item:hover {
+    background: #f2f2f2;
+    color: #1a1a1a;
+}
+
+.wf-admin-nav-item.active {
+    background: #e4e4e4;
+    border-color: #999999;
+    color: #000000;
+    font-weight: 600;
+}
+
+.wf-admin-content {
+    min-width: 0;
+}
+
 label {
     display: grid;
     gap: .4rem;
