@@ -1,11 +1,24 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isAdmin, isLoggedIn, listBoxes, addToBoxWaitlist, logout } from "../lib/pocketbase";
+import {
+  currentUser,
+  isAdmin,
+  isLoggedIn,
+  listBoxes,
+  addToBoxWaitlist,
+  logout,
+} from "../lib/pocketbase";
 import AdminStatusButton from "../components/AdminStatusButton";
 
 export default function BoxInfoPage() {
   const [allBoxes, setAllBoxes] = useState<Array<Record<string, any>>>([]);
+  const [allBoxMembers, setBoxMembers] = useState<Array<Record<string, any>>>(
+    [],
+  );
+  const [boxWaitlist, setBoxWaitlist] = useState<Array<Record<string, any>>>(
+    [],
+  );
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -20,6 +33,7 @@ export default function BoxInfoPage() {
     listBoxes()
       .then((res) => {
         setAllBoxes(res.items);
+        console.log("yow", res.items);
         setLoadError(null);
       })
       .catch((err) => {
@@ -34,11 +48,11 @@ export default function BoxInfoPage() {
     setIsAuthenticated(false);
   }
 
-  function handleRequestBox(){
-    addToBoxWaitlist(allBoxes)
+  function handleRequestBox() {
+    addToBoxWaitlist(allBoxes);
   }
 
-  // box_member_s / waitlist_list are stored as free-form JSON on each box
+  // box_members / waitlist are stored as free-form JSON on each box
   // record, so we render a count rather than assuming a specific shape.
   function countEntries(value: unknown): number {
     if (Array.isArray(value)) return value.length;
@@ -72,7 +86,7 @@ export default function BoxInfoPage() {
             Signed in as {currentUser()?.email}
             <AdminStatusButton />
           </p>
-          <div id='navigation-buttons'>
+          <div id="navigation-buttons">
             <Link className="button-link secondary" to="/">
               ← Back to Members
             </Link>
@@ -86,12 +100,21 @@ export default function BoxInfoPage() {
                 </Link>
               </>
             )}
-            <button id='requestBoxButton' className="secondary" onClick={handleRequestBox} type="button">
+            <button
+              id="requestBoxButton"
+              className="secondary"
+              onClick={handleRequestBox}
+              type="button"
+            >
               Request a Box
             </button>
           </div>
         </div>
-        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+        <button
+          className="secondary page-logout-button"
+          onClick={handleLogout}
+          type="button"
+        >
           Log out
         </button>
       </div>
@@ -104,6 +127,7 @@ export default function BoxInfoPage() {
         <table>
           <thead>
             <tr>
+              <th>Box Name</th>
               <th>Box ID</th>
               <th>Status</th>
               <th>Members</th>
@@ -115,12 +139,13 @@ export default function BoxInfoPage() {
           <tbody>
             {allBoxes.map((box) => (
               <tr key={box.id}>
+                <td>{box.box_name}</td>
                 <td>{box.id}</td>
                 <td>
                   <span className="badge">{box.box_state ?? "—"}</span>
                 </td>
-                <td>{box.box_member_s}</td>
-                <td>{box.waitlist_list}</td>
+                <td>{box.box_members_names.join(", ")}</td>
+                <td>{box.waitlist_names.join(", ")}</td>
                 <td>{box.updated_by || "—"}</td>
                 <td className="muted">{box.notes || "—"}</td>
               </tr>
