@@ -33,7 +33,6 @@ export default function BoxInfoPage() {
     listBoxes()
       .then((res) => {
         setAllBoxes(res.items);
-        console.log("yow", res.items);
         setLoadError(null);
       })
       .catch((err) => {

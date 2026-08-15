@@ -13,6 +13,7 @@ import {
   updateMemberSnapshotDirect,
   updatePronouns,
 } from "../lib/pocketbase";
+import { useVolunteerInterests } from "../lib/form";
 
 import MemberSnapshot from "../models/MemberSnapshot";
 
@@ -22,8 +23,6 @@ import {
   MemberState,
   MemberType,
   PaymentType,
-  VOLUNTEER_INTEREST_EMOJIS,
-  VOLUNTEER_INTEREST_OPTIONS,
   emailPattern,
   phonePattern,
 } from "../models/enums";
@@ -79,10 +78,12 @@ export default function MemberSnapshotPage() {
   const [workFormula, setWorkFormula] = useState<Record<string, any> | null>(
     null,
   );
-
+  const { interests: volunteerInterestOptions, loading: interestsLoading } =
+    useVolunteerInterests();
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<IFormInput>();
 
@@ -123,6 +124,65 @@ export default function MemberSnapshotPage() {
     }
   }, [member]);
 
+  useEffect(() => {
+    if (!member || interestsLoading) return;
+
+    const { personalInfo, memberInfo } = member as any;
+    const { firstName, lastName, pronouns, address, emailInfo, phoneInfo } =
+      personalInfo;
+
+    const { city, line1, zipCode } = address;
+    const { primaryEmail } = emailInfo;
+    const { primaryPhoneNumber } = phoneInfo;
+
+    const { memberRole, memberType, memberState, dues, requirements } =
+      memberInfo;
+
+    const {
+      amountPaid = 0,
+      dueState = "",
+      paymentType = "",
+      duesPaidAt,
+    } = dues;
+
+    const { volunteerInterests = [], meetingsCompleted = 0 } = requirements;
+
+    const knownLabels = new Set(volunteerInterestOptions.map((i) => i.label));
+
+    const customInterest =
+      volunteerInterests.find(
+        (interest: string) =>
+          interest.startsWith("Other:") || !knownLabels.has(interest),
+      ) ?? "";
+
+    const customInterestText =
+      customInterest === "Other"
+        ? ""
+        : customInterest.replace(/^Other:\s*/, "").trim();
+
+    reset({
+      firstName,
+      lastName,
+      pronouns,
+      primaryEmail,
+      primaryPhoneNumber,
+      line1,
+      city,
+      zipCode,
+      memberType,
+      memberState,
+      memberRole,
+      amountPaid,
+      paymentType,
+      duesPaidAt: toDateInputValue(duesPaidAt),
+      meetingsCompleted,
+      dueState,
+      volunteerInterests,
+      volunteerInterestOther: customInterestText,
+      volunteerInterestOtherSelected: Boolean(customInterest),
+    });
+  }, [member, interestsLoading, volunteerInterestOptions, reset]);
+
   if (notFound) return <p>Not found</p>;
   if (!member) return <p>Loading…</p>;
 
@@ -153,12 +213,16 @@ export default function MemberSnapshotPage() {
     meetingsRequired = 0,
     serviceHoursRequired = 0,
   } = requirements;
-  const customVolunteerInterest =
-    volunteerInterests.find(
-      (interest: string) =>
-        interest.startsWith("Other:") ||
-        !VOLUNTEER_INTEREST_OPTIONS.includes(interest as any),
-    ) ?? "";
+
+  const knownLabels = new Set(volunteerInterestOptions.map((i) => i.label));
+
+  const customVolunteerInterest = interestsLoading
+    ? ""
+    : (volunteerInterests.find(
+        (interest: string) =>
+          interest.startsWith("Other:") || !knownLabels.has(interest),
+      ) ?? "");
+
   const customVolunteerInterestText =
     customVolunteerInterest === "Other"
       ? ""
@@ -316,7 +380,11 @@ export default function MemberSnapshotPage() {
             variant="contained"
             color={editMode ? "secondary" : "primary"}
           >
-            {editMode ? (isAdmin() ? "Save Changes" : "Submit Changes") : "Edit Status"}
+            {editMode
+              ? isAdmin()
+                ? "Save Changes"
+                : "Submit Changes"
+              : "Edit Status"}
           </Button>
         </div>
         <div className="grid">
@@ -333,35 +401,19 @@ export default function MemberSnapshotPage() {
             )}
             <p>
               <strong>First Name</strong>
-              <input
-                {...register("firstName")}
-                defaultValue={firstName}
-                disabled={!editMode}
-              />
+              <input {...register("firstName")} disabled={!editMode} />
             </p>
             <p>
               <strong>Last Name</strong>
-              <input
-                {...register("lastName")}
-                defaultValue={lastName}
-                disabled={!editMode}
-              />
+              <input {...register("lastName")} disabled={!editMode} />
             </p>
             <p>
               <strong>Pronouns</strong>
-              <input
-                {...register("pronouns")}
-                defaultValue={pronouns}
-                disabled={!editMode}
-              />
+              <input {...register("pronouns")} disabled={!editMode} />
             </p>
             <p>
               <strong>Member Role</strong>
-              <select
-                {...register("memberRole")}
-                defaultValue={memberRole}
-                disabled={!editMode}
-              >
+              <select {...register("memberRole")} disabled={!editMode}>
                 {Object.values(MemberRole)
                   .filter(
                     (role) =>
@@ -384,11 +436,7 @@ export default function MemberSnapshotPage() {
 
             <p>
               <strong>Member Type</strong>
-              <select
-                {...register("memberType")}
-                defaultValue={memberType}
-                disabled={!editMode}
-              >
+              <select {...register("memberType")} disabled={!editMode}>
                 {Object.values(MemberType)
                   .filter((type) => type !== MemberType.PENDING)
                   .map((type) => (
@@ -406,11 +454,7 @@ export default function MemberSnapshotPage() {
             </p>
             <p>
               <strong>Status</strong>
-              <select
-                {...register("memberState")}
-                defaultValue={memberState}
-                disabled={!editMode}
-              >
+              <select {...register("memberState")} disabled={!editMode}>
                 {Object.values(MemberState)
                   .filter((state) => state !== MemberState.PENDING)
                   .map((state) => (
@@ -440,7 +484,6 @@ export default function MemberSnapshotPage() {
                     message: "Invalid email address",
                   },
                 })}
-                defaultValue={primaryEmail}
                 disabled={!editMode}
               />
               {errors.primaryEmail && (
@@ -458,7 +501,6 @@ export default function MemberSnapshotPage() {
                     message: "Invalid phone number",
                   },
                 })}
-                defaultValue={primaryPhoneNumber}
                 disabled={!editMode}
               />
               {errors.primaryPhoneNumber && (
@@ -474,27 +516,15 @@ export default function MemberSnapshotPage() {
 
             <p>
               <strong>Street</strong>
-              <input
-                {...register("line1")}
-                defaultValue={line1}
-                disabled={!editMode}
-              />
+              <input {...register("line1")} disabled={!editMode} />
             </p>
             <p>
               <strong>City</strong>
-              <input
-                {...register("city")}
-                defaultValue={city}
-                disabled={!editMode}
-              />
+              <input {...register("city")} disabled={!editMode} />
             </p>
             <p>
               <strong>Zip Code</strong>
-              <input
-                {...register("zipCode")}
-                defaultValue={zipCode}
-                disabled={!editMode}
-              />
+              <input {...register("zipCode")} disabled={!editMode} />
             </p>
           </section>
 
@@ -504,11 +534,7 @@ export default function MemberSnapshotPage() {
 
             <p>
               <strong>Status</strong>
-              <select
-                {...register("dueState")}
-                defaultValue={dueState}
-                disabled={!editMode}
-              >
+              <select {...register("dueState")} disabled={!editMode}>
                 {Object.values(DueState)
                   .filter((state) => state !== DueState.PENDING)
                   .map((state) => (
@@ -526,19 +552,11 @@ export default function MemberSnapshotPage() {
             </p>
             <p>
               <strong>Amount Paid</strong>
-              <input
-                {...register("amountPaid")}
-                defaultValue={amountPaid}
-                disabled={!editMode}
-              />
+              <input {...register("amountPaid")} disabled={!editMode} />
             </p>
             <p>
               <strong>Payment Type</strong>
-              <select
-                {...register("paymentType")}
-                defaultValue={paymentType}
-                disabled={!editMode}
-              >
+              <select {...register("paymentType")} disabled={!editMode}>
                 {Object.values(PaymentType).map((type) => (
                   <option key={type} value={type}>
                     {type.toUpperCase()}
@@ -551,7 +569,6 @@ export default function MemberSnapshotPage() {
               <input
                 type="date"
                 {...register("duesPaidAt")}
-                defaultValue={toDateInputValue(duesPaidAt)}
                 disabled={!editMode}
               />
             </p>
@@ -574,7 +591,6 @@ export default function MemberSnapshotPage() {
               <input
                 id="meetingsInput"
                 {...register("meetingsCompleted")}
-                defaultValue={meetingsCompleted}
                 disabled={!editMode}
               />{" "}
               / {meetingsRequired}
@@ -589,22 +605,20 @@ export default function MemberSnapshotPage() {
                 maintenance. How are you most looking forward to helping in the
                 garden?
               </legend>
-              {VOLUNTEER_INTEREST_OPTIONS.map((option) => (
-                <label className="checkbox-row" key={option}>
+              {volunteerInterestOptions.map((option) => (
+                <label className="checkbox-row" key={option.id}>
                   <input
                     {...register("volunteerInterests")}
-                    defaultChecked={volunteerInterests.includes(option)}
                     disabled={!editMode}
                     type="checkbox"
-                    value={option}
+                    value={option.label}
                   />
-                  {VOLUNTEER_INTEREST_EMOJIS[option]} {option}
+                  {option.emoji} {option.label}
                 </label>
               ))}
               <label className="checkbox-row other-checkbox-row">
                 <input
                   {...register("volunteerInterestOtherSelected")}
-                  defaultChecked={Boolean(customVolunteerInterest)}
                   disabled={!editMode}
                   type="checkbox"
                 />
@@ -612,7 +626,6 @@ export default function MemberSnapshotPage() {
                 <input
                   {...register("volunteerInterestOther")}
                   aria-label="Other volunteer interest"
-                  defaultValue={customVolunteerInterestText}
                   disabled={!editMode}
                   type="text"
                 />

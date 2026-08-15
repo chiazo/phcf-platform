@@ -48,50 +48,6 @@ export type PaymentType = (typeof PaymentType)[keyof typeof PaymentType];
 export const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const phonePattern = /^\+?[\d\s().-]{10,17}$/;
 
-export const VOLUNTEER_INTEREST_OPTIONS = [
-  "Arborism and Pruning (under Master Gardener supervision)",
-  "Community Garden Governance and Best Practices",
-  "Composting",
-  "Event Organizing",
-  "Garden Work Days",
-  "Grant Writing/Advocacy",
-  "Greenhouse/Cold Frame Gardening",
-  "Keeping Garden Open for Neighbors (this is a requirement for everyone)",
-  "Leading Workshops/Education Events",
-  "Organizing or Contributing to a Regularly Sent Newsletter",
-  "Prepping or working Annual Plant Sales",
-  "Rat Abatement",
-  "Researching/Archiving/Writing History of the Garden",
-  "Stewarding Common Areas (under Master Gardener guidance)",
-  "Victory Garden/Community Food Access",
-  "Watering and Filling Water Barrels",
-  "Winter Maintenance",
-] as const;
-
-export const VOLUNTEER_INTEREST_EMOJIS: Record<
-  (typeof VOLUNTEER_INTEREST_OPTIONS)[number],
-  string
-> = {
-  "Arborism and Pruning (under Master Gardener supervision)": "🌳",
-  "Community Garden Governance and Best Practices": "🤝",
-  Composting: "♻️",
-  "Event Organizing": "📅",
-  "Garden Work Days": "🧤",
-  "Grant Writing/Advocacy": "✍️",
-  "Greenhouse/Cold Frame Gardening": "🌱",
-  "Keeping Garden Open for Neighbors (this is a requirement for everyone)":
-    "🚪",
-  "Leading Workshops/Education Events": "🎓",
-  "Organizing or Contributing to a Regularly Sent Newsletter": "📰",
-  "Prepping or working Annual Plant Sales": "🌼",
-  "Rat Abatement": "🪤",
-  "Researching/Archiving/Writing History of the Garden": "📚",
-  "Stewarding Common Areas (under Master Gardener guidance)": "🛠️",
-  "Victory Garden/Community Food Access": "🥕",
-  "Watering and Filling Water Barrels": "💧",
-  "Winter Maintenance": "❄️",
-};
-
 export const BoxState = {
   UNASSIGNED: "UNASSIGNED",
   ASSIGNED: "ASSIGNED",

@@ -299,9 +299,11 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
     member_snapshot_id: snapshot.id,
   });
 
-  const updatedSnapshot = await pb.collection("member_snapshot").update(snapshot.id, {
-    member_id: member.id,
-  });
+  const updatedSnapshot = await pb
+    .collection("member_snapshot")
+    .update(snapshot.id, {
+      member_id: member.id,
+    });
 
   return { user, snapshot: updatedSnapshot };
 }
@@ -480,6 +482,24 @@ export async function getSingleMember(name: string) {
   return await pb
     .collection("member_snapshot")
     .getFirstListItem(`personal_info.firstName = "${name}"`);
+}
+
+export interface VolunteerInterest {
+  id: string;
+  label: string;
+  emoji: string;
+  sort_order: number;
+  active: boolean;
+}
+
+export async function listVolunteerInterests() {
+  pb.autoCancellation(false);
+  return await pb
+    .collection("volunteer_interests")
+    .getFullList<VolunteerInterest>({
+      filter: "active = true",
+      sort: "sort_order",
+    });
 }
 
 export async function updatePronouns(
@@ -911,11 +931,18 @@ export async function acceptRequest(currentSnapshot: Record<string, any>) {
 
 export async function getMemberWorkFormula(
   memberSnapshot: Record<string, any>,
-) {
+): Promise<Record<string, any> | null> {
   pb.autoCancellation(false);
-  return await pb
-    .collection("work_formula")
-    .getFirstListItem(`member_id = "${memberSnapshot.member_id}"`);
+  try {
+    return await pb
+      .collection("work_formula")
+      .getFirstListItem(`member_id = "${memberSnapshot.member_id}"`);
+  } catch (err: any) {
+    if (err?.status === 404) {
+      return null; // no work_formula row exists yet for this member — expected
+    }
+    throw err;
+  }
 }
 
 // gets the full list of legacy snapshots from the legacy_snapshots collection
