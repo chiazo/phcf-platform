@@ -34,6 +34,12 @@ func loadServiceHourRates(app core.App) (map[string]float64, error) {
 	return rates, nil
 }
 
+type WaitlistEntry struct {
+	MemberID string `json:"member_id"`
+	JoinDate int64  `json:"join_date"`
+	Position int    `json:"position"`
+}
+
 type PersonalInfo struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
@@ -69,16 +75,6 @@ type MemberInfo struct {
 	Requirements struct {
 		ServiceHoursRequired int `json:"serviceHoursRequired"`
 	} `json:"requirements"`
-}
-
-type BoxInfo struct {
-	BoxState string `json:"boxState"`
-	BoxId    string `json:"boxId"`
-
-	WaitlistInfo struct {
-		WaitlistNumber   int   `json:"waitlistNumber"`
-		JoinedWaitlistAt int64 `json:"joinedWaitlistAt"`
-	} `json:"waitlistInfo"`
 }
 
 type ExportPersonalInfo struct {
@@ -118,16 +114,6 @@ type ExportMemberInfo struct {
 	Requirements struct {
 		ServiceHoursRequired int `json:"serviceHoursRequired"`
 	} `json:"requirements"`
-}
-
-type ExportBoxInfo struct {
-	BoxState string `json:"boxState"`
-	BoxId    string `json:"boxId"`
-
-	WaitlistInfo struct {
-		WaitlistNumber   int   `json:"waitlistNumber"`
-		JoinedWaitlistAt int64 `json:"joinedWaitlistAt"`
-	} `json:"waitlistInfo"`
 }
 
 func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
@@ -202,6 +188,21 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 			snapshots[snapshot.Id] = snapshot
 		}
 
+		boxes := []*core.Record{}
+		if err := app.RecordQuery("boxes").All(&boxes); err != nil {
+			return e.InternalServerError("Could not load boxes.", err)
+		}
+
+		boxByMemberID := make(map[string]*core.Record)
+
+		for _, box := range boxes {
+			memberIDs := box.GetStringSlice("box_members")
+
+			for _, memberID := range memberIDs {
+				boxByMemberID[memberID] = box
+			}
+		}
+
 		serviceHourRates, err := loadServiceHourRates(app)
 		if err != nil {
 			return e.InternalServerError("Could not load service hour rates.", err)
@@ -218,7 +219,6 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 
 			var personal ExportPersonalInfo
 			var memberInfo ExportMemberInfo
-			var boxInfo ExportBoxInfo
 
 			if err := snapshot.UnmarshalJSONField(
 				"personal_info",
@@ -233,12 +233,31 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 			); err != nil {
 				continue
 			}
+			boxWaitingList := false
+			boxNumber := ""
+			sharingBox := "No"
+			waitlistNumber := ""
+			waitlistJoinDate := ""
 
-			if err := snapshot.UnmarshalJSONField(
-				"box_info",
-				&boxInfo,
-			); err != nil {
-				continue
+			var box *core.Record
+			if found, ok := boxByMemberID[member.Id]; ok {
+				box = found
+			}
+
+			if box != nil {
+				if entry := getWaitlistEntry(box, member.Id); entry != nil {
+					boxWaitingList = true
+					waitlistNumber = fmt.Sprintf("%d", entry.Position)
+					waitlistJoinDate = formatUnixMDY(entry.JoinDate)
+				}
+
+				if box.GetFloat("box_number") != 0 {
+					boxNumber = fmt.Sprintf("%.0f", box.GetFloat("box_number"))
+				}
+
+				if len(box.GetStringSlice("box_members")) > 1 {
+					sharingBox = "Yes"
+				}
 			}
 
 			// Service Hours Percentage Required
@@ -308,40 +327,33 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 				personal.Address.ZipCode,
 
 				// Join Date
-				formatPocketBaseDate(
-					member.GetString("join_date"),
+				formatPBDateValue(
+					member.GetString("created_at"),
 				),
 
 				// Join Year
-				member.GetString("join_year"),
+				formatPBYearValue(member.GetString("created_at")),
 
 				// Member Type
 				memberInfo.MemberType,
 
 				// Box Waiting List
-				boolToYesNo(
-					boxInfo.BoxState == "WAITLIST",
-				),
+				boolToYesNo(boxWaitingList),
 
 				// Box Waiting List Number
-				fmt.Sprintf(
-					"%d",
-					boxInfo.WaitlistInfo.WaitlistNumber,
-				),
+				waitlistNumber,
 
 				// Waitlist Join Date
-				formatUnix(
-					boxInfo.WaitlistInfo.JoinedWaitlistAt,
-				),
+				waitlistJoinDate,
 
 				// Box Number
-				boxInfo.BoxId,
+				boxNumber,
 
 				// Box Change Request Letter
 				"",
 
 				// Sharing Box
-				"",
+				sharingBox,
 
 				// On Leave
 				"",
@@ -401,8 +413,11 @@ func lastInitial(last string) string {
 	}
 
 	runes := []rune(last)
+	if len(runes) <= 2 {
+		return string(runes)
+	}
 
-	return string(runes[0])
+	return string(runes[:2])
 }
 
 func formatPBDateValue(value string) string {
@@ -429,4 +444,20 @@ func formatPBYearValue(value string) string {
 	}
 
 	return value
+}
+
+func getWaitlistEntry(box *core.Record, memberID string) *WaitlistEntry {
+	var entries []WaitlistEntry
+
+	if err := box.UnmarshalJSONField("waitlist", &entries); err != nil {
+		return nil
+	}
+
+	for i := range entries {
+		if entries[i].MemberID == memberID {
+			return &entries[i]
+		}
+	}
+
+	return nil
 }
