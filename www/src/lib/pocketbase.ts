@@ -868,6 +868,96 @@ export async function listBoxes(): Promise<{ items: BoxWithNames[] }> {
   return { ...res, items };
 }
 
+export async function removeMemberFromWaitlist(memberId: string) {
+  pb.autoCancellation(false);
+
+  if (!memberId) {
+    throw new Error("Member ID is required.");
+  }
+
+  const boxes = await pb.collection("boxes").getFullList({
+    filter: `waitlist ~ "${memberId}"`,
+  });
+
+  if (boxes.length === 0) {
+    throw new Error("Member is not on a box waitlist.");
+  }
+
+  const box = boxes[0];
+
+  const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
+
+  const updatedWaitlist = waitlist.filter((entry: any) => {
+    // Current waitlist format:
+    // { member_id, position, join_date }
+    if (typeof entry === "string") {
+      return entry !== memberId;
+    }
+
+    return entry?.member_id !== memberId;
+  });
+
+  // Re-number remaining entries so positions stay contiguous.
+  const renumberedWaitlist = updatedWaitlist.map(
+    (entry: any, index: number) => {
+      if (typeof entry === "string") {
+        return entry;
+      }
+
+      return {
+        ...entry,
+        position: index + 1,
+      };
+    },
+  );
+
+  return await pb.collection("boxes").update(box.id, {
+    waitlist: renumberedWaitlist,
+    notes: "Member removed from box waitlist.",
+  });
+}
+
+export async function removeMemberFromBox(memberId: string) {
+  pb.autoCancellation(false);
+
+  const boxes = await pb.collection("boxes").getFullList();
+
+  const box = boxes.find((box) => {
+    const members = Array.isArray(box.box_members) ? box.box_members : [];
+
+    const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
+
+    return (
+      members.includes(memberId) ||
+      waitlist.some((entry: any) => entry.member_id === memberId)
+    );
+  });
+
+  if (!box) {
+    throw new Error("Member is not assigned to or waiting for a box.");
+  }
+
+  const members = Array.isArray(box.box_members) ? box.box_members : [];
+
+  const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
+
+  const updatedMembers = members.filter((id: string) => id !== memberId);
+
+  const updatedWaitlist = waitlist
+    .filter((entry: any) => entry.member_id !== memberId)
+    .map((entry: any, index: number) => ({
+      ...entry,
+      position: index + 1,
+    }));
+
+  return await pb.collection("boxes").update(box.id, {
+    box_members: updatedMembers,
+    waitlist: updatedWaitlist,
+    box_state: updatedMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED",
+    updated_by: "admin",
+  });
+}
+
 // Adds the currently logged-in user's member_id to a box waitlist, choosing
 // the box in this priority order:
 //   1. any box with zero members (box_members is empty)
@@ -889,6 +979,25 @@ export async function addToBoxWaitlist(
 
   if (!allBoxes || allBoxes.length === 0) {
     throw new Error("No boxes available to join.");
+  }
+
+  if (
+    allBoxes.some(
+      (box) =>
+        Array.isArray(box.box_members) && box.box_members.includes(memberId),
+    )
+  ) {
+    throw new Error("Member already has a box.");
+  }
+
+  if (
+    allBoxes.some(
+      (box) =>
+        Array.isArray(box.waitlist) &&
+        box.waitlist.some((entry: any) => entry.member_id === memberId),
+    )
+  ) {
+    throw new Error("Member is already on a box waitlist.");
   }
 
   // If no memberId was explicitly supplied, resolve the logged-in user's
