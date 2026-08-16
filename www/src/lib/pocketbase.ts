@@ -1,7 +1,7 @@
 import PocketBase from "pocketbase";
 
 import { config } from "./config";
-import { ClientResponseError } from "pocketbase";
+import { cache, CACHE_KEYS } from "./cache";
 
 import { MemberType } from "../models/enums";
 import MemberSnapshot from "../models/MemberSnapshot";
@@ -62,16 +62,24 @@ export async function previewWorkFormulaBulkUpdate(
 
 export async function listServiceHourRates() {
   pb.autoCancellation(false);
-  return await pb
-    .collection("service_hour_rates")
-    .getFullList<ServiceHourRate>({
+
+  return cache.get(CACHE_KEYS.SERVICE_HOUR_RATES, () =>
+    pb.collection("service_hour_rates").getFullList<ServiceHourRate>({
       sort: "category",
-    });
+    }),
+  );
 }
 
 export async function updateServiceHourRate(id: string, percentage: number) {
   pb.autoCancellation(false);
-  return await pb.collection("service_hour_rates").update(id, { percentage });
+
+  const result = await pb
+    .collection("service_hour_rates")
+    .update(id, { percentage });
+
+  cache.invalidate(CACHE_KEYS.SERVICE_HOUR_RATES);
+
+  return result;
 }
 
 export async function applyWorkFormulaBulkUpdate(
@@ -167,23 +175,39 @@ export interface AdminUser {
 
 export async function listAdminUsers() {
   pb.autoCancellation(false);
-  return await pb.send<{ items: AdminUser[] }>("/api/app/admin/users", {
-    method: "GET",
-  });
+
+  return cache.get(CACHE_KEYS.ADMIN_USERS, () =>
+    pb.send<{ items: AdminUser[] }>("/api/app/admin/users", {
+      method: "GET",
+    }),
+  );
 }
 
 export async function promoteUserToAdmin(id: string) {
   pb.autoCancellation(false);
-  return await pb.send<AdminUser>(`/api/app/admin/users/${id}/promote`, {
-    method: "POST",
-  });
+
+  const result = await pb.send<AdminUser>(
+    `/api/app/admin/users/${id}/promote`,
+    {
+      method: "POST",
+    },
+  );
+
+  cache.invalidate(CACHE_KEYS.ADMIN_USERS);
+
+  return result;
 }
 
 export async function demoteUserFromAdmin(id: string) {
   pb.autoCancellation(false);
-  return await pb.send<AdminUser>(`/api/app/admin/users/${id}/demote`, {
+
+  const result = await pb.send<AdminUser>(`/api/app/admin/users/${id}/demote`, {
     method: "POST",
   });
+
+  cache.invalidate(CACHE_KEYS.ADMIN_USERS);
+
+  return result;
 }
 
 export const RequirementUpdateRequestType = {
@@ -308,41 +332,44 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
       member_id: member.id,
     });
 
+  cache.invalidate(CACHE_KEYS.MEMBER_SNAPSHOTS);
+
   return { user, snapshot: updatedSnapshot };
 }
 
 export async function listMemberSnapshots() {
   pb.autoCancellation(false);
 
-  //gets the full list of all of the records in the memver collection
-  const member_records = await pb.collection("member").getFullList();
+  return cache.get(CACHE_KEYS.MEMBER_SNAPSHOTS, async () => {
+    const member_records = await pb.collection("member").getFullList();
 
-  //gets all of the snapshotIds of all of the members
-  const snapshotIds = member_records
-    .map((r) => r.member_snapshot_id)
-    .filter(Boolean);
+    const snapshotIds = member_records
+      .map((r) => r.member_snapshot_id)
+      .filter(Boolean);
 
-  //if there are no ids then return any empty list
-  if (snapshotIds.length === 0) {
-    return { items: [] as Array<Record<string, any>> };
-  }
+    if (snapshotIds.length === 0) {
+      return {
+        items: [] as Array<Record<string, any>>,
+      };
+    }
 
-  //Defines the filter for the members in the list
-  const filter = snapshotIds.map((id) => `id = "${id}"`).join(" || ");
+    const filter = snapshotIds.map((id) => `id = "${id}"`).join(" || ");
 
-  //looks for any members with ids defined in the filter variable
-  //gives back at least 1 member and at most 50 members
-  return await pb.collection("member_snapshot").getList(1, 50, { filter });
+    return await pb.collection("member_snapshot").getList(1, 50, { filter });
+  });
 }
 
 //gets the member of the given id
 export async function getMemberSnapshot(id: string) {
   pb.autoCancellation(false);
-  const res = await pb.collection("member_snapshot").getList(1, 1, {
-    filter: `id = "${id}"`,
-  });
 
-  return res.items?.[0] ?? null;
+  return cache.get(CACHE_KEYS.MEMBER_SNAPSHOT(id), async () => {
+    const res = await pb.collection("member_snapshot").getList(1, 1, {
+      filter: `id = "${id}"`,
+    });
+
+    return res.items?.[0] ?? null;
+  });
 }
 
 export async function getCurrentUserMemberSnapshot() {
@@ -502,12 +529,13 @@ export interface VolunteerInterest {
 
 export async function listVolunteerInterests() {
   pb.autoCancellation(false);
-  return await pb
-    .collection("volunteer_interests")
-    .getFullList<VolunteerInterest>({
+
+  return cache.get(CACHE_KEYS.VOLUNTEER_INTERESTS, () =>
+    pb.collection("volunteer_interests").getFullList<VolunteerInterest>({
       filter: "active = true",
       sort: "sort_order",
-    });
+    }),
+  );
 }
 
 export async function updatePronouns(
@@ -572,30 +600,39 @@ export async function updateMemberSnapshotDirect(
     throw new Error("No member snapshot selected.");
   }
 
-  return await pb.collection("member_snapshot").update(oldMemberInfo.id, {
-    updated_by: currentUser()?.name || currentUser()?.email || "Admin",
-    notes: "Updated directly by an admin.",
-    personal_info: newPersonalData,
-    member_info: newMemberData,
-  });
+  const result = await pb
+    .collection("member_snapshot")
+    .update(oldMemberInfo.id, {
+      updated_by: currentUser()?.name || currentUser()?.email || "Admin",
+      notes: "Updated directly by an admin.",
+      personal_info: newPersonalData,
+      member_info: newMemberData,
+    });
+
+  cache.invalidate(CACHE_KEYS.MEMBER_SNAPSHOT(oldMemberInfo.id));
+  cache.invalidate(CACHE_KEYS.MEMBER_SNAPSHOTS);
+
+  return result;
 }
 
 export async function listApprovalUpdates() {
-  // fetch a paginated records list
-  const resultList = await pb.collection("member_snapshot").getList(1, 50, {
-    filter: 'notes = "Update needs approval by an admin." ',
-  });
+  pb.autoCancellation(false);
 
-  return resultList;
+  return cache.get(CACHE_KEYS.APPROVAL_UPDATES, () =>
+    pb.collection("member_snapshot").getList(1, 50, {
+      filter: 'notes = "Update needs approval by an admin."',
+    }),
+  );
 }
 
 export async function submitRequirementUpdateRequest(
   input: RequirementUpdateRequestInput,
 ) {
   pb.autoCancellation(false);
+
   const now = new Date().toISOString();
 
-  return await pb.collection("requirement_update_request").create({
+  const result = await pb.collection("requirement_update_request").create({
     user_id: input.userId,
     member_id: input.memberId,
     member_snapshot_id: input.memberSnapshotId,
@@ -611,24 +648,33 @@ export async function submitRequirementUpdateRequest(
     created_at: now,
     modified_at: now,
   });
+
+  cache.invalidate(CACHE_KEYS.PENDING_REQUIREMENT_REQUESTS);
+  cache.invalidate(CACHE_KEYS.MY_REQUIREMENT_REQUESTS);
+
+  return result;
 }
 
 export async function listPendingRequirementUpdateRequests() {
   pb.autoCancellation(false);
 
-  return await pb.collection("requirement_update_request").getList(1, 50, {
-    filter: 'status = "PENDING"',
-    sort: "-created_at",
-    expand: "user_id",
-  });
+  return cache.get(CACHE_KEYS.PENDING_REQUIREMENT_REQUESTS, () =>
+    pb.collection("requirement_update_request").getList(1, 50, {
+      filter: 'status = "PENDING"',
+      sort: "-created_at",
+      expand: "user_id",
+    }),
+  );
 }
 
 export async function listMyRequirementUpdateRequests() {
   pb.autoCancellation(false);
 
-  return await pb.collection("requirement_update_request").getList(1, 50, {
-    sort: "-created_at",
-  });
+  return cache.get(CACHE_KEYS.MY_REQUIREMENT_REQUESTS, () =>
+    pb.collection("requirement_update_request").getList(1, 50, {
+      sort: "-created_at",
+    }),
+  );
 }
 
 export async function denyRequirementUpdateRequest(
@@ -637,13 +683,20 @@ export async function denyRequirementUpdateRequest(
 ) {
   pb.autoCancellation(false);
 
-  return await pb.collection("requirement_update_request").update(request.id, {
-    status: "DENIED",
-    reviewed_by: currentUser()?.name || currentUser()?.email || "",
-    reviewed_at: new Date().toISOString(),
-    modified_at: new Date().toISOString(),
-    admin_notes: adminNotes,
-  });
+  const result = await pb
+    .collection("requirement_update_request")
+    .update(request.id, {
+      status: "DENIED",
+      reviewed_by: currentUser()?.name || currentUser()?.email || "",
+      reviewed_at: new Date().toISOString(),
+      modified_at: new Date().toISOString(),
+      admin_notes: adminNotes,
+    });
+
+  cache.invalidate(CACHE_KEYS.PENDING_REQUIREMENT_REQUESTS);
+  cache.invalidate(CACHE_KEYS.MY_REQUIREMENT_REQUESTS);
+
+  return result;
 }
 
 export async function approveRequirementUpdateRequest(
@@ -714,12 +767,23 @@ export async function approveRequirementUpdateRequest(
     member_snapshot_id: newSnapshot.id,
   });
 
-  return await pb.collection("requirement_update_request").update(request.id, {
-    status: "APPROVED",
-    reviewed_by: reviewer,
-    reviewed_at: new Date().toISOString(),
-    modified_at: new Date().toISOString(),
-  });
+  const result = await pb
+    .collection("requirement_update_request")
+    .update(request.id, {
+      status: "APPROVED",
+      reviewed_by: reviewer,
+      reviewed_at: new Date().toISOString(),
+      modified_at: new Date().toISOString(),
+    });
+
+  cache.invalidate(CACHE_KEYS.PENDING_REQUIREMENT_REQUESTS);
+  cache.invalidate(CACHE_KEYS.MY_REQUIREMENT_REQUESTS);
+  cache.invalidate(CACHE_KEYS.MEMBER_SNAPSHOTS);
+  cache.invalidate(CACHE_KEYS.MEMBER_SNAPSHOT(currentSnapshot.id));
+  cache.invalidate(CACHE_KEYS.WORK_FORMULAS);
+  cache.invalidate(CACHE_KEYS.MEMBER_WORK_FORMULA(request.member_id));
+
+  return result;
 }
 
 async function createApprovedRequirementSnapshot({
@@ -771,11 +835,16 @@ async function updateWorkFormulaHours(memberId: string, hoursToAdd: number) {
       .collection("work_formula")
       .getFirstListItem(`member_id = "${memberId}"`);
 
-    await pb.collection("work_formula").update(workFormula.id, {
+    const result = await pb.collection("work_formula").update(workFormula.id, {
       work_hours_completed:
         toNumber(workFormula.work_hours_completed) + hoursToAdd,
       modified_at: new Date().toISOString(),
     });
+
+    cache.invalidate(CACHE_KEYS.WORK_FORMULAS);
+    cache.invalidate(CACHE_KEYS.MEMBER_WORK_FORMULA(memberId));
+
+    return result;
   } catch (err: any) {
     if (err?.status === 404) {
       return;
@@ -804,68 +873,77 @@ type BoxWithNames = Record<string, any> & {
 export async function listBoxes(): Promise<{ items: BoxWithNames[] }> {
   pb.autoCancellation(false);
 
-  const res = await pb.collection("boxes").getList(1, 50, {
-    expand: "box_members.user_id",
-  });
-
-  // waitlist is JSON containing:
-  // {
-  //   member_id: string,
-  //   join_date: number,
-  //   position: number
-  // }
-  const allWaitlistIds = Array.from(
-    new Set(
-      res.items.flatMap((box) =>
-        Array.isArray(box.waitlist)
-          ? box.waitlist.map((entry: any) => entry.member_id)
-          : [],
-      ),
-    ),
-  );
-
-  const waitlistMembersById: Record<string, any> = {};
-
-  if (allWaitlistIds.length > 0) {
-    const filter = allWaitlistIds.map((id) => `id = "${id}"`).join(" || ");
-
-    const waitlistMembers = await pb.collection("member").getFullList({
-      filter,
-      expand: "user_id",
+  return cache.get(CACHE_KEYS.BOXES, async () => {
+    const res = await pb.collection("boxes").getList(1, 50, {
+      expand: "box_members.user_id",
     });
 
-    for (const member of waitlistMembers) {
-      waitlistMembersById[member.id] = member;
-    }
-  }
+    // waitlist is JSON containing:
+    // {
+    //   member_id: string,
+    //   join_date: number,
+    //   position: number
+    // }
 
-  const items: BoxWithNames[] = res.items.map((box) => {
-    const expandedMembers = (box.expand?.box_members ?? []) as Array<
-      Record<string, any>
-    >;
-
-    const box_members_names = expandedMembers.map(
-      (member) => member.expand?.user_id?.name ?? "(unknown member)",
+    // Collect all unique member IDs appearing on any waitlist.
+    const allWaitlistIds = Array.from(
+      new Set(
+        res.items.flatMap((box) =>
+          Array.isArray(box.waitlist)
+            ? box.waitlist.map((entry: any) => entry.member_id)
+            : [],
+        ),
+      ),
     );
 
-    const waitlist_names = (
-      Array.isArray(box.waitlist) ? box.waitlist : []
-    ).map((entry: any) => ({
-      member_id: entry.member_id,
-      position: entry.position,
-      name:
-        waitlistMembersById[entry.member_id]?.expand?.user_id?.name ??
-        "(unknown member)",
-    }));
+    // Fetch the member records for the waitlist entries.
+    const waitlistMembersById: Record<string, any> = {};
+
+    if (allWaitlistIds.length > 0) {
+      const filter = allWaitlistIds.map((id) => `id = "${id}"`).join(" || ");
+
+      const waitlistMembers = await pb.collection("member").getFullList({
+        filter,
+        expand: "user_id",
+      });
+
+      for (const member of waitlistMembers) {
+        waitlistMembersById[member.id] = member;
+      }
+    }
+
+    // Add human-readable member names to each box.
+    const items: BoxWithNames[] = res.items.map((box) => {
+      const expandedMembers = (box.expand?.box_members ?? []) as Array<
+        Record<string, any>
+      >;
+
+      const box_members_names = expandedMembers.map(
+        (member) => member.expand?.user_id?.name ?? "(unknown member)",
+      );
+
+      const waitlist_names = (
+        Array.isArray(box.waitlist) ? box.waitlist : []
+      ).map((entry: any) => ({
+        member_id: entry.member_id,
+        position: entry.position,
+        name:
+          waitlistMembersById[entry.member_id]?.expand?.user_id?.name ??
+          "(unknown member)",
+      }));
+
+      return {
+        ...box,
+        box_members_names,
+        waitlist_names,
+      };
+    });
 
     return {
-      ...box,
-      box_members_names,
-      waitlist_names,
+      ...res,
+      items,
     };
   });
-
-  return { ...res, items };
 }
 
 export async function removeMemberFromWaitlist(memberId: string) {
@@ -888,8 +966,6 @@ export async function removeMemberFromWaitlist(memberId: string) {
   const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
 
   const updatedWaitlist = waitlist.filter((entry: any) => {
-    // Current waitlist format:
-    // { member_id, position, join_date }
     if (typeof entry === "string") {
       return entry !== memberId;
     }
@@ -897,7 +973,6 @@ export async function removeMemberFromWaitlist(memberId: string) {
     return entry?.member_id !== memberId;
   });
 
-  // Re-number remaining entries so positions stay contiguous.
   const renumberedWaitlist = updatedWaitlist.map(
     (entry: any, index: number) => {
       if (typeof entry === "string") {
@@ -911,10 +986,14 @@ export async function removeMemberFromWaitlist(memberId: string) {
     },
   );
 
-  return await pb.collection("boxes").update(box.id, {
+  const result = await pb.collection("boxes").update(box.id, {
     waitlist: renumberedWaitlist,
     notes: "Member removed from box waitlist.",
   });
+
+  cache.invalidate(CACHE_KEYS.BOXES);
+
+  return result;
 }
 
 export async function removeMemberFromBox(memberId: string) {
@@ -924,7 +1003,6 @@ export async function removeMemberFromBox(memberId: string) {
 
   const box = boxes.find((box) => {
     const members = Array.isArray(box.box_members) ? box.box_members : [];
-
     const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
 
     return (
@@ -938,7 +1016,6 @@ export async function removeMemberFromBox(memberId: string) {
   }
 
   const members = Array.isArray(box.box_members) ? box.box_members : [];
-
   const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
 
   const updatedMembers = members.filter((id: string) => id !== memberId);
@@ -950,24 +1027,36 @@ export async function removeMemberFromBox(memberId: string) {
       position: index + 1,
     }));
 
-  return await pb.collection("boxes").update(box.id, {
+  const result = await pb.collection("boxes").update(box.id, {
     box_members: updatedMembers,
     waitlist: updatedWaitlist,
     box_state: updatedMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED",
     updated_by: "admin",
   });
+
+  cache.invalidate(CACHE_KEYS.BOXES);
+
+  return result;
 }
 
-// Adds the currently logged-in user's member_id to a box waitlist, choosing
-// the box in this priority order:
-//   1. any box with zero members (box_members is empty)
-//   2. any box with an empty waitlist (waitlist is empty)
-//   3. the box with the shortest waitlist
-// The chosen box's notes are flagged for admin review and the change is
-// persisted back to the boxes collection.
+// Adds the currently logged-in user's member_id to a box.
+//
+// Box selection priority:
+//   1. If selectedBox is provided, use that box.
+//   2. Otherwise, use a box with no members.
+//   3. Otherwise, use a box with an empty waitlist.
+//   4. Otherwise, add the member to the box with the shortest waitlist.
+//
+// If the selected box has capacity (no members or an empty waitlist),
+// the member is added directly to box_members. Otherwise, the member is
+// added to that box's waitlist.
+//
+// The change is persisted to the boxes collection and the box is flagged
+// for admin review.
 export async function addToBoxWaitlist(
   allBoxes: Record<string, any>[],
   memberId?: string,
+  selectedBox?: string,
 ) {
   pb.autoCancellation(false);
 
@@ -979,25 +1068,6 @@ export async function addToBoxWaitlist(
 
   if (!allBoxes || allBoxes.length === 0) {
     throw new Error("No boxes available to join.");
-  }
-
-  if (
-    allBoxes.some(
-      (box) =>
-        Array.isArray(box.box_members) && box.box_members.includes(memberId),
-    )
-  ) {
-    throw new Error("Member already has a box.");
-  }
-
-  if (
-    allBoxes.some(
-      (box) =>
-        Array.isArray(box.waitlist) &&
-        box.waitlist.some((entry: any) => entry.member_id === memberId),
-    )
-  ) {
-    throw new Error("Member is already on a box waitlist.");
   }
 
   // If no memberId was explicitly supplied, resolve the logged-in user's
@@ -1016,15 +1086,6 @@ export async function addToBoxWaitlist(
     memberId = member.id;
   }
 
-  // Don't add someone who is already on a waitlist.
-  const existingWaitlistBox = allBoxes.find((box) =>
-    (box.waitlist ?? []).some((entry: any) => entry.member_id === memberId),
-  );
-
-  if (existingWaitlistBox) {
-    throw new Error("This member is already on a box waitlist.");
-  }
-
   // Don't add someone who already has a box.
   const existingBox = allBoxes.find((box) =>
     (box.box_members ?? []).includes(memberId),
@@ -1034,26 +1095,68 @@ export async function addToBoxWaitlist(
     throw new Error("This member is already assigned to a box.");
   }
 
-  // Prefer a completely empty box.
-  let targetBox = allBoxes.find((box) => countEntries(box.box_members) === 0);
+  // Don't add someone who is already on a waitlist.
+  const existingWaitlistBox = allBoxes.find((box) =>
+    (box.waitlist ?? []).some((entry: any) => entry.member_id === memberId),
+  );
 
-  // Otherwise prefer the shortest waitlist.
-  if (!targetBox) {
-    targetBox = allBoxes.reduce((shortest, box) =>
-      countEntries(box.waitlist) < countEntries(shortest.waitlist)
-        ? box
-        : shortest,
-    );
+  if (existingWaitlistBox) {
+    throw new Error("This member is already on a box waitlist.");
+  }
+
+  // If a specific box was requested, make sure it exists.
+  let targetBox: Record<string, any> | undefined;
+
+  if (selectedBox) {
+    targetBox = allBoxes.find((box) => box.id === selectedBox);
+
+    if (!targetBox) {
+      throw new Error(`Box ${selectedBox} does not exist`);
+    }
+  } else {
+    // First priority: a completely empty box.
+    targetBox = allBoxes.find((box) => countEntries(box.box_members) === 0);
+
+    // Second priority: a box with an empty waitlist.
+    if (!targetBox) {
+      targetBox = allBoxes.find((box) => countEntries(box.waitlist) === 0);
+    }
+
+    // Final priority: shortest waitlist.
+    if (!targetBox) {
+      targetBox = allBoxes.reduce((shortest, box) =>
+        countEntries(box.waitlist) < countEntries(shortest.waitlist)
+          ? box
+          : shortest,
+      );
+    }
   }
 
   if (!targetBox) {
     throw new Error("No suitable box found.");
   }
 
+  const currentMembers = Array.isArray(targetBox.box_members)
+    ? targetBox.box_members
+    : [];
+
   const currentWaitlist = Array.isArray(targetBox.waitlist)
     ? targetBox.waitlist
     : [];
 
+  // A box is immediately joinable if it has no members OR its waitlist
+  // is empty. In either case, add the member directly to the box.
+  if (currentMembers.length === 0 || currentWaitlist.length === 0) {
+    const boxRes = await pb.collection("boxes").update(targetBox.id, {
+      box_members: [...currentMembers, memberId],
+      notes: "Update needs approval by an admin.",
+    });
+
+    cache.invalidate(CACHE_KEYS.BOXES);
+    return boxRes;
+  }
+
+  // Otherwise, add the member to the end of the waitlist.
   const updatedWaitlist = [
     ...currentWaitlist,
     {
@@ -1063,20 +1166,24 @@ export async function addToBoxWaitlist(
     },
   ];
 
-  return await pb.collection("boxes").update(targetBox.id, {
+  const boxRes = await pb.collection("boxes").update(targetBox.id, {
     waitlist: updatedWaitlist,
     notes: "Update needs approval by an admin.",
   });
+  cache.invalidate(CACHE_KEYS.BOXES);
+  return boxRes;
 }
 
 export async function listMembersForBoxRequest() {
   pb.autoCancellation(false);
 
-  return await pb.collection("member").getFullList({
-    sort: "created_at",
-    expand: "user_id",
-    fields: "id,user_id,expand.user_id.name,expand.user_id.email",
-  });
+  return cache.get(CACHE_KEYS.BOX_MEMBERS, () =>
+    pb.collection("member").getFullList({
+      sort: "created_at",
+      expand: "user_id",
+      fields: "id,user_id,expand.user_id.name,expand.user_id.email",
+    }),
+  );
 }
 
 function countEntries(list: unknown[] | undefined | null): number {
@@ -1086,56 +1193,87 @@ function countEntries(list: unknown[] | undefined | null): number {
 //gets the full list of work formulas from their collection
 export async function listWorkFormulas() {
   pb.autoCancellation(false);
-  return await pb.collection("work_formula").getList(1, 50);
+
+  return cache.get(CACHE_KEYS.WORK_FORMULAS, () =>
+    pb.collection("work_formula").getList(1, 50),
+  );
 }
 
 export async function deleteRequest(currentSnapshot: Record<string, any>) {
   pb.autoCancellation(false);
-  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
-    notes: "Recently Denied",
-  });
+
+  const result = await pb
+    .collection("member_snapshot")
+    .update(`${currentSnapshot.id}`, {
+      notes: "Recently Denied",
+    });
+
+  cache.invalidate(CACHE_KEYS.APPROVAL_UPDATES);
+  cache.invalidate(CACHE_KEYS.MEMBER_SNAPSHOTS);
+  cache.invalidate(CACHE_KEYS.MEMBER_SNAPSHOT(currentSnapshot.id));
+
+  return result;
 }
 
 export async function acceptRequest(currentSnapshot: Record<string, any>) {
   pb.autoCancellation(false);
-  //find the user with that id from the currentSnapshot's user_id
+
   const currentUser = await pb
     .collection("users")
     .getFirstListItem(`id = "${currentSnapshot.user_id}"`);
 
-  //use the id from currentUser and find the member with that user_id
   const currentMember = await pb
     .collection("member")
     .getFirstListItem(`user_id = "${currentUser.id}"`);
 
-  //update the currentSnapshot id to the currentMember's member_snapshot_id
   await pb.collection("member").update(`${currentMember.id}`, {
     member_snapshot_id: `${currentSnapshot.id}`,
   });
 
-  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
-    notes: "Recently Updated",
-  });
+  const result = await pb
+    .collection("member_snapshot")
+    .update(`${currentSnapshot.id}`, {
+      notes: "Recently Updated",
+    });
+
+  cache.invalidate(CACHE_KEYS.APPROVAL_UPDATES);
+  cache.invalidate(CACHE_KEYS.MEMBER_SNAPSHOTS);
+  cache.invalidate(CACHE_KEYS.MEMBER_SNAPSHOT(currentSnapshot.id));
+
+  return result;
 }
 
 export async function getMemberWorkFormula(
   memberSnapshot: Record<string, any>,
 ): Promise<Record<string, any> | null> {
   pb.autoCancellation(false);
-  try {
-    return await pb
-      .collection("work_formula")
-      .getFirstListItem(`member_id = "${memberSnapshot.member_id}"`);
-  } catch (err: any) {
-    if (err?.status === 404) {
-      return null; // no work_formula row exists yet for this member — expected
-    }
-    throw err;
+
+  const memberId = memberSnapshot.member_id;
+
+  if (!memberId) {
+    return null;
   }
+
+  return cache.get(CACHE_KEYS.MEMBER_WORK_FORMULA(memberId), async () => {
+    try {
+      return await pb
+        .collection("work_formula")
+        .getFirstListItem(`member_id = "${memberId}"`);
+    } catch (err: any) {
+      if (err?.status === 404) {
+        return null;
+      }
+
+      throw err;
+    }
+  });
 }
 
 // gets the full list of legacy snapshots from the legacy_snapshots collection
 export async function listLegacySnapshots() {
   pb.autoCancellation(false);
-  return await pb.collection("legacy_snapshot").getList(1, 50);
+
+  return cache.get(CACHE_KEYS.LEGACY_SNAPSHOTS, () =>
+    pb.collection("legacy_snapshots").getList(1, 50),
+  );
 }
