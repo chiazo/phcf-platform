@@ -548,6 +548,24 @@ th {
     white-space: nowrap;
 }
 
+.current-user-box {
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 3px 0 0 #8b5cf6;
+}
+
+.current-user-box td {
+    border-top: 1px solid rgba(139, 92, 246, 0.35);
+    border-bottom: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.current-user-box td:first-child {
+    border-left: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.current-user-box td:last-child {
+    border-right: 1px solid rgba(139, 92, 246, 0.35);
+}
+
 /* Modal Content/Box */
 .modal-content {
   background-color: #fefefe;

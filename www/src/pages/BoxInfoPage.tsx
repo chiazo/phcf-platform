@@ -18,11 +18,13 @@ export default function BoxInfoPage() {
   const [allBoxes, setAllBoxes] = useState<Array<Record<string, any>>>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const [loadError, setLoadError] = useState<string | null>(null);
+  const currUser = currentUser();
 
   // Admin request modal
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [members, setMembers] = useState<Array<Record<string, any>>>([]);
   const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [selectedBox, setSelectedBox] = useState("");
   const [requestingBox, setRequestingBox] = useState(false);
 
   // Prevent duplicate remove requests
@@ -30,7 +32,16 @@ export default function BoxInfoPage() {
 
   async function refreshBoxes() {
     const res = await listBoxes();
-    setAllBoxes(res.items);
+    const currUserName = currUser?.name || "no-name";
+
+    setAllBoxes(
+      [...res.items].sort((a, b) => {
+        const aHasUser = a.box_members_names.includes(currUserName);
+        const bHasUser = b.box_members_names.includes(currUserName);
+
+        return Number(bHasUser) - Number(aHasUser);
+      }),
+    );
   }
 
   useEffect(() => {
@@ -81,6 +92,7 @@ export default function BoxInfoPage() {
 
       setMembers(memberRecords);
       setSelectedMemberId("");
+      setSelectedBox("");
       setRequestModalOpen(true);
     } catch (err) {
       console.error("member fetch error:", err);
@@ -94,16 +106,22 @@ export default function BoxInfoPage() {
       return;
     }
 
+    if (!selectedBox) {
+      setLoadError("Please select a box.");
+      return;
+    }
+
     setRequestingBox(true);
     setLoadError(null);
 
     try {
-      await addToBoxWaitlist(allBoxes, selectedMemberId);
+      await addToBoxWaitlist(allBoxes, selectedMemberId, selectedBox);
 
       await refreshBoxes();
 
       setRequestModalOpen(false);
       setSelectedMemberId("");
+      setSelectedBox("");
     } catch (err) {
       console.error("admin request box error:", err);
       setLoadError(
@@ -193,7 +211,7 @@ export default function BoxInfoPage() {
           <h1>Box Info</h1>
 
           <p className="muted signed-in-line">
-            Signed in as {currentUser()?.email}
+            Signed in as {currUser?.email}
             <AdminStatusButton />
           </p>
 
@@ -243,12 +261,12 @@ export default function BoxInfoPage() {
           <thead>
             <tr>
               <th>Box Name</th>
-              <th>Box ID</th>
+              <th>Box Number</th>
               <th>Status</th>
               <th>Members</th>
               <th>Waitlist</th>
               <th>Updated By</th>
-              <th>Notes</th>
+              {/* <th>Notes</th> */}
               {isAdmin() && <th>Actions</th>}
             </tr>
           </thead>
@@ -261,24 +279,30 @@ export default function BoxInfoPage() {
 
               const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
 
+              const isCurrentUserBox = box.box_members_names.includes(
+                currUser?.name,
+              );
               return (
-                <tr key={box.id}>
+                <tr
+                  key={box.id}
+                  className={isCurrentUserBox ? "current-user-box" : ""}
+                >
                   <td>{box.box_name || "—"}</td>
 
-                  <td>{box.id}</td>
+                  <td>{box.box_number}</td>
 
                   <td>
-                    <span className="badge">{box.box_state ?? "—"}</span>
+                    <span className="badge">
+                      {boxMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED"}
+                    </span>
                   </td>
 
-                  {/* ---------------- Members ---------------- */}
                   <td>
                     {box.box_members_names?.length
                       ? box.box_members_names.join(", ")
                       : "—"}
                   </td>
 
-                  {/* ---------------- Waitlist ---------------- */}
                   <td>
                     {box.waitlist_names?.length
                       ? box.waitlist_names
@@ -289,14 +313,13 @@ export default function BoxInfoPage() {
 
                   <td>{box.updated_by || "—"}</td>
 
-                  <td className="muted">{box.notes || "—"}</td>
-
-                  {/* ---------------- Admin actions ---------------- */}
                   {isAdmin() && (
                     <td>
                       <div className="button-row">
-                        {boxMembers.map((memberId: string) => {
+                        {boxMembers.map((memberId: string, index: number) => {
                           const isRemoving = removingMemberId === memberId;
+                          const memberName =
+                            box.box_members_names?.[index] || memberId;
 
                           return (
                             <button
@@ -306,19 +329,27 @@ export default function BoxInfoPage() {
                               disabled={isRemoving}
                               onClick={() => handleRemoveFromBox(memberId)}
                             >
-                              {isRemoving ? "Removing..." : "Remove from Box"}
+                              {isRemoving
+                                ? "Removing..."
+                                : `Remove ${memberName.split(" ")[0]} ${memberName.split(" ").at(-1)?.[0] ?? ""}.`}
                             </button>
                           );
                         })}
 
                         {waitlist.map(
-                          (entry: {
-                            member_id: string;
-                            join_date?: number;
-                            position: number;
-                          }) => {
+                          (
+                            entry: {
+                              member_id: string;
+                              join_date?: number;
+                              position: number;
+                            },
+                            index: number,
+                          ) => {
                             const isRemoving =
                               removingMemberId === entry.member_id;
+                            const memberName =
+                              box.waitlist_names?.[index]?.name ||
+                              entry.member_id;
 
                             return (
                               <button
@@ -332,7 +363,7 @@ export default function BoxInfoPage() {
                               >
                                 {isRemoving
                                   ? "Removing..."
-                                  : `Remove #${entry.position}`}
+                                  : `Remove ${memberName.split(" ")[0]} ${memberName.split(" ").at(-1)?.[0] ?? ""}.`}
                               </button>
                             );
                           },
@@ -377,6 +408,22 @@ export default function BoxInfoPage() {
                 return (
                   <option key={member.id} value={member.id}>
                     {user?.name || user?.email || member.id}
+                  </option>
+                );
+              })}
+            </select>
+            <p>Select the box you'd like to add them to.</p>
+
+            <select
+              value={selectedBox}
+              onChange={(e) => setSelectedBox(e.target.value)}
+            >
+              <option value="">Select a box...</option>
+
+              {allBoxes.map((box) => {
+                return (
+                  <option key={box.id} value={box.id}>
+                    Box #{box.box_number} - {box.box_name}
                   </option>
                 );
               })}
