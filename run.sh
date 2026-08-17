@@ -61,7 +61,7 @@ elif [ "$MODE" = "prod" ]; then
   cp -r "$WEB_DIR/dist" "$SERVER_DIR/dist"
 
   # build backend
-  (cd "$SERVER_DIR" && go build -o app main.go)
+  (cd "$SERVER_DIR" && go build -o app export.go main.go)
 
   # run server
   "$SERVER_DIR/app" serve

@@ -105,7 +105,10 @@ const PB_URL =
 const NUM_USERS = Math.max(0, parseInt(args.users, 10) || 0);
 const NUM_BOXES = Math.max(0, parseInt(args.boxes, 10) || 0);
 const NUM_WORK_FORMULAS = Math.max(0, parseInt(args["work-formulas"], 10) || 0);
-const NUM_LEGACY_SNAPSHOTS = Math.max(0, parseInt(args.legacy_snapshots, 10) || 0);
+const NUM_LEGACY_SNAPSHOTS = Math.max(
+  0,
+  parseInt(args.legacy_snapshots, 10) || 0,
+);
 const WIPE = args.wipe;
 const DRY_RUN = args["dry-run"];
 
@@ -239,24 +242,41 @@ function fakeMemberSnapshotPayload(userId) {
   };
 }
 
-function fakeBoxPayload(memberIdsPool) {
+function fakeBoxPayload(memberIdsPool, boxNumber) {
   const memberCount = faker.number.int({
     min: 0,
     max: Math.min(4, memberIdsPool.length),
   });
+
+  const boxMembers = faker.helpers.arrayElements(memberIdsPool, memberCount);
+
+  // Only members who aren't already in this box can be waitlisted.
+  const availableForWaitlist = memberIdsPool.filter(
+    (memberId) => !boxMembers.includes(memberId),
+  );
+
   const waitlistCount = faker.number.int({
     min: 0,
-    max: Math.min(3, memberIdsPool.length),
+    max: Math.min(3, availableForWaitlist.length),
   });
+
+  const waitlistMembers = faker.helpers
+    .arrayElements(availableForWaitlist, waitlistCount)
+    .map((memberId, index) => ({
+      member_id: memberId,
+      join_date: Math.floor(faker.date.past({ years: 1 }).getTime() / 1000),
+      position: index + 1,
+    }));
 
   const adjective = faker.food.adjective();
 
   return {
     box_state: "ASSIGNED",
     box_name: `${adjective.charAt(0).toUpperCase()}${adjective.slice(1)} Box`,
+    box_number: boxNumber,
     updated_by: "pb-seed script",
-    box_members: faker.helpers.arrayElements(memberIdsPool, memberCount),
-    waitlist: faker.helpers.arrayElements(memberIdsPool, waitlistCount),
+    box_members: boxMembers,
+    waitlist: waitlistMembers,
     notes: faker.datatype.boolean() ? faker.lorem.sentence() : "",
     [SEED_MARKER_FIELD]: true,
   };
@@ -342,6 +362,8 @@ async function seedUsersWithProfiles(pb, count) {
       const member = await pb.collection("member").create({
         user_id: user.id,
         member_snapshot_id: snapshot.id,
+        created_at: new Date().toISOString(),
+        modified_at: new Date().toISOString(),
       });
       result.members.push(member);
 
@@ -371,7 +393,8 @@ async function seedBoxes(pb, count, memberIdsPool) {
   const created = [];
 
   for (let i = 0; i < count; i++) {
-    const payload = fakeBoxPayload(memberIdsPool);
+    const boxNumber = i + 1;
+    const payload = fakeBoxPayload(memberIdsPool, boxNumber);
 
     if (DRY_RUN) {
       console.log(
@@ -383,7 +406,9 @@ async function seedBoxes(pb, count, memberIdsPool) {
 
     try {
       const box = await pb.collection("boxes").create(payload);
-      console.log(`  [${i + 1}/${count}] created id=${box.id}`);
+      console.log(
+        `  [${i + 1}/${count}] created box #${boxNumber} id=${box.id}`,
+      );
       created.push(box);
     } catch (err) {
       console.error(`  [${i + 1}/${count}] FAILED: ${describeError(err)}`);
@@ -393,12 +418,95 @@ async function seedBoxes(pb, count, memberIdsPool) {
   return created;
 }
 
-async function seedLegacySnaphots(pb, count, memberIdsPool) {
+function fakeLegacySnapshotPayload(memberIdsPool) {
+  const firstName = faker.person.firstName();
+  const lastName = faker.person.lastName();
+
+  return {
+    // user_id is required by the collection.
+    // Use a generated ID here because this is legacy/demo data.
+    user_id: faker.string.alphanumeric(15),
+
+    member_id: memberIdsPool.length
+      ? faker.helpers.arrayElement(memberIdsPool)
+      : "",
+
+    updated_by: "pb-seed script",
+
+    notes: faker.datatype.boolean() ? faker.lorem.sentence() : "",
+
+    personal_info: {
+      firstName,
+      lastName,
+      pronouns: faker.helpers.arrayElement(["she/her", "he/him", "they/them"]),
+      address: {
+        line1: faker.location.streetAddress(),
+        city: faker.location.city(),
+        zipCode: faker.location.zipCode(),
+      },
+      emailInfo: {
+        primaryEmail: faker.internet
+          .email({ firstName, lastName })
+          .toLowerCase(),
+        secondaryEmail: "",
+        onMailingList: faker.datatype.boolean(),
+      },
+      phoneInfo: {
+        primaryPhoneNumber: faker.phone.number("###-###-####"),
+        secondaryPhoneNumber: "",
+      },
+    },
+
+    member_info: {
+      role: faker.helpers.arrayElement(["ROLE_INVALID", "BOARD", "VOLUNTEER"]),
+      category: faker.helpers.arrayElement([
+        "GOOD_STANDING",
+        "EXEMPT",
+        "INACTIVE",
+      ]),
+      memberType: faker.helpers.arrayElement(["GENERAL", "ADMIN"]),
+      memberState: faker.helpers.arrayElement(["PENDING", "APPROVED"]),
+      orientationDate: Math.floor(
+        faker.date.past({ years: 2 }).getTime() / 1000,
+      ),
+      dues: {
+        amountPaid: faker.number.int({
+          min: 0,
+          max: 200,
+        }),
+        dueState: faker.helpers.arrayElement(["PAID", "UNPAID", "PARTIAL"]),
+        paymentType: faker.helpers.arrayElement(["CASH", "CARD", "CHECK"]),
+        duesPaidAt: Math.floor(
+          faker.date.recent({ days: 90 }).getTime() / 1000,
+        ),
+      },
+      requirements: {
+        meetingsCompleted: faker.number.int({
+          min: 0,
+          max: 12,
+        }),
+        meetingsRequired: 12,
+      },
+    },
+
+    box_info: {
+      boxId: null,
+      assignedAt: Math.floor(faker.date.recent({ days: 30 }).getTime() / 1000),
+    },
+
+    [SEED_MARKER_FIELD]: true,
+  };
+}
+
+async function seedLegacySnapshots(pb, count, memberIdsPool, userIdsPool) {
   console.log(`\n📦 Seeding ${count} fake legacy snapshot record(s)...`);
   const created = [];
 
   for (let i = 0; i < count; i++) {
-    const payload = fakeMemberSnapshotPayload(memberIdsPool); //change to snapshot payload
+    const payload = {
+      ...fakeLegacySnapshotPayload(memberIdsPool),
+      created_at: new Date().toISOString(),
+    };
 
     if (DRY_RUN) {
       console.log(
@@ -409,11 +517,12 @@ async function seedLegacySnaphots(pb, count, memberIdsPool) {
     }
 
     try {
-      const snapshot = await pb.collection("legacy_snaphots").create(payload);
+      const snapshot = await pb.collection("legacy_snapshots").create(payload);
+
       console.log(`  [${i + 1}/${count}] created id=${snapshot.id}`);
       created.push(snapshot);
     } catch (err) {
-      console.error(`  [${i + 1}/${count}] FAILED: ${describeError(err)}`);
+      console.error(`  [${i + 1}/${count}] FAILED: ${describeError(err)}`, err);
     }
   }
 
@@ -535,7 +644,12 @@ async function main() {
   }
 
   if (WIPE) {
-    await wipeSeededData(pb, ["member_snapshot", "boxes", "legacy_snapshots", "work_formula"]);
+    await wipeSeededData(pb, [
+      "member_snapshot",
+      "boxes",
+      "legacy_snapshots",
+      "work_formula",
+    ]);
   }
 
   let userResult = {
@@ -556,10 +670,11 @@ async function main() {
   }
 
   if (NUM_LEGACY_SNAPSHOTS > 0) {
-    await seedLegacySnaphots(
+    await seedLegacySnapshots(
       pb,
       NUM_LEGACY_SNAPSHOTS,
       userResult.members.map((m) => m.id),
+      userResult.users.map((u) => u.id),
     );
   }
 

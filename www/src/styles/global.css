@@ -530,16 +530,40 @@ th {
    =========================================== */
 
 .modal {
-  display: none; /* Hidden by default */
-  position: fixed; /* Stay in place */
-  z-index: 1; /* Sit on top */
-  left: 0;
-  top: 0;
-  width: 100%; /* Full width */
-  height: 100%; /* Full height */
-  overflow: auto; /* Enable scroll if needed */
-  background-color: rgb(0,0,0); /* Fallback color */
-  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.box-action-button {
+    padding: 3px 6px;
+    font-size: 0.75rem;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.current-user-box {
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 3px 0 0 #8b5cf6;
+}
+
+.current-user-box td {
+    border-top: 1px solid rgba(139, 92, 246, 0.35);
+    border-bottom: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.current-user-box td:first-child {
+    border-left: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.current-user-box td:last-child {
+    border-right: 1px solid rgba(139, 92, 246, 0.35);
 }
 
 /* Modal Content/Box */

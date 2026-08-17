@@ -131,6 +131,10 @@ func ensureAppCollections(app core.App) error {
 		return err
 	}
 
+	if _, err := ensureVolunteerInterestsCollection(app); err != nil {
+		return err
+	}
+
 	if _, err := ensureBoxesCollection(app, memberCollection.Id); err != nil {
 		return err
 	}
@@ -1082,4 +1086,106 @@ func addTimeAttributeFields(app core.App, collection *core.Collection) error {
 
 	// Push the field change to the database right away.
 	return app.Save(collection)
+}
+
+var defaultVolunteerInterests = []struct {
+	Label string
+	Emoji string
+}{
+	{"Arborism and Pruning (under Master Gardener supervision)", "🌳"},
+	{"Community Garden Governance and Best Practices", "🤝"},
+	{"Composting", "♻️"},
+	{"Event Organizing", "📅"},
+	{"Garden Work Days", "🧤"},
+	{"Grant Writing/Advocacy", "✍️"},
+	{"Greenhouse/Cold Frame Gardening", "🌱"},
+	{"Keeping Garden Open for Neighbors (this is a requirement for everyone)", "🚪"},
+	{"Leading Workshops/Education Events", "🎓"},
+	{"Organizing or Contributing to a Regularly Sent Newsletter", "📰"},
+	{"Prepping or working Annual Plant Sales", "🌼"},
+	{"Rat Abatement", "🪤"},
+	{"Researching/Archiving/Writing History of the Garden", "📚"},
+	{"Stewarding Common Areas (under Master Gardener guidance)", "🛠️"},
+	{"Victory Garden/Community Food Access", "🥕"},
+	{"Watering and Filling Water Barrels", "💧"},
+	{"Winter Maintenance", "❄️"},
+}
+
+func ensureVolunteerInterestsCollection(app core.App) (*core.Collection, error) {
+	if existing, err := app.FindCollectionByNameOrId("volunteer_interests"); err == nil {
+		if err := configureVolunteerInterestsCollection(app, existing); err != nil {
+			return nil, err
+		}
+		if err := app.Save(existing); err != nil {
+			return nil, err
+		}
+		if err := seedVolunteerInterests(app); err != nil {
+			return nil, err
+		}
+		return existing, nil
+	}
+
+	collection := core.NewBaseCollection("volunteer_interests")
+	if err := configureVolunteerInterestsCollection(app, collection); err != nil {
+		return nil, err
+	}
+	if err := app.Save(collection); err != nil {
+		return nil, err
+	}
+	if err := seedVolunteerInterests(app); err != nil {
+		return nil, err
+	}
+
+	return collection, nil
+}
+
+func configureVolunteerInterestsCollection(app core.App, collection *core.Collection) error {
+	collection.ListRule = types.Pointer("") // empty string = public, no auth required
+	collection.ViewRule = types.Pointer("")
+
+	if err := addTimeAttributeFields(app, collection); err != nil {
+		return err
+	}
+
+	addFieldIfMissing(collection, &core.TextField{Name: "label", Required: true})
+	addFieldIfMissing(collection, &core.TextField{Name: "emoji"})
+	addFieldIfMissing(collection, &core.NumberField{Name: "sort_order", OnlyInt: true})
+	addFieldIfMissing(collection, &core.BoolField{Name: "active"})
+
+	return app.Save(collection)
+}
+
+// seedVolunteerInterests only fills in rows that don't already exist by
+// label — it never overwrites emoji/sort_order an admin has since edited.
+func seedVolunteerInterests(app core.App) error {
+	collection, err := app.FindCollectionByNameOrId("volunteer_interests")
+	if err != nil {
+		return err
+	}
+
+	for i, item := range defaultVolunteerInterests {
+		existing, err := app.FindFirstRecordByFilter(
+			"volunteer_interests",
+			"label = {:label}",
+			dbx.Params{"label": item.Label},
+		)
+		if err == nil && existing != nil {
+			continue
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+
+		record := core.NewRecord(collection)
+		record.Set("label", item.Label)
+		record.Set("emoji", item.Emoji)
+		record.Set("sort_order", i)
+		record.Set("active", true)
+		record.Set("created_at", time.Now())
+		record.Set("modified_at", time.Now())
+		if err := app.Save(record); err != nil {
+			return err
+		}
+	}
+	return nil
 }
