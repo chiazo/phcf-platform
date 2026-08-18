@@ -593,7 +593,7 @@ export default function MemberSnapshotPage() {
                 {...register("meetingsCompleted")}
                 disabled={!editMode}
               />{" "}
-              / {meetingsRequired}
+              / {meetingsRequired} Required
             </p>
           </section>
 
@@ -636,17 +636,17 @@ export default function MemberSnapshotPage() {
           {/* Service Requirements */}
           <section className="full">
             <h2>Service Requirements</h2>
-
             {serviceRequirements.length ? (
               <ul>
                 {serviceRequirements.map((service: any, i: number) => (
                   <li key={i}>
                     {service.workFormulaId && (
                       <>
-                        <strong>{service.workFormulaId}</strong> —{" "}
+                        <strong>{service.workFormulaId}</strong>{" "}
                       </>
                     )}
-                    {service.hoursCompleted} hours
+                    {service.hoursCompleted} hours on{" "}
+                    {new Date(service.completedAt * 1000).toLocaleDateString()}
                   </li>
                 ))}
               </ul>

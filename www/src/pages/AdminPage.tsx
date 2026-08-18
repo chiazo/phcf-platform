@@ -8,6 +8,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import AdminStatusButton from "../components/AdminStatusButton";
+import Header from "../components/Header";
 import {
   AdminUser,
   currentUser,
@@ -110,23 +111,12 @@ export default function AdminPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Admin</h1>
-          <p className="muted signed-in-line">
-            Signed in as {currentUser()?.email}
-            <AdminStatusButton />
-          </p>
-          <div id="navigation-buttons">
-            <Link className="button-link secondary" to="/">
-              ← Back to Home
-            </Link>
-          </div>
-        </div>
-        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
-          Log out
-        </button>
-      </div>
+      <Header
+        currUser={currentUser()}
+        title="Admin"
+        backLabel="← Back to Home"
+        handleLogout={handleLogout}
+      />
 
       {loadError && <p className="error">{loadError}</p>}
 
@@ -137,7 +127,8 @@ export default function AdminPage() {
           board members only).
         </p>
         <p className="muted">
-          For board members transitioning to regular members, click "No longer a board member" to remove their admin access.
+          For board members transitioning to regular members, click "No longer a
+          board member" to remove their admin access.
         </p>
         <Box sx={{ display: "flex", flexWrap: "wrap", mb: 2 }}>
           <FormControl fullWidth>

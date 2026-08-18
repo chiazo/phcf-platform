@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+
+import { NavLink, Link } from "react-router-dom";
+
 import AdminWorkFormulaMatrix from "../components/AdminWorkFormulaMatrix";
 import AdminServiceHourRates from "../components/AdminServiceHourRates";
-
+import Header, { navClass } from "../components/Header";
 import {
   currentUser,
   isAdmin,
@@ -10,7 +12,6 @@ import {
   listWorkFormulas,
   logout,
 } from "../lib/pocketbase";
-import AdminStatusButton from "../components/AdminStatusButton";
 
 function getMemberLabel(workFormula: Record<string, any>) {
   return workFormula.member_name || workFormula.member_id || "—";
@@ -74,11 +75,14 @@ export default function WorkFormulaPage() {
     return (
       <section className="auth-panel">
         <h1>Work Formula Info</h1>
+
         <p>Register or log in to view available work formulas.</p>
+
         <div className="button-row">
           <Link className="button-link" to="/register">
             Register
           </Link>
+
           <Link className="button-link secondary" to="/login">
             Log in
           </Link>
@@ -91,7 +95,9 @@ export default function WorkFormulaPage() {
     return (
       <section className="auth-panel">
         <Link to="/">← Back to Home</Link>
+
         <h1>Work Formula Info</h1>
+
         <p className="error">Admin access is required.</p>
       </section>
     );
@@ -99,36 +105,12 @@ export default function WorkFormulaPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Work Formula Info</h1>
-          <p className="muted signed-in-line">
-            Signed in as {currentUser()?.email}
-            <AdminStatusButton />
-          </p>
-          <div id="navigation-buttons">
-            <Link className="button-link secondary" to="/">
-              ← Back to Home
-            </Link>
-            <Link className="button-link secondary" to="/box-info">
-              Box Info
-            </Link>
-            <Link className="button-link secondary" to="/legacy-snapshots">
-              Legacy Snapshots
-            </Link>
-            <Link className="button-link secondary" to="/admin">
-              Admin access
-            </Link>
-          </div>
-        </div>
-        <button
-          className="secondary page-logout-button"
-          onClick={handleLogout}
-          type="button"
-        >
-          Log out
-        </button>
-      </div>
+      <Header
+        currUser={currentUser()}
+        title="Work Formula Info"
+        backLabel="← Back to Home"
+        handleLogout={handleLogout}
+      />
 
       {loadError && <p className="error">{loadError}</p>}
 
@@ -175,6 +157,7 @@ export default function WorkFormulaPage() {
                     <th>Modified At</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {allFormulas.map((wf) => (
                     <tr key={wf.id}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import Header from "../components/Header";
 
 import {
   currentUser,
@@ -12,7 +13,6 @@ import {
   removeMemberFromWaitlist,
   logout,
 } from "../lib/pocketbase";
-import AdminStatusButton from "../components/AdminStatusButton";
 
 export default function BoxInfoPage() {
   const [allBoxes, setAllBoxes] = useState<Array<Record<string, any>>>([]);
@@ -67,9 +67,7 @@ export default function BoxInfoPage() {
   async function handleRequestBox() {
     setLoadError(null);
 
-    // --------------------------------------------------
-    // Regular member: request a box for themselves
-    // --------------------------------------------------
+    // Regular members request a box for themselves immediately.
     if (!isAdmin()) {
       try {
         await addToBoxWaitlist(allBoxes);
@@ -84,14 +82,22 @@ export default function BoxInfoPage() {
       return;
     }
 
-    // --------------------------------------------------
-    // Admin: choose which member should request a box
-    // --------------------------------------------------
+    // Admins can request for themselves OR another member.
     try {
       const memberRecords = await listMembersForBoxRequest();
 
       setMembers(memberRecords);
-      setSelectedMemberId("");
+
+      // Try to find the current admin's member record.
+      const currentUserId = currentUser()?.id;
+
+      const currentMember = memberRecords.find(
+        (member) => member.expand?.user_id?.id === currentUserId,
+      );
+
+      // Default to the admin themselves if they have a member record.
+      setSelectedMemberId(currentMember?.id ?? "");
+
       setSelectedBox("");
       setRequestModalOpen(true);
     } catch (err) {
@@ -124,6 +130,7 @@ export default function BoxInfoPage() {
       setSelectedBox("");
     } catch (err) {
       console.error("admin request box error:", err);
+
       setLoadError(
         err instanceof Error ? err.message : "Could not request a box.",
       );
@@ -206,49 +213,15 @@ export default function BoxInfoPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Box Info</h1>
+      <Header
+        currUser={currentUser()}
+        title="Box Info"
+        handleLogout={handleLogout}
+      />
 
-          <p className="muted signed-in-line">
-            Signed in as {currUser?.email}
-            <AdminStatusButton />
-          </p>
-
-          <div id="navigation-buttons">
-            <Link className="button-link secondary" to="/">
-              ← Back to Members
-            </Link>
-
-            {isAdmin() && (
-              <>
-                <Link className="button-link secondary" to="/work-formula">
-                  Work Formulas
-                </Link>
-
-                <Link className="button-link secondary" to="/admin">
-                  Admin access
-                </Link>
-              </>
-            )}
-
-            <button
-              id="requestBoxButton"
-              className="secondary"
-              onClick={handleRequestBox}
-              type="button"
-            >
-              Request a Box
-            </button>
-          </div>
-        </div>
-
-        <button
-          className="secondary page-logout-button"
-          onClick={handleLogout}
-          type="button"
-        >
-          Log out
+      <div className="request-box-action">
+        <button className="secondary" onClick={handleRequestBox} type="button">
+          Request a Box
         </button>
       </div>
 
@@ -266,7 +239,6 @@ export default function BoxInfoPage() {
               <th>Members</th>
               <th>Waitlist</th>
               <th>Updated By</th>
-              {/* <th>Notes</th> */}
               {isAdmin() && <th>Actions</th>}
             </tr>
           </thead>
@@ -282,6 +254,7 @@ export default function BoxInfoPage() {
               const isCurrentUserBox = box.box_members_names.includes(
                 currUser?.name,
               );
+
               return (
                 <tr
                   key={box.id}
@@ -382,19 +355,15 @@ export default function BoxInfoPage() {
         </table>
       )}
 
-      {/* =========================================================
-          Admin: Request Box Modal
-          ========================================================= */}
       {requestModalOpen && (
         <div
-          className="modal"
-          style={{ display: "block" }}
+          className="modal modal-open"
           onClick={() => setRequestModalOpen(false)}
         >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Request a Box</h2>
 
-            <p>Select the member who should be added to the waitlist.</p>
+            <p>Select who should be added to the box or its waitlist.</p>
 
             <select
               value={selectedMemberId}
@@ -412,6 +381,7 @@ export default function BoxInfoPage() {
                 );
               })}
             </select>
+
             <p>Select the box you'd like to add them to.</p>
 
             <select
@@ -420,13 +390,11 @@ export default function BoxInfoPage() {
             >
               <option value="">Select a box...</option>
 
-              {allBoxes.map((box) => {
-                return (
-                  <option key={box.id} value={box.id}>
-                    Box #{box.box_number} - {box.box_name}
-                  </option>
-                );
-              })}
+              {allBoxes.map((box) => (
+                <option key={box.id} value={box.id}>
+                  Box #{box.box_number} - {box.box_name}
+                </option>
+              ))}
             </select>
 
             <div className="button-row">
@@ -445,7 +413,7 @@ export default function BoxInfoPage() {
               <button
                 type="button"
                 onClick={handleAdminRequestBox}
-                disabled={!selectedMemberId || requestingBox}
+                disabled={!selectedMemberId || !selectedBox || requestingBox}
               >
                 {requestingBox ? "Requesting..." : "Request Box"}
               </button>

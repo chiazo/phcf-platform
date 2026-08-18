@@ -35,12 +35,12 @@ export const DueState = {
 export type DueState = (typeof DueState)[keyof typeof DueState];
 
 export const PaymentType = {
-  CASH: "cash",
-  CARD: "card",
-  CHECK: "check",
-  VENMO: "venmo",
-  PAYPAL: "paypal",
-  OTHER: "other",
+  CASH: "Cash",
+  CARD: "Card",
+  CHECK: "Check",
+  VENMO: "Venmo",
+  PAYPAL: "Paypal",
+  OTHER: "Other",
 } as const;
 
 export type PaymentType = (typeof PaymentType)[keyof typeof PaymentType];
