@@ -492,11 +492,15 @@ th,
 td {
     padding: .75rem;
     border-bottom: 1px solid var(--border);
+    text-align: center;
 }
 
 th {
-    text-align: center;
     color: var(--text-light);
+}
+
+.col-volunteer-activity {
+    min-width: 16rem;
 }
 
 /* ===========================================
@@ -667,4 +671,13 @@ th {
     dt {
         margin-top: 1rem;
     }
+}
+
+/* more nav button styling */
+#requestBoxSection{
+    display: flex;
+    margin-top: 20px;
+}
+#requestBoxButton{
+    margin-left: auto;
 }

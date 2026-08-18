@@ -17,6 +17,7 @@ import {
   approveRequirementUpdateRequest,
   denyRequirementUpdateRequest,
   RequirementUpdateRequestType,
+  correspondingWorkFormulas,
   exportMembersCSV,
 } from "../lib/pocketbase";
 import { config } from "../lib/config";
@@ -97,7 +98,6 @@ function MemberPersonalView({
   const address = personalInfo.address ?? {};
   const emailInfo = personalInfo.emailInfo ?? {};
   const phoneInfo = personalInfo.phoneInfo ?? {};
-
   const dueStatus = dues.dueState ?? "—";
   const duesPaid = dueStatus === "PAID" || dueStatus === "COMPLETE";
   const meetingsRequired = toNumber(requirements.meetingsRequired);
@@ -488,16 +488,26 @@ export default function MembersPage() {
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
+  const [workFormulas, setAllFormulas] = useState<(Record<string, any> | null)>(null);
 
-  function refreshApprovedMembers() {
-    return listApprovalUpdates()
-      .then((res) => {
-        setApprovedMembers(res.items);
-      })
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setApprovedMembers([]);
-      });
+  async function refreshApprovedMembers() {
+    try {
+      const res = await listApprovalUpdates();
+      setApprovedMembers(res.items);;
+    } catch (err) {
+      console.error("member fetch error:", err);
+      setApprovedMembers([]);
+    }
+  }
+
+   async function memberWorkFormulas(members: Array<Record<string, any>>){
+   try {
+      const res = await correspondingWorkFormulas(members);
+      return setAllFormulas(res.items);
+    } catch (err) {
+      console.error("work formula fetch error:", err);
+      setAllMembers([]);
+    }
   }
 
   async function handleExportMembers() {
@@ -526,8 +536,17 @@ export default function MembersPage() {
     return listMemberSnapshots()
       .then((res) => setAllMembers(res.items))
       .catch((err) => {
-        console.error("member fetch error:", err);
-        setAllMembers([]);
+        console.error("requirement update request fetch error:", err);
+        setRequirementUpdateRequests([]);
+      });
+  }
+
+  function refreshMyRequirementUpdateRequests() {
+    return listMyRequirementUpdateRequests()
+      .then((res) => setMyRequirementUpdateRequests(res.items))
+      .catch((err) => {
+        console.error("my requirement update request fetch error:", err);
+        setMyRequirementUpdateRequests([]);
       });
   }
 
@@ -546,15 +565,6 @@ export default function MembersPage() {
       .catch((err) => {
         console.error("admin snapshot fetch error:", err);
         setAdminSnapshot(null);
-      });
-  }
-
-  function refreshMyRequirementUpdateRequests() {
-    return listMyRequirementUpdateRequests()
-      .then((res) => setMyRequirementUpdateRequests(res.items))
-      .catch((err) => {
-        console.error("my requirement update request fetch error:", err);
-        setMyRequirementUpdateRequests([]);
       });
   }
 
@@ -742,7 +752,7 @@ export default function MembersPage() {
             </Box>
           </Box>
 
-          <MemberTable members={items} />
+          <MemberTable members={items} work_formulas={[]} />
 
           <RequirementUpdateRequestTable
             requests={requirementUpdateRequests}
