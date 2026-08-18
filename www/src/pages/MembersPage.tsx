@@ -77,11 +77,6 @@ function formatDateFromInput(value: string) {
   return Math.floor(date.getTime() / 1000);
 }
 
-function getRequestMemberLabel(request: Record<string, any>) {
-  const requester = request.expand?.user_id;
-  return requester?.name || requester?.email || request.member_id || "—";
-}
-
 function todayInputValue() {
   return new Date().toISOString().split("T")[0];
 }
@@ -103,7 +98,6 @@ function MemberPersonalView({
   const address = personalInfo.address ?? {};
   const emailInfo = personalInfo.emailInfo ?? {};
   const phoneInfo = personalInfo.phoneInfo ?? {};
-
   const dueStatus = dues.dueState ?? "—";
   const duesPaid = dueStatus === "PAID" || dueStatus === "COMPLETE";
   const meetingsRequired = toNumber(requirements.meetingsRequired);
@@ -494,10 +488,7 @@ export default function MembersPage() {
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
-  const [adminSnapshot, setAdminSnapshot] = useState<Record<
-    string,
-    any
-  > | null>(null);
+  const [workFormulas, setAllFormulas] = useState<(Record<string, any> | null)>(null);
 
   async function refreshApprovedMembers() {
     try {
@@ -517,19 +508,6 @@ export default function MembersPage() {
       console.error("work formula fetch error:", err);
       setAllMembers([]);
     }
-  }
-
-  function refreshAllMembers() {
-    return listMemberSnapshots()
-      .then((res) => {
-        setAllMembers(res.items)
-        memberWorkFormulas(res.items)
-        console.log(workFormulas)
-      })
-      .catch((err) => {
-        console.error("member fetch error:", err);
-        setAllMembers([]);
-      });
   }
 
   async function handleExportMembers() {
@@ -587,15 +565,6 @@ export default function MembersPage() {
       .catch((err) => {
         console.error("admin snapshot fetch error:", err);
         setAdminSnapshot(null);
-      });
-  }
-
-  function refreshMyRequirementUpdateRequests() {
-    return listMyRequirementUpdateRequests()
-      .then((res) => setMyRequirementUpdateRequests(res.items))
-      .catch((err) => {
-        console.error("my requirement update request fetch error:", err);
-        setMyRequirementUpdateRequests([]);
       });
   }
 
@@ -783,7 +752,7 @@ export default function MembersPage() {
             </Box>
           </Box>
 
-          <MemberTable members={items} work_formulas={workFormulas} />
+          <MemberTable members={items} work_formulas={[]} />
 
           <RequirementUpdateRequestTable
             requests={requirementUpdateRequests}
