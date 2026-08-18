@@ -935,15 +935,22 @@ func ensureRequirementUpdateRequestCollection(app core.App, usersCollectionId st
 	return collection, nil
 }
 
-func configureRequirementUpdateRequestCollection(app core.App, collection *core.Collection, usersCollectionId string, snapshotCollectionId string) error {
-
+func configureRequirementUpdateRequestCollection(
+	app core.App,
+	collection *core.Collection,
+	usersCollectionId string,
+	snapshotCollectionId string,
+) error {
 	addFieldIfMissing(collection, &core.RelationField{
 		Name:         "user_id",
 		CollectionId: usersCollectionId,
 		Required:     true,
 	})
 
-	addFieldIfMissing(collection, &core.TextField{Name: "status", Required: true})
+	addFieldIfMissing(collection, &core.TextField{
+		Name:     "status",
+		Required: true,
+	})
 
 	ownerOrAdminRule := "user_id = @request.auth.id || @request.auth.is_admin = true"
 	adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
@@ -958,20 +965,59 @@ func configureRequirementUpdateRequestCollection(app core.App, collection *core.
 		return err
 	}
 
-	addFieldIfMissing(collection, &core.TextField{Name: "member_id", Required: true})
+	addFieldIfMissing(collection, &core.TextField{
+		Name:     "member_id",
+		Required: true,
+	})
+
 	addFieldIfMissing(collection, &core.RelationField{
 		Name:         "member_snapshot_id",
 		CollectionId: snapshotCollectionId,
 		Required:     true,
 	})
-	addFieldIfMissing(collection, &core.TextField{Name: "request_type", Required: true})
-	addFieldIfMissing(collection, &core.NumberField{Name: "quantity"})
-	addFieldIfMissing(collection, &core.TextField{Name: "payment_type"})
-	addFieldIfMissing(collection, &core.NumberField{Name: "occurred_at", OnlyInt: true})
-	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
-	addFieldIfMissing(collection, &core.TextField{Name: "reviewed_by"})
-	addFieldIfMissing(collection, &core.NumberField{Name: "reviewed_at", OnlyInt: true})
-	addFieldIfMissing(collection, &core.TextField{Name: "admin_notes"})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name:     "request_type",
+		Required: true,
+	})
+
+	addFieldIfMissing(collection, &core.NumberField{
+		Name: "quantity",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "payment_type",
+	})
+
+	addFieldIfMissing(collection, &core.NumberField{
+		Name:    "occurred_at",
+		OnlyInt: true,
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "activity",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "project_leader",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "notes",
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "reviewed_by",
+	})
+
+	addFieldIfMissing(collection, &core.NumberField{
+		Name:    "reviewed_at",
+		OnlyInt: true,
+	})
+
+	addFieldIfMissing(collection, &core.TextField{
+		Name: "admin_notes",
+	})
 
 	return nil
 }

@@ -1,33 +1,38 @@
 import { useEffect, useMemo, useState, useId } from "react";
 import { Link } from "react-router-dom";
 
-import { currentUser, isAdmin, isLoggedIn, listLegacySnapshots, logout } from "../lib/pocketbase";
+import {
+  currentUser,
+  isAdmin,
+  isLoggedIn,
+  listLegacySnapshots,
+  logout,
+} from "../lib/pocketbase";
 import { config } from "../lib/config";
 
-import Box from '@mui/material/Box';
-import OutlinedInput from '@mui/material/OutlinedInput';
-import InputLabel from '@mui/material/InputLabel';
-import InputAdornment from '@mui/material/InputAdornment';
-import FormControl from '@mui/material/FormControl';
-import SearchIcon from '@mui/icons-material/Search';
+import Box from "@mui/material/Box";
+import OutlinedInput from "@mui/material/OutlinedInput";
+import InputLabel from "@mui/material/InputLabel";
+import InputAdornment from "@mui/material/InputAdornment";
+import FormControl from "@mui/material/FormControl";
+import SearchIcon from "@mui/icons-material/Search";
 
-import AdminStatusButton from "../components/AdminStatusButton";
+import Header from "../components/Header";
 import MemberTable from "../components/MemberTable";
 
 export default function LegacySnapshotPage() {
-  //holds all of the members fetched from the server
-  const [allSnapshots, setAllSnapshots] = useState<Array<Record<string, any>>>([]);
+  const [allSnapshots, setAllSnapshots] = useState<Array<Record<string, any>>>(
+    [],
+  );
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
 
-  //listMemberSnapshots is a GET Request
-  //gives back at least 1 member and at most 50 members
   useEffect(() => {
     document.title = "PHCF Platform";
 
     if (!isAuthenticated || !isAdmin()) {
-        setAllSnapshots([]);
+      setAllSnapshots([]);
       return;
     }
 
@@ -39,8 +44,6 @@ export default function LegacySnapshotPage() {
       });
   }, [isAuthenticated]);
 
-  //filters the already-loaded members as the user types, so the table
-  //updates immediately without waiting on a network request
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return allSnapshots;
@@ -48,6 +51,7 @@ export default function LegacySnapshotPage() {
     return allSnapshots.filter((record) => {
       const firstName = record.personal_info?.firstName?.toLowerCase() ?? "";
       const lastName = record.personal_info?.lastName?.toLowerCase() ?? "";
+
       return firstName.includes(q) || lastName.includes(q);
     });
   }, [allSnapshots, query]);
@@ -61,13 +65,14 @@ export default function LegacySnapshotPage() {
     return (
       <section className="auth-panel">
         <h1>PHCF Members</h1>
-        <p>
-          Register or log in.
-        </p>
+
+        <p>Register or log in.</p>
+
         <div className="button-row">
           <Link className="button-link" to="/register">
             Register
           </Link>
+
           <Link className="button-link secondary" to="/login">
             Log in
           </Link>
@@ -80,7 +85,9 @@ export default function LegacySnapshotPage() {
     return (
       <section className="auth-panel">
         <Link to="/">← Back to Home</Link>
+
         <h1>Legacy Snapshots</h1>
+
         <p className="error">Admin access is required.</p>
       </section>
     );
@@ -88,49 +95,35 @@ export default function LegacySnapshotPage() {
 
   return (
     <>
-      <div className="page-header">
+      <Header
+        currUser={currentUser()}
+        title="Legacy Snapshots"
+        backLabel="← Back to Home"
+        handleLogout={handleLogout}
+      />
+
+      <Box sx={{ display: "flex", flexWrap: "wrap" }}>
         <div>
-          <h1>Legacy Snapshots</h1>
-          <p className="muted signed-in-line">
-            Signed in as {currentUser()?.email}
-            <AdminStatusButton />
-          </p>
-          <div id='navigation-buttons'>
-            <Link className="button-link secondary" to="/">
-                ← Back to Home
-            </Link>
-            <Link className="button-link secondary" to="/box-info">
-            Box Info
-            </Link>
-            <Link className="button-link secondary" to="/work-formula">
-            Work Formulas
-            </Link>
-            <Link className="button-link secondary" to="/admin">
-                Admin access
-            </Link>
-          </div>
+          <FormControl fullWidth sx={{ m: 1 }}>
+            <InputLabel htmlFor={`${outlinedAmountId}-input`}>
+              Search
+            </InputLabel>
+
+            <OutlinedInput
+              id={`${outlinedAmountId}-input`}
+              startAdornment={
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              }
+              label="Search"
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </FormControl>
         </div>
-        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
-          Log out
-        </button>
-      </div>
+      </Box>
 
-       <Box sx={{ display: 'flex', flexWrap: 'wrap', bgcolor: 'primary' }}>
-      <div>
-        <FormControl fullWidth sx={{ m: 1 }}>
-          <InputLabel htmlFor={`${outlinedAmountId}-input`}>Search</InputLabel>
-          <OutlinedInput
-            id={`${outlinedAmountId}-input`}
-            startAdornment={<InputAdornment position="start"><SearchIcon/></InputAdornment>}
-            label="Search"
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </FormControl>
-      </div>
-    </Box>
-    
-
-      <MemberTable members={items}/>
+      <MemberTable members={items} />
 
       <br />
 

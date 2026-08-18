@@ -16,7 +16,8 @@
   --radius: 14px;
   --shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
 
-  --max-width: 1000px;
+  --max-width: 1200px;
+  --content-width: 1000px;
 }
 
 *,
@@ -55,16 +56,9 @@ body {
 }
 
 main {
-  max-width: var(--max-width);
+  width: 100%;
+  max-width: var(--content-width);
   margin: 0 auto;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 2rem;
 }
 
 .button-row,
@@ -76,22 +70,68 @@ main {
   margin-top: 1rem;
 }
 
-#navigation-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 0.75rem;
-  flex: 1 1 auto;
-  padding: 0 0.25rem;
-}
-
 .signed-in-line {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: -0.75rem;
+}
+
+/* ===========================================
+   Header
+   =========================================== */
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 1rem;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.page-header-title {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.page-header-title h1 {
+  margin-bottom: 1rem;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.page-header-actions .button-link,
+.page-header-actions button {
+  flex: 0 0 auto;
+}
+
+.page-logout-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Actions that belong below the header */
+.header-below-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.button-link.active-page {
+  color: white;
+  background: var(--primary);
+  border-color: var(--primary);
 }
 
 a {
@@ -150,7 +190,7 @@ a:hover {
 }
 
 /* ===========================================
-   Header
+   Typography
    =========================================== */
 
 h1 {
@@ -350,10 +390,6 @@ select:focus {
   margin-top: -0.5rem;
 }
 
-.button-row {
-  color: red;
-}
-
 button,
 .button-link,
 input[type="submit"] {
@@ -387,11 +423,6 @@ button.secondary,
 .button-link.secondary {
   color: var(--primary);
   background: white;
-}
-
-.page-logout-button {
-  flex: 0 0 auto;
-  white-space: nowrap;
 }
 
 .admin-status {
@@ -491,15 +522,66 @@ th,
 td {
   padding: 0.75rem;
   border-bottom: 1px solid var(--border);
-  text-align: center;
 }
 
 th {
+  text-align: center;
   color: var(--text-light);
 }
 
 .col-volunteer-activity {
   min-width: 16rem;
+}
+
+.submitted-progress td {
+  text-align: center;
+}
+
+.form-description {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: #eef6ee;
+  border-left: 4px solid #6b8f71;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+
+.request-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.request-table-header h3 {
+  margin: 0;
+}
+
+.bulk-action-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.bulk-action-button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+.modal-table-wrapper table th,
+.modal-table-wrapper table td {
+  text-align: center;
+}
+
+.modal-table-wrapper td {
+  width: 20%;
+  text-align: center;
+}
+
+.box-info {
+  width: 70px;
 }
 
 /* ===========================================
@@ -536,12 +618,20 @@ th {
   display: none;
   position: fixed;
   z-index: 9999;
-  left: 0;
-  top: 0;
+  inset: 0;
+
   width: 100%;
   height: 100%;
+  padding: 1.5rem;
+
   overflow: auto;
   background-color: rgba(0, 0, 0, 0.4);
+}
+
+.modal.modal-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .box-action-button {
@@ -569,26 +659,29 @@ th {
   border-right: 1px solid rgba(139, 92, 246, 0.35);
 }
 
-/* Modal Content/Box */
 .modal-content {
-  background-color: #fefefe;
-  margin: 15% auto; /* 15% from the top and centered */
-  padding: 20px;
-  border: 1px solid #888;
-  width: 80%; /* Could be more or less, depending on screen size */
-  max-width: 100%;
-  box-sizing: border-box;
+  width: min(600px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+
+  padding: 1.5rem;
+
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
-/* Wrapper that enables horizontal scrolling for wide tables */
-.modal-table-wrapper {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+.modal-content h2 {
+  margin-top: 0;
 }
 
-.modal-table-wrapper table {
-  width: max-content;
-  min-width: 100%;
+.modal-content select {
+  margin-bottom: 1rem;
+}
+
+.modal-content .button-row {
+  margin-top: 1.5rem;
 }
 
 .always-visible-table {
@@ -635,13 +728,32 @@ th {
 /* ===========================================
    Mobile
    =========================================== */
-
 @media (max-width: 700px) {
   body {
     padding: 1rem;
   }
 
-  .page-header,
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .page-header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    white-space: normal;
+  }
+
+  .page-header-actions .button-link,
+  .page-header-actions button {
+    flex: 0 0 auto;
+  }
+
+  .header-below-actions {
+    flex-wrap: wrap;
+  }
+
   .button-row {
     align-items: stretch;
     flex-direction: column;
@@ -670,10 +782,6 @@ th {
     margin-top: 1rem;
   }
 
-  #navigation-buttons {
-    justify-content: flex-start;
-  }
-
   .home-panel .button-row {
     gap: 1rem;
   }
@@ -691,18 +799,4 @@ th {
   .other-checkbox-row {
     grid-template-columns: 1fr;
   }
-
-  dl,
-  strong {
-    width: auto;
-  }
-}
-
-/* more nav button styling */
-#requestBoxSection {
-  display: flex;
-  margin-top: 20px;
-}
-#requestBoxButton {
-  margin-left: auto;
 }

@@ -12,7 +12,7 @@ import {
   removeMemberFromWaitlist,
   logout,
 } from "../lib/pocketbase";
-import AdminStatusButton from "../components/AdminStatusButton";
+import Header from "../components/Header";
 
 export default function BoxInfoPage() {
   const [allBoxes, setAllBoxes] = useState<Array<Record<string, any>>>([]);
@@ -206,51 +206,12 @@ export default function BoxInfoPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Box Info</h1>
-
-          <p className="muted signed-in-line">
-            Signed in as {currUser?.email}
-            <AdminStatusButton />
-          </p>
-
-          <div id="navigation-buttons">
-            <Link className="button-link secondary" to="/">
-              ← Back to Members
-            </Link>
-
-            {isAdmin() && (
-              <>
-                <Link className="button-link secondary" to="/work-formula">
-                  Work Formulas
-                </Link>
-
-                <Link className="button-link secondary" to="/admin">
-                  Admin access
-                </Link>
-              </>
-            )}
-
-            <button
-              id="requestBoxButton"
-              className="secondary"
-              onClick={handleRequestBox}
-              type="button"
-            >
-              Request a Box
-            </button>
-          </div>
-        </div>
-
-        <button
-          className="secondary page-logout-button"
-          onClick={handleLogout}
-          type="button"
-        >
-          Log out
-        </button>
-      </div>
+      <Header
+        currUser={currUser}
+        title="Box Info"
+        handleLogout={handleLogout}
+        handleRequestBox={handleRequestBox}
+      />
 
       {loadError && <p className="error">{loadError}</p>}
 
@@ -391,8 +352,7 @@ export default function BoxInfoPage() {
           ========================================================= */}
       {requestModalOpen && (
         <div
-          className="modal"
-          style={{ display: "block" }}
+          className="modal modal-open"
           onClick={() => setRequestModalOpen(false)}
         >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
