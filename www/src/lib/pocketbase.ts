@@ -1,13 +1,98 @@
 import PocketBase from "pocketbase";
 
 import { config } from "./config";
+import { ClientResponseError } from "pocketbase";
 
-import {MemberType, DueState, MemberState, PaymentType, MemberRole} from "../models/enums";
+import { MemberType } from "../models/enums";
 import MemberSnapshot from "../models/MemberSnapshot";
-
 
 export const pb = new PocketBase(config.pbUrl);
 
+export interface WorkFormulaCriteria {
+  memberType?: MemberType | "";
+  boardStatus?: "board" | "non_board" | "";
+  boxSharing?: "shared" | "individual" | "unassigned" | "";
+  memberId?: string;
+}
+
+export interface ServiceHourRate {
+  id: string;
+  category: string;
+  percentage: number;
+}
+
+export interface WorkFormulaPreviewResult {
+  matchedCount: number;
+  memberIds: string[];
+}
+
+export interface WorkFormulaBulkUpdateResult {
+  updatedCount: number;
+  memberIds: string[];
+}
+
+export async function exportMembersCSV() {
+  pb.autoCancellation(false);
+
+  const response = await fetch(`${config.pbUrl}/api/app/admin/export/members`, {
+    headers: {
+      Authorization: pb.authStore.token,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return await response.blob();
+}
+
+export async function previewWorkFormulaBulkUpdate(
+  criteria: WorkFormulaCriteria,
+) {
+  pb.autoCancellation(false);
+  return await pb.send<WorkFormulaPreviewResult>(
+    "/api/app/admin/work-formula/bulk-update",
+    {
+      method: "POST",
+      body: { criteria, preview: true },
+    },
+  );
+}
+
+export async function listServiceHourRates() {
+  pb.autoCancellation(false);
+  return await pb
+    .collection("service_hour_rates")
+    .getFullList<ServiceHourRate>({
+      sort: "category",
+    });
+}
+
+export async function updateServiceHourRate(id: string, percentage: number) {
+  pb.autoCancellation(false);
+  return await pb.collection("service_hour_rates").update(id, { percentage });
+}
+
+export async function applyWorkFormulaBulkUpdate(
+  criteria: WorkFormulaCriteria,
+  workHoursRequired: number,
+  openHoursRequired: number,
+) {
+  pb.autoCancellation(false);
+  return await pb.send<WorkFormulaBulkUpdateResult>(
+    "/api/app/admin/work-formula/bulk-update",
+    {
+      method: "POST",
+      body: {
+        criteria,
+        workHoursRequired,
+        openHoursRequired,
+        preview: false,
+      },
+    },
+  );
+}
 
 export interface RegisterFarmMemberInput {
   email: string;
@@ -161,7 +246,6 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
   const orientationDateInSeconds = Math.floor(orientationDateMs / 1000);
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: user.id,
-    member_id: user.id,
     updated_by: name || input.email,
     notes: "Created from member registration.",
     personal_info: {
@@ -210,13 +294,21 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
       },
     },
   });
-
-  await pb.collection("member").create({
+  const now = new Date().toISOString();
+  const member = await pb.collection("member").create({
     user_id: user.id,
     member_snapshot_id: snapshot.id,
+    created_at: now,
+    modified_at: now,
   });
 
-  return { user, snapshot };
+  const updatedSnapshot = await pb
+    .collection("member_snapshot")
+    .update(snapshot.id, {
+      member_id: member.id,
+    });
+
+  return { user, snapshot: updatedSnapshot };
 }
 
 export async function listMemberSnapshots() {
@@ -308,13 +400,18 @@ export async function getOrCreateCurrentUserMemberSnapshot() {
   }
 
   const nowInSeconds = Math.floor(Date.now() / 1000);
-  const nameParts = String(appUser.name || "").trim().split(/\s+/);
+  const nameParts = String(appUser.name || "")
+    .trim()
+    .split(/\s+/);
   const firstName = nameParts[0] || "";
   const lastName = nameParts.slice(1).join(" ");
+  const now = new Date().toISOString();
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: appUser.id,
     updated_by: currentUser()?.name || currentUser()?.email || "Admin",
     notes: "Created for admin self-service snapshot editing.",
+    created_at: now,
+    modified_at: now,
     personal_info: {
       firstName,
       lastName,
@@ -365,6 +462,8 @@ export async function getOrCreateCurrentUserMemberSnapshot() {
   const member = await pb.collection("member").create({
     user_id: appUser.id,
     member_snapshot_id: snapshot.id,
+    created_at: now,
+    modified_at: now,
   });
 
   try {
@@ -404,7 +503,9 @@ async function getMemberSnapshotForUserId(userId: string) {
     const member = await pb
       .collection("member")
       .getFirstListItem(`user_id = "${escapePocketBaseString(userId)}"`);
-    return await pb.collection("member_snapshot").getOne(member.member_snapshot_id);
+    return await pb
+      .collection("member_snapshot")
+      .getOne(member.member_snapshot_id);
   } catch (err: any) {
     if (err?.status === 404) {
       return null;
@@ -421,35 +522,62 @@ export async function getSingleMember(name: string) {
     .getFirstListItem(`personal_info.firstName = "${name}"`);
 }
 
-export async function updatePronouns (oldMemberInfo :MemberSnapshot | null, newRecord: string){
-   pb.autoCancellation(false);
-  
-  if (oldMemberInfo){
+export interface VolunteerInterest {
+  id: string;
+  label: string;
+  emoji: string;
+  sort_order: number;
+  active: boolean;
+}
+
+export async function listVolunteerInterests() {
+  pb.autoCancellation(false);
+  return await pb
+    .collection("volunteer_interests")
+    .getFullList<VolunteerInterest>({
+      filter: "active = true",
+      sort: "sort_order",
+    });
+}
+
+export async function updatePronouns(
+  oldMemberInfo: MemberSnapshot | null,
+  newRecord: string,
+) {
+  pb.autoCancellation(false);
+
+  if (oldMemberInfo) {
     //find the member through the member_id on the member_snapshot table
-    const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
-    `member_id = "${oldMemberInfo.memberId}"`
-  );
+    const currentMemberSnapshot = await pb
+      .collection("member_snapshot")
+      .getFirstListItem(`member_id = "${oldMemberInfo.memberId}"`);
 
     // update the info in the member table
-    const record = await pb.collection('member_snapshot').update(`${currentMemberSnapshot.id}`, {
-    personal_info : newRecord,
-    }); 
-
-    console.log("new member snapshot record:",record)
+    const record = await pb
+      .collection("member_snapshot")
+      .update(`${currentMemberSnapshot.id}`, {
+        personal_info: newRecord,
+      });
   }
 }
 
-export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newPersonalData: string, newMemberData: string){
-   pb.autoCancellation(false);
+export async function newFormUpdate(
+  oldMemberInfo: MemberSnapshot | null,
+  newPersonalData: string,
+  newMemberData: string,
+) {
+  pb.autoCancellation(false);
 
-   const author = await pb.collection("users").getFirstListItem(
-    `email = "${currentUser()?.email}"`
-   )
+  const author = await pb
+    .collection("users")
+    .getFirstListItem(`email = "${currentUser()?.email}"`);
 
   //find the member through the member_id on the member_snapshot table
-  const currentMemberSnapshot = await pb.collection("member_snapshot").getFirstListItem(
-  `member_id = "${oldMemberInfo?.memberId}"`)
+  const currentMemberSnapshot = await pb
+    .collection("member_snapshot")
+    .getFirstListItem(`member_id = "${oldMemberInfo?.memberId}"`);
 
+  const now = new Date().toISOString();
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: currentMemberSnapshot?.user_id,
     member_id: oldMemberInfo?.memberId,
@@ -458,6 +586,8 @@ export async function newFormUpdate (oldMemberInfo: MemberSnapshot | null,  newP
     personal_info: newPersonalData,
     member_info: newMemberData,
     box_info: oldMemberInfo?.boxInfo,
+    created_at: now,
+    modified_at: now,
   });
 }
 
@@ -481,20 +611,19 @@ export async function updateMemberSnapshotDirect(
 }
 
 export async function listApprovalUpdates() {
-
   // fetch a paginated records list
-  const resultList = await pb.collection('member_snapshot').getList(1, 50, {
-      filter: 'notes = "Update needs approval by an admin." ',
+  const resultList = await pb.collection("member_snapshot").getList(1, 50, {
+    filter: 'notes = "Update needs approval by an admin." ',
   });
 
-  return resultList
+  return resultList;
 }
 
 export async function submitRequirementUpdateRequest(
   input: RequirementUpdateRequestInput,
 ) {
   pb.autoCancellation(false);
-  const now = Math.floor(Date.now() / 1000);
+  const now = new Date().toISOString();
 
   return await pb.collection("requirement_update_request").create({
     user_id: input.userId,
@@ -541,8 +670,8 @@ export async function denyRequirementUpdateRequest(
   return await pb.collection("requirement_update_request").update(request.id, {
     status: "DENIED",
     reviewed_by: currentUser()?.name || currentUser()?.email || "",
-    reviewed_at: Math.floor(Date.now() / 1000),
-    modified_at: Math.floor(Date.now() / 1000),
+    reviewed_at: new Date().toISOString(),
+    modified_at: new Date().toISOString(),
     admin_notes: adminNotes,
   });
 }
@@ -618,8 +747,8 @@ export async function approveRequirementUpdateRequest(
   return await pb.collection("requirement_update_request").update(request.id, {
     status: "APPROVED",
     reviewed_by: reviewer,
-    reviewed_at: Math.floor(Date.now() / 1000),
-    modified_at: Math.floor(Date.now() / 1000),
+    reviewed_at: new Date().toISOString(),
+    modified_at: new Date().toISOString(),
   });
 }
 
@@ -645,6 +774,8 @@ async function createApprovedRequirementSnapshot({
 
   for (const memberId of uniqueMemberIds) {
     try {
+      const now = new Date().toISOString();
+
       return await pb.collection("member_snapshot").create({
         user_id: currentSnapshot.user_id,
         member_id: memberId,
@@ -653,6 +784,8 @@ async function createApprovedRequirementSnapshot({
         personal_info: currentSnapshot.personal_info,
         member_info: memberInfo,
         box_info: currentSnapshot.box_info,
+        created_at: now,
+        modified_at: now,
       });
     } catch (err) {
       lastError = err;
@@ -671,7 +804,7 @@ async function updateWorkFormulaHours(memberId: string, hoursToAdd: number) {
     await pb.collection("work_formula").update(workFormula.id, {
       work_hours_completed:
         toNumber(workFormula.work_hours_completed) + hoursToAdd,
-      modified_at: Math.floor(Date.now() / 1000),
+      modified_at: new Date().toISOString(),
     });
   } catch (err: any) {
     if (err?.status === 404) {
@@ -687,75 +820,292 @@ function formatRequirementRequestType(type: string) {
 }
 
 //gets the full list of boxes from the boxes collection
-export async function listBoxes() {
+type WaitlistName = {
+  member_id: string;
+  position: number;
+  name: string;
+};
+
+type BoxWithNames = Record<string, any> & {
+  box_members_names: string[];
+  waitlist_names: WaitlistName[];
+};
+
+export async function listBoxes(): Promise<{ items: BoxWithNames[] }> {
   pb.autoCancellation(false);
-  return await pb.collection("boxes").getList(1, 50);
+
+  const res = await pb.collection("boxes").getList(1, 50, {
+    expand: "box_members.user_id",
+  });
+
+  // waitlist is JSON containing:
+  // {
+  //   member_id: string,
+  //   join_date: number,
+  //   position: number
+  // }
+  const allWaitlistIds = Array.from(
+    new Set(
+      res.items.flatMap((box) =>
+        Array.isArray(box.waitlist)
+          ? box.waitlist.map((entry: any) => entry.member_id)
+          : [],
+      ),
+    ),
+  );
+
+  const waitlistMembersById: Record<string, any> = {};
+
+  if (allWaitlistIds.length > 0) {
+    const filter = allWaitlistIds.map((id) => `id = "${id}"`).join(" || ");
+
+    const waitlistMembers = await pb.collection("member").getFullList({
+      filter,
+      expand: "user_id",
+    });
+
+    for (const member of waitlistMembers) {
+      waitlistMembersById[member.id] = member;
+    }
+  }
+
+  const items: BoxWithNames[] = res.items.map((box) => {
+    const expandedMembers = (box.expand?.box_members ?? []) as Array<
+      Record<string, any>
+    >;
+
+    const box_members_names = expandedMembers.map(
+      (member) => member.expand?.user_id?.name ?? "(unknown member)",
+    );
+
+    const waitlist_names = (
+      Array.isArray(box.waitlist) ? box.waitlist : []
+    ).map((entry: any) => ({
+      member_id: entry.member_id,
+      position: entry.position,
+      name:
+        waitlistMembersById[entry.member_id]?.expand?.user_id?.name ??
+        "(unknown member)",
+    }));
+
+    return {
+      ...box,
+      box_members_names,
+      waitlist_names,
+    };
+  });
+
+  return { ...res, items };
+}
+
+export async function removeMemberFromWaitlist(memberId: string) {
+  pb.autoCancellation(false);
+
+  if (!memberId) {
+    throw new Error("Member ID is required.");
+  }
+
+  const boxes = await pb.collection("boxes").getFullList({
+    filter: `waitlist ~ "${memberId}"`,
+  });
+
+  if (boxes.length === 0) {
+    throw new Error("Member is not on a box waitlist.");
+  }
+
+  const box = boxes[0];
+
+  const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
+
+  const updatedWaitlist = waitlist.filter((entry: any) => {
+    // Current waitlist format:
+    // { member_id, position, join_date }
+    if (typeof entry === "string") {
+      return entry !== memberId;
+    }
+
+    return entry?.member_id !== memberId;
+  });
+
+  // Re-number remaining entries so positions stay contiguous.
+  const renumberedWaitlist = updatedWaitlist.map(
+    (entry: any, index: number) => {
+      if (typeof entry === "string") {
+        return entry;
+      }
+
+      return {
+        ...entry,
+        position: index + 1,
+      };
+    },
+  );
+
+  return await pb.collection("boxes").update(box.id, {
+    waitlist: renumberedWaitlist,
+    notes: "Member removed from box waitlist.",
+  });
+}
+
+export async function removeMemberFromBox(memberId: string) {
+  pb.autoCancellation(false);
+
+  const boxes = await pb.collection("boxes").getFullList();
+
+  const box = boxes.find((box) => {
+    const members = Array.isArray(box.box_members) ? box.box_members : [];
+
+    const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
+
+    return (
+      members.includes(memberId) ||
+      waitlist.some((entry: any) => entry.member_id === memberId)
+    );
+  });
+
+  if (!box) {
+    throw new Error("Member is not assigned to or waiting for a box.");
+  }
+
+  const members = Array.isArray(box.box_members) ? box.box_members : [];
+
+  const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
+
+  const updatedMembers = members.filter((id: string) => id !== memberId);
+
+  const updatedWaitlist = waitlist
+    .filter((entry: any) => entry.member_id !== memberId)
+    .map((entry: any, index: number) => ({
+      ...entry,
+      position: index + 1,
+    }));
+
+  return await pb.collection("boxes").update(box.id, {
+    box_members: updatedMembers,
+    waitlist: updatedWaitlist,
+    box_state: updatedMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED",
+    updated_by: "admin",
+  });
 }
 
 // Adds the currently logged-in user's member_id to a box waitlist, choosing
 // the box in this priority order:
-//   1. any box with zero members (box_member_s is empty)
-//   2. any box with an empty waitlist (waitlist_list is empty)
+//   1. any box with zero members (box_members is empty)
+//   2. any box with an empty waitlist (waitlist is empty)
 //   3. the box with the shortest waitlist
 // The chosen box's notes are flagged for admin review and the change is
 // persisted back to the boxes collection.
-export async function addToBoxWaitlist(allBoxes: Record<string, any>[]) {
+export async function addToBoxWaitlist(
+  allBoxes: Record<string, any>[],
+  memberId?: string,
+) {
   pb.autoCancellation(false);
 
   const user = currentUser();
+
   if (!user) {
     throw new Error("No logged in user found.");
   }
+
   if (!allBoxes || allBoxes.length === 0) {
     throw new Error("No boxes available to join.");
   }
 
-  console.log('user',user)
-
-  if (user.collectionName == '_superusers'){
-    console.log('user.email',user.email)
+  if (
+    allBoxes.some(
+      (box) =>
+        Array.isArray(box.box_members) && box.box_members.includes(memberId),
+    )
+  ) {
+    throw new Error("Member already has a box.");
   }
 
-  // member_id isn't guaranteed to equal the auth user's id, so resolve it
-  // via that user's member_snapshot, same as acceptRequest/updatePronouns do.
-  const memberSnapshotID = await pb
-    .collection("member_snapshot")
-    .getFirstListItem(`member_id = "${user.id}"`);
-
-  // const memberId = memberSnapshot.member_id;
-  console.log('memberSnapshotID',memberSnapshotID)
-  if (!memberSnapshotID) {
-    throw new Error("Current user has no associated member_id.");
+  if (
+    allBoxes.some(
+      (box) =>
+        Array.isArray(box.waitlist) &&
+        box.waitlist.some((entry: any) => entry.member_id === memberId),
+    )
+  ) {
+    throw new Error("Member is already on a box waitlist.");
   }
 
-  // 1. Prefer a box with no members at all.
-  let targetBox = allBoxes.find(
-    (box) => countEntries(box.box_member_s) === 0,
+  // If no memberId was explicitly supplied, resolve the logged-in user's
+  // member record.
+  if (!memberId) {
+    const member = await pb
+      .collection("member")
+      .getFirstListItem(`user_id = "${user.id}"`);
+
+    if (!member) {
+      throw new Error(
+        "Your account does not have an associated member record.",
+      );
+    }
+
+    memberId = member.id;
+  }
+
+  // Don't add someone who is already on a waitlist.
+  const existingWaitlistBox = allBoxes.find((box) =>
+    (box.waitlist ?? []).some((entry: any) => entry.member_id === memberId),
   );
 
-  // 2. Otherwise, prefer a box with an empty waitlist.
-  if (!targetBox) {
-    targetBox = allBoxes.find(
-      (box) => countEntries(box.waitlist_list) === 0,
-    );
+  if (existingWaitlistBox) {
+    throw new Error("This member is already on a box waitlist.");
   }
 
-  // 3. Otherwise, fall back to the box with the shortest waitlist.
+  // Don't add someone who already has a box.
+  const existingBox = allBoxes.find((box) =>
+    (box.box_members ?? []).includes(memberId),
+  );
+
+  if (existingBox) {
+    throw new Error("This member is already assigned to a box.");
+  }
+
+  // Prefer a completely empty box.
+  let targetBox = allBoxes.find((box) => countEntries(box.box_members) === 0);
+
+  // Otherwise prefer the shortest waitlist.
   if (!targetBox) {
     targetBox = allBoxes.reduce((shortest, box) =>
-      countEntries(box.waitlist_list) < countEntries(shortest.waitlist_list)
+      countEntries(box.waitlist) < countEntries(shortest.waitlist)
         ? box
         : shortest,
     );
   }
 
-  const updatedWaitlist = [...(targetBox.waitlist_list ?? []), memberSnapshotID.member_id];
-  console.log('updatedWaitlist',updatedWaitlist)
-  console.log('targetBox.id',targetBox.id) //<- this is correct but isnt adding onto the found box
-  // Persist the change to PocketBase.
-  return await pb.collection("boxes").update(`${targetBox.id}`, {
-    waitlist_list: updatedWaitlist,
+  if (!targetBox) {
+    throw new Error("No suitable box found.");
+  }
+
+  const currentWaitlist = Array.isArray(targetBox.waitlist)
+    ? targetBox.waitlist
+    : [];
+
+  const updatedWaitlist = [
+    ...currentWaitlist,
+    {
+      member_id: memberId,
+      join_date: Math.floor(Date.now() / 1000),
+      position: currentWaitlist.length + 1,
+    },
+  ];
+
+  return await pb.collection("boxes").update(targetBox.id, {
+    waitlist: updatedWaitlist,
     notes: "Update needs approval by an admin.",
+  });
+}
+
+export async function listMembersForBoxRequest() {
+  pb.autoCancellation(false);
+
+  return await pb.collection("member").getFullList({
+    sort: "created_at",
+    expand: "user_id",
+    fields: "id,user_id,expand.user_id.name,expand.user_id.email",
   });
 }
 
@@ -769,47 +1119,49 @@ export async function listWorkFormulas() {
   return await pb.collection("work_formula").getList(1, 50);
 }
 
-
 export async function deleteRequest(currentSnapshot: Record<string, any>) {
   pb.autoCancellation(false);
   await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
-    notes: "Recently Denied"
-  })
-}
-
-export async function acceptRequest(currentSnapshot: Record<string, any>){
-  pb.autoCancellation(false);
-  //find the user with that id from the currentSnapshot's user_id
-  const currentUser = await pb.collection("users").getFirstListItem(
-    `id = "${currentSnapshot.user_id}"`
-  )
-
-  //use the id from currentUser and find the member with that user_id
-  const currentMember = await pb.collection("member").getFirstListItem(
-    `user_id = "${currentUser.id}"`
-  )
-
-  //update the currentSnapshot id to the currentMember's member_snapshot_id
-  await pb.collection("member").update(`${currentMember.id}`, {
-    member_snapshot_id: `${currentSnapshot.id}`
-  })
-
-  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
-    notes: "Recently Updated"
-  })
-}
-
-export async function getMemberWorkFormula(memberSnapshot: Record <string, any>){
-  pb.autoCancellation(false);
-  return await pb.collection('work_formula').getList(1, 50, {
-      filter: `member_id = "${memberSnapshot.member_id}"` ,
+    notes: "Recently Denied",
   });
 }
 
-// gets the full list of legacy snapshots from the legacy_snapshots collection
-export async function listLegacySnapshots() {
+export async function acceptRequest(currentSnapshot: Record<string, any>) {
   pb.autoCancellation(false);
-  return await pb.collection("legacy_snapshots").getList(1, 50);
+  //find the user with that id from the currentSnapshot's user_id
+  const currentUser = await pb
+    .collection("users")
+    .getFirstListItem(`id = "${currentSnapshot.user_id}"`);
+
+  //use the id from currentUser and find the member with that user_id
+  const currentMember = await pb
+    .collection("member")
+    .getFirstListItem(`user_id = "${currentUser.id}"`);
+
+  //update the currentSnapshot id to the currentMember's member_snapshot_id
+  await pb.collection("member").update(`${currentMember.id}`, {
+    member_snapshot_id: `${currentSnapshot.id}`,
+  });
+
+  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
+    notes: "Recently Updated",
+  });
+}
+
+export async function getMemberWorkFormula(
+  memberSnapshot: Record<string, any>,
+): Promise<Record<string, any> | null> {
+  pb.autoCancellation(false);
+  try {
+    return await pb
+      .collection("work_formula")
+      .getFirstListItem(`member_id = "${memberSnapshot.member_id}"`);
+  } catch (err: any) {
+    if (err?.status === 404) {
+      return null; // no work_formula row exists yet for this member — expected
+    }
+    throw err;
+  }
 }
 
 // gets the full list of legacy snapshots from the legacy_snapshots collection

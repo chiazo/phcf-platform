@@ -1,11 +1,8 @@
 import { ChangeEvent, FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  VOLUNTEER_INTEREST_EMOJIS,
-  VOLUNTEER_INTEREST_OPTIONS,
-  phonePattern,
-} from "../models/enums";
+import { phonePattern } from "../models/enums";
 import { registerFarmMember } from "../lib/pocketbase";
+import { useVolunteerInterests } from "../lib/form";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -13,6 +10,9 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pronounsSelection, setPronounsSelection] = useState("");
   const [phone, setPhone] = useState("");
+
+  const { interests: volunteerInterestOptions, loading: interestsLoading } =
+    useVolunteerInterests();
 
   function formatPhoneNumber(value: string) {
     const digits = value.replace(/\D/g, "").slice(0, 10);
@@ -55,9 +55,7 @@ export default function RegisterPage() {
       otherVolunteerInterest
     ) {
       volunteerInterests.push(
-        otherVolunteerInterest
-          ? `Other: ${otherVolunteerInterest}`
-          : "Other",
+        otherVolunteerInterest ? `Other: ${otherVolunteerInterest}` : "Other",
       );
     }
 
@@ -210,7 +208,14 @@ export default function RegisterPage() {
           <input name="onMailingList" required type="checkbox" />
           Join the mailing list
         </label>
-        <p className="mailing-list-note full-width">Please acknowledge that you will be added to the email listserv, which is the primary means of communication for the garden and that you must accept the invitation you will receive to complete the process. Failure to do so may impact your ability to be "in the know" and therefore learn of fun garden events and complete your membership requirements.</p>
+        <p className="mailing-list-note full-width">
+          Please acknowledge that you will be added to the email listserv, which
+          is the primary means of communication for the garden and that you must
+          accept the invitation you will receive to complete the process.
+          Failure to do so may impact your ability to be "in the know" and
+          therefore learn of fun garden events and complete your membership
+          requirements.
+        </p>
 
         <fieldset className="checkbox-fieldset full-width">
           <legend>
@@ -218,12 +223,20 @@ export default function RegisterPage() {
             maintenance. How are you most looking forward to helping in the
             garden?
           </legend>
-          {VOLUNTEER_INTEREST_OPTIONS.map((option) => (
-            <label className="checkbox-row" key={option}>
-              <input name="volunteerInterests" type="checkbox" value={option} />
-              {VOLUNTEER_INTEREST_EMOJIS[option]} {option}
-            </label>
-          ))}
+          {interestsLoading ? (
+            <p className="muted">Loading volunteer interests…</p>
+          ) : (
+            volunteerInterestOptions.map((option) => (
+              <label className="checkbox-row" key={option.id}>
+                <input
+                  name="volunteerInterests"
+                  type="checkbox"
+                  value={option.label}
+                />
+                {option.emoji} {option.label}
+              </label>
+            ))
+          )}
           <label className="checkbox-row other-checkbox-row">
             <input name="volunteerInterestOtherSelected" type="checkbox" />
             Other:

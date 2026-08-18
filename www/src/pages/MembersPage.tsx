@@ -18,6 +18,7 @@ import {
   denyRequirementUpdateRequest,
   RequirementUpdateRequestType,
   correspondingWorkFormulas,
+  exportMembersCSV,
 } from "../lib/pocketbase";
 import { config } from "../lib/config";
 
@@ -218,7 +219,9 @@ function MemberPersonalView({
             <select
               value={requestType}
               onChange={(event) =>
-                setRequestType(event.target.value as RequirementUpdateRequestType)
+                setRequestType(
+                  event.target.value as RequirementUpdateRequestType,
+                )
               }
             >
               <option value={RequirementUpdateRequestType.AMOUNT_PAID}>
@@ -484,9 +487,10 @@ export default function MembersPage() {
   >([]);
   const [myRequirementUpdateRequests, setMyRequirementUpdateRequests] =
     useState<Array<Record<string, any>>>([]);
-  const [adminSnapshot, setAdminSnapshot] = useState<Record<string, any> | null>(
-    null,
-  );
+  const [adminSnapshot, setAdminSnapshot] = useState<Record<
+    string,
+    any
+  > | null>(null);
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
@@ -528,9 +532,31 @@ export default function MembersPage() {
       });
   }
 
-  function refreshRequirementUpdateRequests() {
-    return listPendingRequirementUpdateRequests()
-      .then((res) => setRequirementUpdateRequests(res.items))
+  async function handleExportMembers() {
+    try {
+      const blob = await exportMembersCSV();
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      link.href = url;
+      link.download = `members-${today}.csv`;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("CSV export failed:", err);
+    }
+  }
+
+  function refreshAllMembers() {
+    return listMemberSnapshots()
+      .then((res) => setAllMembers(res.items))
       .catch((err) => {
         console.error("requirement update request fetch error:", err);
         setRequirementUpdateRequests([]);
@@ -781,14 +807,20 @@ export default function MembersPage() {
 
       <br />
       {currentIsAdmin && (
-        <a
-          className="fab"
-          href={`${config.pbUrl}/_/`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Open DB View →
-        </a>
+        <div className="fab-container">
+          <button className="fab" onClick={handleExportMembers} type="button">
+            Export Members CSV →
+          </button>
+
+          <a
+            className="fab"
+            href={`${config.pbUrl}/_/`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open DB View →
+          </a>
+        </div>
       )}
     </>
   );

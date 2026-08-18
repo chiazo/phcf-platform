@@ -29,7 +29,7 @@ if [ "$MODE" = "dev" ]; then
 
   # Start PocketBase FIRST
   echo "📦 Starting PocketBase..."
-  (cd "$SERVER_DIR" && go run main.go serve) &
+  (cd "$SERVER_DIR" && go run export.go main.go serve) &
   PB_PID=$!
 
   # wait for PocketBase
@@ -61,7 +61,7 @@ elif [ "$MODE" = "prod" ]; then
   cp -r "$WEB_DIR/dist" "$SERVER_DIR/dist"
 
   # build backend
-  (cd "$SERVER_DIR" && go build -o app main.go)
+  (cd "$SERVER_DIR" && go build -o app export.go main.go)
 
   # run server
   "$SERVER_DIR/app" serve

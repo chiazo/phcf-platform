@@ -1,35 +1,42 @@
 import BaseModel from "./BaseModel";
 import { BoxState } from "./enums";
 
-export class WaitlistInfo extends BaseModel<any> {
-  joinedWaitlistAt?: number | string | Date;
+export class WaitlistEntry extends BaseModel<any> {
+  memberId: string;
+  joinDate?: number | string | Date;
+  position: number;
 
   constructor(data: any = {}) {
     super(data);
-    this.joinedWaitlistAt = data.joinedWaitlistAt;
+
+    this.memberId = data.member_id ?? data.memberId ?? "";
+    this.joinDate = data.join_date ?? data.joinDate;
+    this.position = data.position ?? 0;
   }
 
   get joinedDate(): Date | null {
-    if (!this.joinedWaitlistAt) return null;
+    if (!this.joinDate) return null;
 
-    // supports unix timestamp OR ISO string
-    if (typeof this.joinedWaitlistAt === "number") {
-      return new Date(this.joinedWaitlistAt * 1000);
+    if (typeof this.joinDate === "number") {
+      return new Date(this.joinDate * 1000);
     }
 
-    return new Date(this.joinedWaitlistAt);
+    return new Date(this.joinDate);
   }
 }
 
 export class BoxInfo extends BaseModel<any> {
-  waitlistInfo: WaitlistInfo;
+  waitlist: WaitlistEntry[];
   boxState?: BoxState;
 
   constructor(data: any = {}) {
     super(data);
 
     this.boxState = data.boxState || BoxState.UNASSIGNED;
-    this.waitlistInfo = new WaitlistInfo(data.waitlistInfo ?? {});
+
+    this.waitlist = Array.isArray(data.waitlist)
+      ? data.waitlist.map((entry: any) => new WaitlistEntry(entry))
+      : [];
   }
 
   get isAssigned(): boolean {
@@ -38,5 +45,11 @@ export class BoxInfo extends BaseModel<any> {
 
   get isWaitlisted(): boolean {
     return this.boxState === BoxState.WAITLIST;
+  }
+
+  get waitlistPosition(): number | null {
+    if (this.waitlist.length === 0) return null;
+
+    return Math.min(...this.waitlist.map((entry) => entry.position));
   }
 }
