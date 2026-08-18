@@ -1,43 +1,44 @@
-import { useEffect, useMemo, useState, useId } from "react";
 import type { FormEvent } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
+import { config } from "../lib/config";
+import { useVolunteerInterests } from "../lib/form";
 import {
+  approveRequirementUpdateRequest,
+  correspondingWorkFormulas,
   currentUser,
+  denyRequirementUpdateRequest,
+  exportMembersCSV,
   getCurrentUserMemberSnapshot,
+  getMemberUpdateSnapshot,
   getOrCreateCurrentUserMemberSnapshot,
   isAdmin,
   isLoggedIn,
-  listMemberSnapshots,
-  logout,
   listApprovalUpdates,
-  listPendingRequirementUpdateRequests,
+  listMemberSnapshots,
   listMyRequirementUpdateRequests,
-  submitRequirementUpdateRequest,
-  approveRequirementUpdateRequest,
-  denyRequirementUpdateRequest,
+  listPendingRequirementUpdateRequests,
+  logout,
   RequirementUpdateRequestType,
-  correspondingWorkFormulas,
-  exportMembersCSV,
-  getMemberUpdateSnapshot,
+  submitRequirementUpdateRequest,
   updateAcceptRequest,
-  updateDenyRequest
+  updateDenyRequest,
 } from "../lib/pocketbase";
-import { config } from "../lib/config";
 
-import Box from "@mui/material/Box";
-import OutlinedInput from "@mui/material/OutlinedInput";
-import InputLabel from "@mui/material/InputLabel";
-import InputAdornment from "@mui/material/InputAdornment";
-import FormControl from "@mui/material/FormControl";
 import SearchIcon from "@mui/icons-material/Search";
-import Tooltip from "@mui/material/Tooltip";
 import AssignmentIcon from "@mui/icons-material/Assignment";
+import Box from "@mui/material/Box";
+import FormControl from "@mui/material/FormControl";
 import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import InputLabel from "@mui/material/InputLabel";
+import OutlinedInput from "@mui/material/OutlinedInput";
+import Tooltip from "@mui/material/Tooltip";
 
-import AdminStatusButton from "../components/AdminStatusButton";
-import MemberTable from "../components/MemberTable";
+import Header from "../components/Header";
 import MemberInfo from "../components/MemberInfo";
+import MemberTable from "../components/MemberTable";
+import { DueState } from "../models/enums";
 
 function toNumber(value: unknown): number {
   const parsed = Number(value);
@@ -68,7 +69,10 @@ function formatList(values: unknown) {
 }
 
 function formatRequestType(type: string) {
-  return type.toLowerCase().replace(/_/g, " ");
+  return type
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function getRequestMemberLabel(request: Record<string, any>) {
@@ -96,6 +100,8 @@ function MemberPersonalView({
   requests: Array<Record<string, any>>;
   onRequestSubmitted?: () => void;
 }) {
+  const { interests: volunteerInterestOptions } = useVolunteerInterests();
+
   const personalInfo = member.personal_info ?? {};
   const memberInfo = member.member_info ?? {};
   const dues = memberInfo.dues ?? {};
@@ -105,7 +111,7 @@ function MemberPersonalView({
   const emailInfo = personalInfo.emailInfo ?? {};
   const phoneInfo = personalInfo.phoneInfo ?? {};
   const dueStatus = dues.dueState ?? "—";
-  const duesPaid = dueStatus === "PAID" || dueStatus === "COMPLETE";
+  const duesPaid = dueStatus === DueState.COMPLETE;
   const meetingsRequired = toNumber(requirements.meetingsRequired);
   const meetingsCompleted = toNumber(requirements.meetingsCompleted);
   const meetingsMet = meetingsCompleted >= meetingsRequired;
@@ -128,6 +134,8 @@ function MemberPersonalView({
   const [occurredAt, setOccurredAt] = useState(todayInputValue());
   const [requestNotes, setRequestNotes] = useState("");
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
+  const [activity, setActivity] = useState("");
+  const [projectLeader, setProjectLeader] = useState("");
 
   async function handleRequirementRequestSubmit(
     event: FormEvent<HTMLFormElement>,
@@ -159,10 +167,20 @@ function MemberPersonalView({
             ? paymentType
             : "",
         occurredAt: occurredAtSeconds,
+        activity:
+          requestType === RequirementUpdateRequestType.SERVICE_HOURS
+            ? activity
+            : "",
+        projectLeader:
+          requestType === RequirementUpdateRequestType.SERVICE_HOURS
+            ? projectLeader
+            : "",
         notes: requestNotes,
       });
 
       setQuantity("");
+      setActivity("");
+      setProjectLeader("");
       setRequestNotes("");
       setRequestMessage("Request submitted for admin approval.");
       onRequestSubmitted?.();
@@ -208,71 +226,198 @@ function MemberPersonalView({
 
       <section>
         <h2>Submit Membership Requirement Progress</h2>
+
+        <p className="muted">
+          Use this form to submit membership requirement progress for admin
+          approval. For Work Hours, please submit each activity or shift
+          separately.
+        </p>
+
         {requestMessage && (
           <p role="status" className="muted">
             {requestMessage}
           </p>
         )}
+
         <form className="form-grid" onSubmit={handleRequirementRequestSubmit}>
           <label>
-            Update type
+            Update Type
             <select
               value={requestType}
-              onChange={(event) =>
+              onChange={(event) => {
                 setRequestType(
                   event.target.value as RequirementUpdateRequestType,
-                )
-              }
+                );
+                setActivity("");
+                setProjectLeader("");
+              }}
             >
               <option value={RequirementUpdateRequestType.AMOUNT_PAID}>
-                Amount paid
+                Amount Paid
               </option>
               <option value={RequirementUpdateRequestType.SERVICE_HOURS}>
-                Service hours
+                Work Hours
               </option>
               <option value={RequirementUpdateRequestType.MEETING_HOURS}>
-                Meeting hours
+                Meeting Hours
               </option>
             </select>
           </label>
-          <label>
-            {requestType === RequirementUpdateRequestType.AMOUNT_PAID
-              ? "Amount to add"
-              : "Hours to add"}
-            <input
-              min="0"
-              step="0.25"
-              type="number"
-              value={quantity}
-              onChange={(event) => setQuantity(event.target.value)}
-              required
-            />
-          </label>
-          {requestType === RequirementUpdateRequestType.AMOUNT_PAID && (
-            <label>
-              Payment type
-              <select
-                value={paymentType}
-                onChange={(event) => setPaymentType(event.target.value)}
-              >
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="check">Check</option>
-                <option value="venmo">Venmo</option>
-                <option value="paypal">PayPal</option>
-                <option value="other">Other</option>
-              </select>
-            </label>
+
+          {requestType === RequirementUpdateRequestType.SERVICE_HOURS && (
+            <>
+              <p className="form-description">
+                <b>Work Hours:</b> These include work days, plant sale shifts,
+                snow shoveling, opening the garden for school visits, and other
+                approved activities. Please submit each activity or shift
+                separately.
+              </p>
+
+              <p className="form-description">
+                Please submit all Work Hours completed so we know how much time
+                garden maintenance takes. Remember that at least 60% of your
+                total Service Hours must be Open Hours.
+              </p>
+
+              <label>
+                How many hours are you submitting?
+                <input
+                  min="0"
+                  step="0.25"
+                  type="number"
+                  value={quantity}
+                  onChange={(event) => setQuantity(event.target.value)}
+                  required
+                />
+              </label>
+
+              <label>
+                What date did you volunteer these hours?
+                <input
+                  type="date"
+                  value={occurredAt}
+                  onChange={(event) => setOccurredAt(event.target.value)}
+                  required
+                />
+              </label>
+
+              <label>
+                For what activity are you submitting Work Hours?
+                <select
+                  value={activity}
+                  onChange={(event) => setActivity(event.target.value)}
+                  required
+                >
+                  <option value="">Select an activity</option>
+
+                  {volunteerInterestOptions.map((option) => (
+                    <option key={option.id} value={option.label}>
+                      {option.emoji} {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <p className="form-description">
+                <b>Reminder:</b> Open Hour shifts and Compost Team shifts should
+                not be submitted through this form.
+              </p>
+
+              <label>
+                Who led this project?
+                <input
+                  type="text"
+                  value={projectLeader}
+                  onChange={(event) => setProjectLeader(event.target.value)}
+                  placeholder="First and last name"
+                  required={false}
+                />
+              </label>
+
+              <p className="form-description">
+                If you led the project yourself, enter "Self-led" and include
+                the name of another volunteer who was present in the notes
+                below.
+              </p>
+            </>
           )}
-          <label>
-            Date completed or paid
-            <input
-              type="date"
-              value={occurredAt}
-              onChange={(event) => setOccurredAt(event.target.value)}
-              required
-            />
-          </label>
+
+          {requestType === RequirementUpdateRequestType.MEETING_HOURS && (
+            <>
+              <p className="form-description">
+                Submit the number of qualifying meeting hours you completed.
+              </p>
+
+              <label>
+                How many meeting hours are you submitting?
+                <input
+                  min="0"
+                  step="0.25"
+                  type="number"
+                  value={quantity}
+                  onChange={(event) => setQuantity(event.target.value)}
+                  required
+                />
+              </label>
+
+              <label>
+                What date did you attend the meeting?
+                <input
+                  type="date"
+                  value={occurredAt}
+                  onChange={(event) => setOccurredAt(event.target.value)}
+                  required
+                />
+              </label>
+            </>
+          )}
+
+          {requestType === RequirementUpdateRequestType.AMOUNT_PAID && (
+            <>
+              <p className="form-description">
+                Submit a payment toward your membership dues. The payment will
+                be reviewed and applied to your membership record by an admin.
+              </p>
+
+              <label>
+                Amount to Add
+                <input
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={quantity}
+                  onChange={(event) => setQuantity(event.target.value)}
+                  required
+                />
+              </label>
+
+              <label>
+                Payment Type
+                <select
+                  value={paymentType}
+                  onChange={(event) => setPaymentType(event.target.value)}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="check">Check</option>
+                  <option value="venmo">Venmo</option>
+                  <option value="paypal">PayPal</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+
+              <label>
+                Date paid
+                <input
+                  type="date"
+                  value={occurredAt}
+                  onChange={(event) => setOccurredAt(event.target.value)}
+                  required
+                />
+              </label>
+            </>
+          )}
+
           <label>
             Notes
             <input
@@ -281,6 +426,7 @@ function MemberPersonalView({
               placeholder="Optional details"
             />
           </label>
+
           <button type="submit">Submit for approval</button>
         </form>
       </section>
@@ -333,13 +479,27 @@ function MemberPersonalView({
             </tr>
             <tr>
               <th>Volunteer Interests</th>
-              <td>{formatList(requirements.volunteerInterests)}</td>
+              <td>
+                <div className="volunteer-interest-list">
+                  {requirements.volunteerInterests?.map((interest: string) => {
+                    const option = volunteerInterestOptions.find(
+                      (option) => option.label === interest,
+                    );
+
+                    return (
+                      <div className="checkbox-row" key={interest}>
+                        {option?.emoji} {interest}
+                      </div>
+                    );
+                  })}
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
-        <p>
+        <p style={{ textAlign: "center" }}>
           <Link className="button-link secondary" to={`/snapshot/${member.id}`}>
-            Edit (admin approval needed)
+            Edit (Admin Approval Needed)
           </Link>
         </p>
       </section>
@@ -376,7 +536,7 @@ function MemberRequirementRequestStatusTable({
               <th>Reviewed By</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="submitted-progress">
             {requests.map((request) => (
               <tr key={request.id}>
                 <td>{formatRequestType(request.request_type)}</td>
@@ -404,6 +564,27 @@ function RequirementUpdateRequestTable({
   const [currentMemberUpdateRequest, setCurrentMemberUpdateRequest] = useState<
     Record<string, any>
   >({});
+
+  const serviceHourRequests = requests.filter(
+    (request) =>
+      request.request_type === RequirementUpdateRequestType.SERVICE_HOURS,
+  );
+
+  const meetingHourRequests = requests.filter(
+    (request) =>
+      request.request_type === RequirementUpdateRequestType.MEETING_HOURS,
+  );
+
+  const paymentRequests = requests.filter(
+    (request) =>
+      request.request_type === RequirementUpdateRequestType.AMOUNT_PAID,
+  );
+
+  const profileUpdateRequests = requests.filter(
+    (request) =>
+      request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE,
+  );
+
   async function handleApprove(request: Record<string, any>) {
     await approveRequirementUpdateRequest(request);
     if (request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE) {
@@ -420,19 +601,40 @@ function RequirementUpdateRequestTable({
     onActionComplete();
   }
 
+  async function handleApproveAll(
+    requestsToApprove: Array<Record<string, any>>,
+  ) {
+    try {
+      await Promise.all(
+        requestsToApprove.map((request) =>
+          approveRequirementUpdateRequest(request),
+        ),
+      );
+      onActionComplete();
+    } catch (err) {
+      console.error("bulk approve error:", err);
+    }
+  }
+
+  async function handleDenyAll(requestsToDeny: Array<Record<string, any>>) {
+    try {
+      await Promise.all(
+        requestsToDeny.map((request) => denyRequirementUpdateRequest(request)),
+      );
+      onActionComplete();
+    } catch (err) {
+      console.error("bulk deny error:", err);
+    }
+  }
+
   function displayModal(request: Record<string, any>) {
-    const modal = document.getElementById("myModal");
     getMemberUpdateSnapshot(request.member_snapshot_id)
       .then((memberSnapshot) => {
-        console.log("Fetched member snapshot:", memberSnapshot);
         setCurrentMemberUpdateRequest(memberSnapshot);
       })
       .catch((err) => {
         console.error("Error fetching member snapshot:", err);
       });
-    if (modal) {
-      modal.style.display = "block";
-    }
   }
 
   if (requests.length === 0) {
@@ -448,69 +650,288 @@ function RequirementUpdateRequestTable({
     <>
       <section>
         <h2>Membership Requirement Update Requests</h2>
-        <div className="modal-table-wrapper always-visible-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Member</th>
-                <th>Type</th>
-                <th>Amount/Hours</th>
-                <th>Payment Type</th>
-                <th>Date</th>
-                <th>Notes</th>
-                <th></th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((request) => (
-                <tr key={request.id}>
-                  <td>{getRequestMemberLabel(request)}</td>
-                  <td>{formatRequestType(request.request_type)}</td>
-                  <td>{request.quantity}</td>
-                  <td>{request.payment_type || "—"}</td>
-                  <td>{formatDateFromSeconds(request.occurred_at)}</td>
-                  {request.request_type ===
-                  RequirementUpdateRequestType.PROFILE_UPDATE ? (
-                    <td>
-                      <Tooltip
-                        title="Member Update Info"
-                        onClick={() => displayModal(request)}
-                      >
-                        <IconButton>
-                          <AssignmentIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </td>
-                  ) : (
-                    <td>{request.notes || "—"}</td>
-                  )}
-                  <td>
-                    <button
-                      className="icon-action approve-action"
-                      onClick={() => handleApprove(request)}
-                      type="button"
-                      title="Approve"
-                    >
-                      ✓
-                    </button>
-                  </td>
-                  <td>
-                    <button
-                      className="icon-action deny-action"
-                      onClick={() => handleDeny(request)}
-                      type="button"
-                      title="Deny"
-                    >
-                      ×
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+
+        {serviceHourRequests.length > 0 && (
+          <section>
+            <div className="request-table-header">
+              <h3>Work Hour Requests</h3>
+
+              <div className="bulk-action-row">
+                <button
+                  className="bulk-action-button approve-action"
+                  onClick={() => handleApproveAll(serviceHourRequests)}
+                  type="button"
+                >
+                  Approve All
+                </button>
+
+                <button
+                  className="bulk-action-button deny-action"
+                  onClick={() => handleDenyAll(serviceHourRequests)}
+                  type="button"
+                >
+                  Deny All
+                </button>
+              </div>
+            </div>
+
+            <div className="modal-table-wrapper always-visible-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Hours</th>
+                    <th>Activity</th>
+                    <th>Date</th>
+                    <th>Project Leader</th>
+                    <th>Notes</th>
+                    <th></th>
+                    <th></th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {serviceHourRequests.map((request) => (
+                    <tr key={request.id}>
+                      <td>{getRequestMemberLabel(request)}</td>
+                      <td>{request.quantity}</td>
+                      <td>{request.activity || "—"}</td>
+                      <td>{formatDateFromSeconds(request.occurred_at)}</td>
+                      <td>{request.project_leader || "—"}</td>
+                      <td>{request.notes || "—"}</td>
+                      <td>
+                        <button
+                          className="icon-action approve-action"
+                          onClick={() => handleApprove(request)}
+                          type="button"
+                          title="Approve"
+                        >
+                          ✓
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          className="icon-action deny-action"
+                          onClick={() => handleDeny(request)}
+                          type="button"
+                          title="Deny"
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+        {meetingHourRequests.length > 0 && (
+          <section>
+            <div className="request-table-header">
+              <h3>Meeting Hour Requests</h3>
+
+              <div className="bulk-action-row">
+                <button
+                  className="bulk-action-button approve-action"
+                  onClick={() => handleApproveAll(meetingHourRequests)}
+                  type="button"
+                >
+                  Approve All
+                </button>
+
+                <button
+                  className="bulk-action-button deny-action"
+                  onClick={() => handleDenyAll(meetingHourRequests)}
+                  type="button"
+                >
+                  Deny All
+                </button>
+              </div>
+            </div>
+
+            <div className="modal-table-wrapper always-visible-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Hours</th>
+                    <th>Date</th>
+                    <th>Notes</th>
+                    <th></th>
+                    <th></th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {meetingHourRequests.map((request) => (
+                    <tr key={request.id}>
+                      <td>{getRequestMemberLabel(request)}</td>
+                      <td>{request.quantity}</td>
+                      <td>{formatDateFromSeconds(request.occurred_at)}</td>
+                      <td>{request.notes || "—"}</td>
+                      <td>
+                        <button
+                          className="icon-action approve-action"
+                          onClick={() => handleApprove(request)}
+                          type="button"
+                          title="Approve"
+                        >
+                          ✓
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          className="icon-action deny-action"
+                          onClick={() => handleDeny(request)}
+                          type="button"
+                          title="Deny"
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+        {paymentRequests.length > 0 && (
+          <section>
+            <div className="request-table-header">
+              <h3>Payment Requests</h3>
+
+              <div className="bulk-action-row">
+                <button
+                  className="bulk-action-button approve-action"
+                  onClick={() => handleApproveAll(paymentRequests)}
+                  type="button"
+                >
+                  Approve All
+                </button>
+
+                <button
+                  className="bulk-action-button deny-action"
+                  onClick={() => handleDenyAll(paymentRequests)}
+                  type="button"
+                >
+                  Deny All
+                </button>
+              </div>
+            </div>
+
+            <div className="modal-table-wrapper always-visible-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Amount</th>
+                    <th>Payment Type</th>
+                    <th>Date</th>
+                    <th>Notes</th>
+                    <th></th>
+                    <th></th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {paymentRequests.map((request) => (
+                    <tr key={request.id}>
+                      <td>{getRequestMemberLabel(request)}</td>
+                      <td>{request.quantity}</td>
+                      <td>{request.payment_type || "—"}</td>
+                      <td>{formatDateFromSeconds(request.occurred_at)}</td>
+                      <td>{request.notes || "—"}</td>
+                      <td>
+                        <button
+                          className="icon-action approve-action"
+                          onClick={() => handleApprove(request)}
+                          type="button"
+                          title="Approve"
+                        >
+                          ✓
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          className="icon-action deny-action"
+                          onClick={() => handleDeny(request)}
+                          type="button"
+                          title="Deny"
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+        {profileUpdateRequests.length > 0 && (
+          <section>
+            <h3>Profile Update Requests</h3>
+
+            <div className="modal-table-wrapper always-visible-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Date</th>
+                    <th>Notes</th>
+                    <th>Details</th>
+                    <th></th>
+                    <th></th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {profileUpdateRequests.map((request) => (
+                    <tr key={request.id}>
+                      <td>{getRequestMemberLabel(request)}</td>
+                      <td>{formatDateFromSeconds(request.occurred_at)}</td>
+                      <td>{request.notes || "—"}</td>
+                      <td>
+                        <Tooltip
+                          title="View proposed changes"
+                          onClick={() => displayModal(request)}
+                        >
+                          <IconButton>
+                            <AssignmentIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </td>
+                      <td>
+                        <button
+                          className="icon-action approve-action"
+                          onClick={() => handleApprove(request)}
+                          type="button"
+                          title="Approve"
+                        >
+                          ✓
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          className="icon-action deny-action"
+                          onClick={() => handleDeny(request)}
+                          type="button"
+                          title="Deny"
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </section>
+
       <MemberInfo
         member={currentMemberUpdateRequest}
         onActionComplete={onActionComplete}
@@ -586,7 +1007,9 @@ export default function MembersPage() {
 
   function refreshAllMembers() {
     return listMemberSnapshots()
-      .then((res) => setAllMembers(res.items))
+      .then((res) => {
+        setAllMembers(res.items);
+      })
       .catch((err) => {
         console.error("requirement update request fetch error:", err);
         setRequirementUpdateRequests([]);
@@ -733,54 +1156,27 @@ export default function MembersPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>PHCF Membership Platform</h1>
-          <p className="muted signed-in-line">
-            Signed in as {signedInLabel}
-            <AdminStatusButton />
-          </p>
-          <div id="navigation-buttons">
-            <Link className="button-link secondary" to="/box-info">
-              Box Info
-            </Link>
-            {currentIsAdmin && (
-              <>
-                <Link className="button-link secondary" to="/work-formula">
-                  Work Formulas
-                </Link>
-                <Link className="button-link secondary" to="/legacy-snapshots">
-                  Legacy Snapshots
-                </Link>
-                <Link className="button-link secondary" to="/admin">
-                  Admin access
-                </Link>
-                <button
-                  className="secondary"
-                  onClick={handleMySnapshotClick}
-                  type="button"
-                >
-                  My Info
-                </button>
-              </>
-            )}
-          </div>
-          {!currentIsAdmin && (
-            <p className="muted">
-              Welcome! Check your membership status and log requirements if
-              needed. An admin will approve and update your info as soon as
-              possible.
-            </p>
-          )}
-        </div>
-        <button
-          className="secondary page-logout-button"
-          onClick={handleLogout}
-          type="button"
-        >
-          Log out
-        </button>
-      </div>
+      <Header
+        currUser={currentUser()}
+        title="PHCF Membership Platform"
+        showBack={false}
+        signedInLabel={signedInLabel}
+        handleLogout={handleLogout}
+      >
+        <Link className="button-link secondary" to="/box-info">
+          Box Info
+        </Link>
+
+        {currentIsAdmin && (
+          <button
+            className="secondary"
+            onClick={handleMySnapshotClick}
+            type="button"
+          >
+            My Info
+          </button>
+        )}
+      </Header>
 
       {currentIsAdmin ? (
         <>

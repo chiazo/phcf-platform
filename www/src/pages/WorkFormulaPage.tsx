@@ -10,7 +10,7 @@ import {
   listWorkFormulas,
   logout,
 } from "../lib/pocketbase";
-import AdminStatusButton from "../components/AdminStatusButton";
+import Header from "../components/Header";
 
 function getMemberLabel(workFormula: Record<string, any>) {
   return workFormula.member_name || workFormula.member_id || "—";
@@ -99,36 +99,12 @@ export default function WorkFormulaPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Work Formula Info</h1>
-          <p className="muted signed-in-line">
-            Signed in as {currentUser()?.email}
-            <AdminStatusButton />
-          </p>
-          <div id="navigation-buttons">
-            <Link className="button-link secondary" to="/">
-              ← Back to Home
-            </Link>
-            <Link className="button-link secondary" to="/box-info">
-              Box Info
-            </Link>
-            <Link className="button-link secondary" to="/legacy-snapshots">
-              Legacy Snapshots
-            </Link>
-            <Link className="button-link secondary" to="/admin">
-              Admin access
-            </Link>
-          </div>
-        </div>
-        <button
-          className="secondary page-logout-button"
-          onClick={handleLogout}
-          type="button"
-        >
-          Log out
-        </button>
-      </div>
+      <Header
+        currUser={currentUser()}
+        title="Work Formula Info"
+        backLabel="← Back to Home"
+        handleLogout={handleLogout}
+      />
 
       {loadError && <p className="error">{loadError}</p>}
 
