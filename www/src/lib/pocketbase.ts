@@ -245,6 +245,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
   }
 
   const orientationDateInSeconds = Math.floor(orientationDateMs / 1000);
+  const now = new Date().toISOString();
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: user.id,
     updated_by: name || input.email,
@@ -294,8 +295,9 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
         waitlistNumber: 0,
       },
     },
+    created_at: now,
+    modified_at: now,
   });
-  const now = new Date().toISOString();
   const member = await pb.collection("member").create({
     user_id: user.id,
     member_snapshot_id: snapshot.id,
