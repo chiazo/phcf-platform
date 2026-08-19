@@ -239,7 +239,9 @@ export default function MemberSnapshotPage() {
 
     // archive old snapshots instead of creating new semi-copies
     if (id) {
+      console.log('\nentering the archive snapshot helper with id:', id, ', and member:',member)
       await archiveSnapshotIfStale(id, member);
+      // should i break after creating the new snapshot
     }
 
     setSubmitMessage(null);

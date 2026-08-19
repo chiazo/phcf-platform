@@ -1238,6 +1238,8 @@ export async function archiveSnapshotIfStale(
 
   // Not stale: update the existing member_snapshot record for this member
   // rather than creating a new one.
+  console.log('NOT STALE!');
+  console.log('escapePocketBaseString(memberId)',escapePocketBaseString(memberId));
   try {
     const existingMemberSnapshot = await pb
       .collection("member_snapshot")
@@ -1249,6 +1251,7 @@ export async function archiveSnapshotIfStale(
       // No legacy record exists yet for this member — create one so
       // future updates have something to target.
       try {
+        console.log('no existing membersnapshot');
         await pb.collection("member_snapshot").create(legacyPayload);
       } catch (createErr) {
         console.error("archiveSnapshotIfStale: failed to create initial member snapshot:", createErr);
