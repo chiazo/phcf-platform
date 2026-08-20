@@ -1235,30 +1235,30 @@ export async function archiveSnapshotIfStale(
     }
     return;
   }
+  return;
 
   // Not stale: update the existing member_snapshot record for this member
   // rather than creating a new one.
-  console.log('NOT STALE!');
-  console.log('escapePocketBaseString(memberId)',escapePocketBaseString(memberId));
-  try {
-    const existingMemberSnapshot = await pb
-      .collection("member_snapshot")
-      .getFirstListItem(`member_id = "${escapePocketBaseString(memberId)}"`);
+  // console.log('NOT STALE!');
+  // console.log('escapePocketBaseString(memberId)',escapePocketBaseString(memberId));
+  // try {
+  //   const existingMemberSnapshot = await pb
+  //     .collection("member_snapshot")
+  //     .getFirstListItem(`member_id = "${escapePocketBaseString(memberId)}"`);
 
-    await pb.collection("member_snapshot").update(existingMemberSnapshot.id, legacyPayload);
-  } catch (err: any) {
-    if (err?.status === 404) {
-      // No legacy record exists yet for this member — create one so
-      // future updates have something to target.
-      try {
-        console.log('no existing membersnapshot');
-        await pb.collection("member_snapshot").create(legacyPayload);
-      } catch (createErr) {
-        console.error("archiveSnapshotIfStale: failed to create initial member snapshot:", createErr);
-      }
-      return;
-    }
+  //   await pb.collection("member_snapshot").update(existingMemberSnapshot.id, legacyPayload);
+  // } catch (err: any) {
+  //   if (err?.status === 404) {
+  //     // No legacy record exists yet for this member — create one so
+  //     // future updates have something to target.
+  //     try {
+  //       console.log('no existing membersnapshot');
+  //       await pb.collection("member_snapshot").create(legacyPayload);
+  //     } catch (createErr) {
+  //       console.error("archiveSnapshotIfStale: failed to create initial member snapshot:", createErr);
+  //     }
+  //     return;
+  //   }
 
-    console.error("archiveSnapshotIfStale: failed to update latest member snapshot:", err);
-  }
+    // console.error("archiveSnapshotIfStale: failed to update latest member snapshot:", err);
 }

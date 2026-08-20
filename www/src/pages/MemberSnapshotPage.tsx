@@ -75,6 +75,7 @@ export default function MemberSnapshotPage() {
   const [member, setMember] = useState<MemberSnapshot | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [isStale, setIsStale] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [workFormula, setWorkFormula] = useState<Record<string, any> | null>(
     null,
@@ -236,16 +237,29 @@ export default function MemberSnapshotPage() {
       setEditMode(true);
       return; // first click just enters edit mode, don't process the form yet
     }
-
+    console.log('data entering onsubmit:',data);
     // archive old snapshots instead of creating new semi-copies
+    // if snapshot.modified_at >3 months ago, create a legacy_snapshot with the not-yet-updated snapshot data
     if (id) {
       console.log('\nentering the archive snapshot helper with id:', id, ', and member:',member)
-      await archiveSnapshotIfStale(id, member);
+      console.log('member.updatedDate:',member.updatedDate)
+      // setIsStale(await archiveSnapshotIfStale(id, member));
       // should i break after creating the new snapshot
-    }
+    };
+    // setIsStale(archiveSnapshotIfStale(id, member));
+
+    // archiveSnapshotIfStale(id, member)
+    //       .then((res) => setIsStale(res))
+    //       .catch((err) => {
+    //         console.error("member fetch error:", err);
+    //         setIsStale(false);
+    //       });
 
     setSubmitMessage(null);
     let hadError = false;
+
+    console.log('MSP data:',data);
+    // console.log('MSP mod date:',modified_at);
 
     if (!isAdmin() && data.pronouns !== pronouns) {
       const newPersonalData = {
