@@ -334,6 +334,7 @@ export default function MemberSnapshotPage() {
         member,
         JSON.stringify(needsApprovalPersonal),
         JSON.stringify(needsApprovalMember),
+        Math.floor(Date.now() / 1000),
       ).catch((err) => {
         console.error("error in member snapshot updates: ", err);
         hadError = true;
@@ -534,122 +535,6 @@ export default function MemberSnapshotPage() {
 
             <p>
               <strong>Status</strong>
-              <select {...register("dueState")} disabled={!editMode}>
-                {Object.values(DueState)
-                  .filter((state) => state !== DueState.PENDING)
-                  .map((state) => (
-                    <option
-                      key={state}
-                      value={state}
-                      disabled={isOwnPendingSubmission && state === dueState}
-                    >
-                      {isOwnPendingSubmission && state === dueState
-                        ? `PENDING (${state})`
-                        : state}
-                    </option>
-                  ))}
-              </select>
-            </p>
-            <p>
-              <strong>Status</strong>
-              <select
-                {...register("memberState")}
-                defaultValue={memberState}
-                disabled={!editMode}
-              >
-                {Object.values(MemberState)
-                  .filter((state) => state !== MemberState.PENDING)
-                  .map((state) => (
-                    <option
-                      key={state}
-                      value={state}
-                      disabled={isOwnPendingSubmission && state === memberState}
-                    >
-                      {isOwnPendingSubmission && state === memberState
-                        ? `PENDING (${state})`
-                        : state}
-                    </option>
-                  ))}
-              </select>
-            </p>
-          </section>
-          {/* Contact */}
-          <section>
-            <h2>Contact</h2>
-
-            <p>
-              <strong>Email</strong>
-              <input
-                {...register("primaryEmail", {
-                  pattern: {
-                    value: emailPattern,
-                    message: "Invalid email address",
-                  },
-                })}
-                defaultValue={primaryEmail}
-                disabled={!editMode}
-              />
-              {errors.primaryEmail && (
-                <span style={{ color: "red" }}>
-                  {errors.primaryEmail.message}
-                </span>
-              )}
-            </p>
-            <p>
-              <strong>Phone</strong>
-              <input
-                {...register("primaryPhoneNumber", {
-                  pattern: {
-                    value: phonePattern,
-                    message: "Invalid phone number",
-                  },
-                })}
-                defaultValue={primaryPhoneNumber}
-                disabled={!editMode}
-              />
-              {errors.primaryPhoneNumber && (
-                <span style={{ color: "red" }}>
-                  {errors.primaryPhoneNumber.message}
-                </span>
-              )}
-            </p>
-            <p>
-              <strong>Mailing List</strong>
-              {onMailingList ? "Yes" : "No"}
-            </p>
-
-            <p>
-              <strong>Street</strong>
-              <input
-                {...register("line1")}
-                defaultValue={line1}
-                disabled={!editMode}
-              />
-            </p>
-            <p>
-              <strong>City</strong>
-              <input
-                {...register("city")}
-                defaultValue={city}
-                disabled={!editMode}
-              />
-            </p>
-            <p>
-              <strong>Zip Code</strong>
-              <input
-                {...register("zipCode")}
-                defaultValue={zipCode}
-                disabled={!editMode}
-              />
-            </p>
-          </section>
-
-          {/* Dues */}
-          <section>
-            <h2>Dues</h2>
-
-            <p>
-              <strong>Status</strong>
               <select
                 {...register("dueState")}
                 defaultValue={dueState}
@@ -752,50 +637,6 @@ export default function MemberSnapshotPage() {
               </label>
             </fieldset>
           </section>
-
-          {/* Service Requirements */}
-          <section className="full">
-            <h2>Service Requirements</h2>
-
-          {workFormula?.length > 0 ? (
-            <ul>
-              {workFormula?.map((singleFormula: Record<string, any>) => (
-                <>
-                <li key={singleFormula.id}>
-                  <p>
-                    <strong>Volunteer Activity</strong>
-                    {singleFormula.volunteer_activity || "—"}
-                  </p>
-                  <p>
-                    <strong>Volunteer Date</strong>
-                    {singleFormula.volunteer_date
-                      ? new Date(singleFormula.volunteer_date * 1000).toLocaleDateString(
-                          "en-US",
-                          { year: "numeric", month: "long", day: "numeric" },
-                        )
-                      : "—"}
-                  </p>
-                  <p>
-                    <strong>Volunteer Hours</strong>
-                    {singleFormula.volunteer_hours}
-                  </p>
-                  <p>
-                    <strong>Work Hours</strong>
-                    {singleFormula.work_hours_completed}/{singleFormula.work_hours_required}
-                  </p>
-                  <p>
-                    <strong>Open Hours</strong>
-                    {singleFormula.open_hours_completed}/{singleFormula.open_hours_required}
-                  </p>
-                </li>
-                  </>
-              ))}
-
-            </ul>
-          ) : (
-            <p>No service requirements recorded.</p>
-          )}
-        </section>
 
           {/* Notes */}
           <section className="full">

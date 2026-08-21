@@ -190,6 +190,7 @@ export const RequirementUpdateRequestType = {
   AMOUNT_PAID: "AMOUNT_PAID",
   MEETING_HOURS: "MEETING_HOURS",
   SERVICE_HOURS: "SERVICE_HOURS",
+  PROFILE_UPDATE: "PROFILE_UPDATE",
 } as const;
 
 export type RequirementUpdateRequestType =
@@ -565,6 +566,7 @@ export async function newFormUpdate(
   oldMemberInfo: MemberSnapshot | null,
   newPersonalData: string,
   newMemberData: string,
+  timestamp: number,
 ) {
   pb.autoCancellation(false);
 
@@ -586,6 +588,23 @@ export async function newFormUpdate(
     personal_info: newPersonalData,
     member_info: newMemberData,
     box_info: oldMemberInfo?.boxInfo,
+    created_at: now,
+    modified_at: now,
+  });
+
+  const newRequestUpdateRecord = await pb.collection("requirement_update_request").create({
+    user_id: snapshot.user_id,
+    member_id: snapshot.member_id,
+    member_snapshot_id: snapshot.id,
+    request_type: RequirementUpdateRequestType.PROFILE_UPDATE,
+    quantity: 0,
+    payment_type: "",
+    occurred_at: timestamp,
+    notes: "",
+    status: "PENDING",
+    reviewed_by: "",
+    reviewed_at: 0,
+    admin_notes: "",
     created_at: now,
     modified_at: now,
   });
@@ -1168,4 +1187,38 @@ export async function getMemberWorkFormula(
 export async function listLegacySnapshots() {
   pb.autoCancellation(false);
   return await pb.collection("legacy_snapshot").getList(1, 50);
+}
+
+export async function getMemberUpdateSnapshot(memberSnapshotId: string) {
+  pb.autoCancellation(false);
+  return await pb.collection("member_snapshot").getOne(memberSnapshotId);
+}
+
+export async function updateAcceptRequest(currentSnapshot: Record<string, any>){
+  pb.autoCancellation(false);
+  //find the user with that id from the currentSnapshot's user_id
+  const currentUser = await pb.collection("users").getFirstListItem(
+    `id = "${currentSnapshot.user_id}"`
+  )
+
+  //use the id from currentUser and find the member with that user_id
+  const currentMember = await pb.collection("member").getFirstListItem(
+    `user_id = "${currentUser.id}"`
+  )
+
+  //update the currentSnapshot id to the currentMember's member_snapshot_id
+  await pb.collection("member").update(`${currentMember.id}`, {
+    member_snapshot_id: `${currentSnapshot.id}`
+  })
+
+  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
+    notes: "Recently Updated"
+  })
+}
+
+export async function updateDenyRequest(currentSnapshot: Record<string, any>){
+  pb.autoCancellation(false);
+  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
+    notes: "Recently Denied"
+  })
 }
