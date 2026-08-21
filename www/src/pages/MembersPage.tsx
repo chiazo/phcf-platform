@@ -19,6 +19,9 @@ import {
   RequirementUpdateRequestType,
   correspondingWorkFormulas,
   exportMembersCSV,
+  getMemberUpdateSnapshot,
+  updateAcceptRequest,
+  updateDenyRequest
 } from "../lib/pocketbase";
 import { config } from "../lib/config";
 
@@ -28,10 +31,13 @@ import InputLabel from "@mui/material/InputLabel";
 import InputAdornment from "@mui/material/InputAdornment";
 import FormControl from "@mui/material/FormControl";
 import SearchIcon from "@mui/icons-material/Search";
+import Tooltip from "@mui/material/Tooltip";
+import AssignmentIcon from "@mui/icons-material/Assignment";
+import IconButton from "@mui/material/IconButton";
 
 import AdminStatusButton from "../components/AdminStatusButton";
 import MemberTable from "../components/MemberTable";
-import ModalTable from "../components/ModalTable";
+import MemberInfo from "../components/MemberInfo";
 
 function toNumber(value: unknown): number {
   const parsed = Number(value);
@@ -395,14 +401,38 @@ function RequirementUpdateRequestTable({
   requests: Array<Record<string, any>>;
   onActionComplete: () => void;
 }) {
+  const [currentMemberUpdateRequest, setCurrentMemberUpdateRequest] = useState<
+    Record<string, any>
+  >({});
   async function handleApprove(request: Record<string, any>) {
     await approveRequirementUpdateRequest(request);
+    if (request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE) {
+      updateAcceptRequest(request);
+    }
     onActionComplete();
   }
 
   async function handleDeny(request: Record<string, any>) {
     await denyRequirementUpdateRequest(request);
+    if (request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE) {
+      updateDenyRequest(request);
+    }
     onActionComplete();
+  }
+
+  function displayModal(request: Record<string, any>) {
+    const modal = document.getElementById("myModal");
+    getMemberUpdateSnapshot(request.member_snapshot_id)
+      .then((memberSnapshot) => {
+        console.log("Fetched member snapshot:", memberSnapshot);
+        setCurrentMemberUpdateRequest(memberSnapshot);
+      })
+      .catch((err) => {
+        console.error("Error fetching member snapshot:", err);
+      });
+    if (modal) {
+      modal.style.display = "block";
+    }
   }
 
   if (requests.length === 0) {
@@ -415,57 +445,77 @@ function RequirementUpdateRequestTable({
   }
 
   return (
-    <section>
-      <h2>Membership Requirement Update Requests</h2>
-      <div className="modal-table-wrapper always-visible-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Member</th>
-              <th>Type</th>
-              <th>Amount/Hours</th>
-              <th>Payment Type</th>
-              <th>Date</th>
-              <th>Notes</th>
-              <th></th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map((request) => (
-              <tr key={request.id}>
-                <td>{getRequestMemberLabel(request)}</td>
-                <td>{formatRequestType(request.request_type)}</td>
-                <td>{request.quantity}</td>
-                <td>{request.payment_type || "—"}</td>
-                <td>{formatDateFromSeconds(request.occurred_at)}</td>
-                <td>{request.notes || "—"}</td>
-                <td>
-                  <button
-                    className="icon-action approve-action"
-                    onClick={() => handleApprove(request)}
-                    type="button"
-                    title="Approve"
-                  >
-                    ✓
-                  </button>
-                </td>
-                <td>
-                  <button
-                    className="icon-action deny-action"
-                    onClick={() => handleDeny(request)}
-                    type="button"
-                    title="Deny"
-                  >
-                    ×
-                  </button>
-                </td>
+    <>
+      <section>
+        <h2>Membership Requirement Update Requests</h2>
+        <div className="modal-table-wrapper always-visible-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Type</th>
+                <th>Amount/Hours</th>
+                <th>Payment Type</th>
+                <th>Date</th>
+                <th>Notes</th>
+                <th></th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+            </thead>
+            <tbody>
+              {requests.map((request) => (
+                <tr key={request.id}>
+                  <td>{getRequestMemberLabel(request)}</td>
+                  <td>{formatRequestType(request.request_type)}</td>
+                  <td>{request.quantity}</td>
+                  <td>{request.payment_type || "—"}</td>
+                  <td>{formatDateFromSeconds(request.occurred_at)}</td>
+                  {request.request_type ===
+                  RequirementUpdateRequestType.PROFILE_UPDATE ? (
+                    <td>
+                      <Tooltip
+                        title="Member Update Info"
+                        onClick={() => displayModal(request)}
+                      >
+                        <IconButton>
+                          <AssignmentIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </td>
+                  ) : (
+                    <td>{request.notes || "—"}</td>
+                  )}
+                  <td>
+                    <button
+                      className="icon-action approve-action"
+                      onClick={() => handleApprove(request)}
+                      type="button"
+                      title="Approve"
+                    >
+                      ✓
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      className="icon-action deny-action"
+                      onClick={() => handleDeny(request)}
+                      type="button"
+                      title="Deny"
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <MemberInfo
+        member={currentMemberUpdateRequest}
+        onActionComplete={onActionComplete}
+      />
+    </>
   );
 }
 
@@ -488,20 +538,22 @@ export default function MembersPage() {
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
-  const [workFormulas, setAllFormulas] = useState<(Record<string, any> | null)>(null);
+  const [workFormulas, setAllFormulas] = useState<Record<string, any> | null>(
+    null,
+  );
 
   async function refreshApprovedMembers() {
     try {
       const res = await listApprovalUpdates();
-      setApprovedMembers(res.items);;
+      setApprovedMembers(res.items);
     } catch (err) {
       console.error("member fetch error:", err);
       setApprovedMembers([]);
     }
   }
 
-   async function memberWorkFormulas(members: Array<Record<string, any>>){
-   try {
+  async function memberWorkFormulas(members: Array<Record<string, any>>) {
+    try {
       const res = await correspondingWorkFormulas(members);
       return setAllFormulas(res.items);
     } catch (err) {
@@ -756,11 +808,6 @@ export default function MembersPage() {
 
           <RequirementUpdateRequestTable
             requests={requirementUpdateRequests}
-            onActionComplete={refreshMembers}
-          />
-
-          <ModalTable
-            members={approvedMembers}
             onActionComplete={refreshMembers}
           />
         </>
