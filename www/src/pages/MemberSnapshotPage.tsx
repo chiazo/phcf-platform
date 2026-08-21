@@ -13,6 +13,7 @@ import {
   updateMemberSnapshotDirect,
   updatePronouns,
   archiveSnapshotIfStale,
+  deleteDuplicateSnapshot,
 } from "../lib/pocketbase";
 import { useVolunteerInterests } from "../lib/form";
 
@@ -99,6 +100,7 @@ export default function MemberSnapshotPage() {
           setNotFound(true);
           return;
         }
+        console.log('raw:',raw)
 
         getMemberWorkFormula(raw)
           .then((result) => {
@@ -109,6 +111,7 @@ export default function MemberSnapshotPage() {
           });
 
         setMember(new MemberSnapshot(raw as any));
+        console.log('in the refresh member function, member snap:',member);
       })
       .catch((err) => {
         console.error("member snapshot fetch error:", err);
@@ -242,7 +245,9 @@ export default function MemberSnapshotPage() {
     // if snapshot.modified_at >3 months ago, create a legacy_snapshot with the not-yet-updated snapshot data
     if (id) {
       console.log('\nentering the archive snapshot helper with id:', id, ', and member:',member)
-      console.log('member.updatedDate:',member.updatedDate)
+      // console.log('member.updatedDate:',member.updatedDate)
+      // HERE HERE HERE
+      archiveSnapshotIfStale(id, member)
       // setIsStale(await archiveSnapshotIfStale(id, member));
       // should i break after creating the new snapshot
     };
@@ -363,10 +368,17 @@ export default function MemberSnapshotPage() {
     }
 
     await refreshMember();
+    console.log('did member change here after the refresh? member:',member);
 
     if (!hadError) {
       setEditMode(false);
     }
+
+    //  HERE HERE HERE
+    // delete second most recent snapshot to prevent snapshot duplicates
+    // model the deletion off of updateMemberSnapshotDirect from pocketbase.ts
+    deleteDuplicateSnapshot(member);
+
 
     setSubmitMessage(
       hadError
