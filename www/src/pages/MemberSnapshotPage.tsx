@@ -111,7 +111,6 @@ export default function MemberSnapshotPage() {
           });
 
         setMember(new MemberSnapshot(raw as any));
-        console.log('in the refresh member function, member snap:',member);
       })
       .catch((err) => {
         console.error("member snapshot fetch error:", err);
@@ -241,16 +240,24 @@ export default function MemberSnapshotPage() {
       return; // first click just enters edit mode, don't process the form yet
     }
     console.log('data entering onsubmit:',data);
+    // where do i get the most recent snapshot id?
+
+
+
+
+
     // archive old snapshots instead of creating new semi-copies
     // if snapshot.modified_at >3 months ago, create a legacy_snapshot with the not-yet-updated snapshot data
-    if (id) {
-      console.log('\nentering the archive snapshot helper with id:', id, ', and member:',member)
-      // console.log('member.updatedDate:',member.updatedDate)
-      // HERE HERE HERE
-      archiveSnapshotIfStale(id, member)
-      // setIsStale(await archiveSnapshotIfStale(id, member));
-      // should i break after creating the new snapshot
-    };
+    // if (id) {
+    //   console.log('\nentering the archive snapshot helper with id:', id, ', and member:',member)
+    //   // console.log('member.updatedDate:',member.updatedDate)
+    //   // HERE HERE HERE
+    //   //  i may want to pass in the specific 'older' snapshot,
+    //   // OR SHOUL THA TBE HANDLED IN THE FUNCTION 
+    //   archiveSnapshotIfStale(id, member)
+    //   // setIsStale(await archiveSnapshotIfStale(id, member));
+    //   // should i break after creating the new snapshot
+    // };
     // setIsStale(archiveSnapshotIfStale(id, member));
 
     // archiveSnapshotIfStale(id, member)
@@ -263,7 +270,7 @@ export default function MemberSnapshotPage() {
     setSubmitMessage(null);
     let hadError = false;
 
-    console.log('MSP data:',data);
+    // console.log('MSP data:',data);
     // console.log('MSP mod date:',modified_at);
 
     if (!isAdmin() && data.pronouns !== pronouns) {
@@ -346,7 +353,7 @@ export default function MemberSnapshotPage() {
       },
       role: `${data.memberRole}`,
     };
-
+    console.log('member data before update snap request, member:',member);
     if (isAdmin()) {
       await updateMemberSnapshotDirect(
         member,
@@ -368,7 +375,6 @@ export default function MemberSnapshotPage() {
     }
 
     await refreshMember();
-    console.log('did member change here after the refresh? member:',member);
 
     if (!hadError) {
       setEditMode(false);
@@ -377,6 +383,13 @@ export default function MemberSnapshotPage() {
     //  HERE HERE HERE
     // delete second most recent snapshot to prevent snapshot duplicates
     // model the deletion off of updateMemberSnapshotDirect from pocketbase.ts
+    // deleteDuplicateSnapshot calls archiveSnapshotIfStale on the most recent snapshot in storage
+    
+    
+    // the deleteDuplicateSnapshot leverages the archiveSnapshotIfStale helper function
+    // deleteDuplicateSnapshot deletes all but the most recent snapshot for a given user
+    // the archiveSnapshotIfStale helper function checks the modified_at date for the given snapshot
+    // and stores that snapshot as a legacy snapshot if the modified_at date is over 3 months old
     deleteDuplicateSnapshot(member);
 
 

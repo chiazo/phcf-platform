@@ -605,99 +605,31 @@ export async function deleteDuplicateSnapshot(
   // IF THE NEWLY EDITTED VERSION CANNOT BE APPROVED OF OR USED
 
   // need to sort filter by relevant user so as to not delete wrong records
-  
-
-  // VERSION 5
-  // console.log('member?.id:',member?.id)
-  // await pb.collection("member_snapshot").update(`${member?.id}`, {
-  //   notes: "Recently Denied",
-  // });
-  
-  
-  
-  
-  
-  
-  
-  
-  // VERSION 4
   // get list of all snapshots for a given user id
   // skipping the most recent snapshot, mark all extra snapshots to be deleted
+  if (!member){
+    return;
+  }
   const allSnapshots = await pb.collection("member_snapshot").getList(1,10, {filter:`member_id = "${member?.memberId}"`});
-  console.log('member?.memberId:',member?.memberId)
-  
-  // console.log('member?.member_id:',member?.member_id)
-  console.log('duplicateSnapshot:',allSnapshots)
-  console.log('duplicateSnapshot0:',allSnapshots.items[0])
-  console.log('duplicateSnapshot1:',allSnapshots.items[1])
   let totalSnapshotsLength = allSnapshots.items.length;
   if (totalSnapshotsLength>1){
     for (let i=1; i < totalSnapshotsLength; i++){
       if (i===(totalSnapshotsLength-1)){
-        console.log('i:',i, 'snapshot[i]:', allSnapshots.items[i])
+        
+        // if (allSnapshots[i].modified_at)
         // skip the 'last snapshot' aka the most recent bc we want to keep that as the current user's record
         continue;
       }
-      // check to make sure this isnt deleting the most recent request
-      console.log('item to be deleted:',allSnapshots.items[i]);
+      if (i===(totalSnapshotsLength-2)){
+        console.log('allSnapshots.items[i].id to be deleted:',allSnapshots.items[i].id);
+        archiveSnapshotIfStale(allSnapshots.items[i].id, member);
+        console.log('should we delete this one? allSnapshots.items[i].id:',allSnapshots.items[i].id);
+        continue;
+      }
       deleteRequest(allSnapshots.items[i]);
     }
   }
-  // if (duplicateSnapshot){
-  //   // let targetSnap = pb.findRecordById("member_snapshot",duplicateSnapshot.id)
-  //   // delete(targetSnap)
-  //   deleteRequest(duplicateSnapshot)
-  //   console.log('deleted:',duplicateSnapshot)
-  // }
  }
-
-
-
-  // version 3
-  // console.log('snapshotsList:',snapshotsList)
-  // if (snapshotsList.length > 1){
-  //   let count = 1;
-  //   for (snapshot in snapshotsList){
-  //     console.log('snapshot #',count,':',snapshot);
-  //     count++;
-      
-  //     // if the iterated-over snapshot time is older than the current [member] snapshot, 
-  //     // then delete the iterated-over snapshot time from the member_snapshot collection
-  //     // < because the older time[] is the smaller number
-  //     if (snapshot.modified_at < member.modified_at){
-  //       pb.collection("member_snapshot").findRecordById(snapshot.id).delete()
-
-  //     }
-  //   }
-
-
-    // version 2
-    // order snapshots chronologically ascending in time elapsed since creation
-    // snapshotsList.sort()
-    // while (snapshotsList.length>1){
-    //   poppedSnap = snapshotsList.pop()
-    //   // poppedID = pb.collection("member_snapshot").findRecordById(poppedSnap.id)
-    //   pb.collection("member_snapshot").findRecordById(poppedSnap.id).delete()
-    //   // await pb.delete(poppedID)
-    // }
- 
-
-
-
-  // version 1
-  // if (snapshotsList.length>1){
-  //   // check for current snap id in list and delete if not
-  //   console.log('member.id',member?.id);
-  //   // i need the currently generated id, is that coming from pb?
-  //   const newSnapshotFromOldID = await pb.collection("member_snapshot").getFirstListItem(`member_id ="${member?.memberId}"`);
-  //   // delete any entry that isn't the most recent snapshot
-  //   for (snapshot in snapshotsList){
-  //     if (snapshot!=newSnapshotFromOldID){
-  //       await pb.collection("member_snapshot").delete(snapshot);
-  //     }
-  //   }
-  // }
-
 
 export async function updateMemberSnapshotDirect(
   oldMemberInfo: MemberSnapshot | null,
@@ -1275,7 +1207,7 @@ export async function getMemberWorkFormula(
 // gets the full list of legacy snapshots from the legacy_snapshots collection
 export async function listLegacySnapshots() {
   pb.autoCancellation(false);
-  return await pb.collection("legacy_snapshot").getList(1, 50);
+  return await pb.collection("legacy_snapshots").getList(1, 50);
 }
 
 /**
@@ -1302,6 +1234,8 @@ export async function archiveSnapshotIfStale(
   }
 
   const modifiedAtRaw = (current as any).modified_at;
+  console.log('modifiedAtRaw',modifiedAtRaw);
+
   if (!modifiedAtRaw) {
     console.error("archiveSnapshotIfStale: snapshot has no modified_at");
     return;
@@ -1319,6 +1253,7 @@ export async function archiveSnapshotIfStale(
   }
 
   const isStale = Date.now() - modifiedAtMs > THREE_MONTHS_MS;
+  console.log('stale:',isStale);
 
   const { notes, updatedBy, memberId, personalInfo, memberInfo } = member as any;
   const legacyPayload = {
@@ -1330,40 +1265,16 @@ export async function archiveSnapshotIfStale(
     member_info: memberInfo,
     box_info: (current as any).box_info ?? {},
   };
-  console.log('\nthis is the legacy payload:', legacyPayload)
+  console.log('leg pay:',legacyPayload);
 
   if (isStale) {
     try {
-      await pb.collection("legacy_snapshot").create(legacyPayload);
+      console.log('attempting to make legacy snap')
+      await pb.collection("legacy_snapshots").create(legacyPayload);
     } catch (err) {
       console.error("archiveSnapshotIfStale: failed to archive stale snapshot:", err);
     }
     return;
   }
   return;
-
-  // Not stale: update the existing member_snapshot record for this member
-  // rather than creating a new one.
-  // console.log('NOT STALE!');
-  // console.log('escapePocketBaseString(memberId)',escapePocketBaseString(memberId));
-  // try {
-  //   const existingMemberSnapshot = await pb
-  //     .collection("member_snapshot")
-  //     .getFirstListItem(`member_id = "${escapePocketBaseString(memberId)}"`);
-
-  //   await pb.collection("member_snapshot").update(existingMemberSnapshot.id, legacyPayload);
-  // } catch (err: any) {
-  //   if (err?.status === 404) {
-  //     // No legacy record exists yet for this member — create one so
-  //     // future updates have something to target.
-  //     try {
-  //       console.log('no existing membersnapshot');
-  //       await pb.collection("member_snapshot").create(legacyPayload);
-  //     } catch (createErr) {
-  //       console.error("archiveSnapshotIfStale: failed to create initial member snapshot:", createErr);
-  //     }
-  //     return;
-  //   }
-
-    // console.error("archiveSnapshotIfStale: failed to update latest member snapshot:", err);
 }
