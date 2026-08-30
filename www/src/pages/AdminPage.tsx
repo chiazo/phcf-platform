@@ -123,7 +123,11 @@ export default function AdminPage() {
             </Link>
           </div>
         </div>
-        <button className="secondary page-logout-button" onClick={handleLogout} type="button">
+        <button
+          className="secondary page-logout-button"
+          onClick={handleLogout}
+          type="button"
+        >
           Log out
         </button>
       </div>
@@ -137,7 +141,8 @@ export default function AdminPage() {
           board members only).
         </p>
         <p className="muted">
-          For board members transitioning to regular members, click "No longer a board member" to remove their admin access.
+          For board members transitioning to regular members, click "No longer a
+          board member" to remove their admin access.
         </p>
         <Box sx={{ display: "flex", flexWrap: "wrap", mb: 2 }}>
           <FormControl fullWidth>
@@ -155,63 +160,65 @@ export default function AdminPage() {
             />
           </FormControl>
         </Box>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Admin</th>
-              <th>Superuser</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.map((user) => {
-              const isSelf = currentUser()?.email === user.email;
-              return (
-                <tr key={user.id}>
-                  <td>{user.name || "—"}</td>
-                  <td>{user.email}</td>
-                  <td>{user.is_admin ? "Yes" : "No"}</td>
-                  <td>
-                    {user.is_superuser
-                      ? "Yes"
-                      : user.is_admin
-                        ? "On next login"
-                        : "No"}
-                  </td>
-                  <td>
-                    {user.is_admin ? (
-                      <button
-                        className="secondary"
-                        disabled={busyUserId === user.id || isSelf}
-                        onClick={() => updateAdminStatus(user, false)}
-                        type="button"
-                      >
-                        No longer a board member
-                      </button>
-                    ) : (
-                      <button
-                        disabled={busyUserId === user.id}
-                        onClick={() => updateAdminStatus(user, true)}
-                        type="button"
-                      >
-                        Make admin
-                      </button>
-                    )}
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Admin</th>
+                <th>Superuser</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map((user) => {
+                const isSelf = currentUser()?.email === user.email;
+                return (
+                  <tr key={user.id}>
+                    <td>{user.name || "—"}</td>
+                    <td>{user.email}</td>
+                    <td>{user.is_admin ? "Yes" : "No"}</td>
+                    <td>
+                      {user.is_superuser
+                        ? "Yes"
+                        : user.is_admin
+                          ? "On next login"
+                          : "No"}
+                    </td>
+                    <td>
+                      {user.is_admin ? (
+                        <button
+                          className="secondary"
+                          disabled={busyUserId === user.id || isSelf}
+                          onClick={() => updateAdminStatus(user, false)}
+                          type="button"
+                        >
+                          No longer a board member
+                        </button>
+                      ) : (
+                        <button
+                          disabled={busyUserId === user.id}
+                          onClick={() => updateAdminStatus(user, true)}
+                          type="button"
+                        >
+                          Make admin
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td className="muted" colSpan={5}>
+                    No users match that search.
                   </td>
                 </tr>
-              );
-            })}
-            {filteredUsers.length === 0 && (
-              <tr>
-                <td className="muted" colSpan={5}>
-                  No users match that search.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </>
   );

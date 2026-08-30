@@ -257,129 +257,133 @@ export default function BoxInfoPage() {
       {allBoxes.length === 0 && !loadError ? (
         <p className="muted">No boxes found.</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Box Name</th>
-              <th>Box Number</th>
-              <th>Status</th>
-              <th>Members</th>
-              <th>Waitlist</th>
-              <th>Updated By</th>
-              {/* <th>Notes</th> */}
-              {isAdmin() && <th>Actions</th>}
-            </tr>
-          </thead>
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Box Name</th>
+                <th>Box Number</th>
+                <th>Status</th>
+                <th>Members</th>
+                <th>Waitlist</th>
+                <th>Updated By</th>
+                {/* <th>Notes</th> */}
+                {isAdmin() && <th>Actions</th>}
+              </tr>
+            </thead>
 
-          <tbody>
-            {allBoxes.map((box) => {
-              const boxMembers = Array.isArray(box.box_members)
-                ? box.box_members
-                : [];
+            <tbody>
+              {allBoxes.map((box) => {
+                const boxMembers = Array.isArray(box.box_members)
+                  ? box.box_members
+                  : [];
 
-              const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
+                const waitlist = Array.isArray(box.waitlist)
+                  ? box.waitlist
+                  : [];
 
-              const isCurrentUserBox = box.box_members_names.includes(
-                currUser?.name,
-              );
-              return (
-                <tr
-                  key={box.id}
-                  className={isCurrentUserBox ? "current-user-box" : ""}
-                >
-                  <td>{box.box_name || "—"}</td>
+                const isCurrentUserBox = box.box_members_names.includes(
+                  currUser?.name,
+                );
+                return (
+                  <tr
+                    key={box.id}
+                    className={isCurrentUserBox ? "current-user-box" : ""}
+                  >
+                    <td>{box.box_name || "—"}</td>
 
-                  <td>{box.box_number}</td>
+                    <td>{box.box_number}</td>
 
-                  <td>
-                    <span className="badge">
-                      {boxMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED"}
-                    </span>
-                  </td>
-
-                  <td>
-                    {box.box_members_names?.length
-                      ? box.box_members_names.join(", ")
-                      : "—"}
-                  </td>
-
-                  <td>
-                    {box.waitlist_names?.length
-                      ? box.waitlist_names
-                          .map((entry: { name: string }) => entry.name)
-                          .join(", ")
-                      : "—"}
-                  </td>
-
-                  <td>{box.updated_by || "—"}</td>
-
-                  {isAdmin() && (
                     <td>
-                      <div className="button-row">
-                        {boxMembers.map((memberId: string, index: number) => {
-                          const isRemoving = removingMemberId === memberId;
-                          const memberName =
-                            box.box_members_names?.[index] || memberId;
+                      <span className="badge">
+                        {boxMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED"}
+                      </span>
+                    </td>
 
-                          return (
-                            <button
-                              key={`remove-box-${memberId}`}
-                              type="button"
-                              className="box-action-button"
-                              disabled={isRemoving}
-                              onClick={() => handleRemoveFromBox(memberId)}
-                            >
-                              {isRemoving
-                                ? "Removing..."
-                                : `Remove ${memberName.split(" ")[0]} ${memberName.split(" ").at(-1)?.[0] ?? ""}.`}
-                            </button>
-                          );
-                        })}
+                    <td>
+                      {box.box_members_names?.length
+                        ? box.box_members_names.join(", ")
+                        : "—"}
+                    </td>
 
-                        {waitlist.map(
-                          (
-                            entry: {
-                              member_id: string;
-                              join_date?: number;
-                              position: number;
-                            },
-                            index: number,
-                          ) => {
-                            const isRemoving =
-                              removingMemberId === entry.member_id;
+                    <td>
+                      {box.waitlist_names?.length
+                        ? box.waitlist_names
+                            .map((entry: { name: string }) => entry.name)
+                            .join(", ")
+                        : "—"}
+                    </td>
+
+                    <td>{box.updated_by || "—"}</td>
+
+                    {isAdmin() && (
+                      <td>
+                        <div className="button-row">
+                          {boxMembers.map((memberId: string, index: number) => {
+                            const isRemoving = removingMemberId === memberId;
                             const memberName =
-                              box.waitlist_names?.[index]?.name ||
-                              entry.member_id;
+                              box.box_members_names?.[index] || memberId;
 
                             return (
                               <button
-                                key={`remove-waitlist-${entry.member_id}`}
+                                key={`remove-box-${memberId}`}
                                 type="button"
                                 className="box-action-button"
                                 disabled={isRemoving}
-                                onClick={() =>
-                                  handleRemoveFromWaitlist(entry.member_id)
-                                }
+                                onClick={() => handleRemoveFromBox(memberId)}
                               >
                                 {isRemoving
                                   ? "Removing..."
                                   : `Remove ${memberName.split(" ")[0]} ${memberName.split(" ").at(-1)?.[0] ?? ""}.`}
                               </button>
                             );
-                          },
-                        )}
+                          })}
 
-                        {boxMembers.length === 0 && waitlist.length === 0 && (
-                          <span className="muted">No actions</span>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                          {waitlist.map(
+                            (
+                              entry: {
+                                member_id: string;
+                                join_date?: number;
+                                position: number;
+                              },
+                              index: number,
+                            ) => {
+                              const isRemoving =
+                                removingMemberId === entry.member_id;
+                              const memberName =
+                                box.waitlist_names?.[index]?.name ||
+                                entry.member_id;
+
+                              return (
+                                <button
+                                  key={`remove-waitlist-${entry.member_id}`}
+                                  type="button"
+                                  className="box-action-button"
+                                  disabled={isRemoving}
+                                  onClick={() =>
+                                    handleRemoveFromWaitlist(entry.member_id)
+                                  }
+                                >
+                                  {isRemoving
+                                    ? "Removing..."
+                                    : `Remove ${memberName.split(" ")[0]} ${memberName.split(" ").at(-1)?.[0] ?? ""}.`}
+                                </button>
+                              );
+                            },
+                          )}
+
+                          {boxMembers.length === 0 && waitlist.length === 0 && (
+                            <span className="muted">No actions</span>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* =========================================================

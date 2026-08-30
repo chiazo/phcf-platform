@@ -163,32 +163,34 @@ export default function WorkFormulaPage() {
             (allFormulas.length === 0 && !loadError ? (
               <p className="muted">No Work Formulas found.</p>
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Member</th>
-                    <th>Work Hours Required</th>
-                    <th>Work Hours Completed</th>
-                    <th>Open Hours Required</th>
-                    <th>Open Hours Completed</th>
-                    <th>Created At</th>
-                    <th>Modified At</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allFormulas.map((wf) => (
-                    <tr key={wf.id}>
-                      <td>{getMemberLabel(wf)}</td>
-                      <td>{wf.work_hours_required}</td>
-                      <td>{wf.work_hours_completed}</td>
-                      <td>{wf.open_hours_required}</td>
-                      <td>{wf.open_hours_completed}</td>
-                      <td>{wf.created_at}</td>
-                      <td>{wf.modified_at}</td>
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Member</th>
+                      <th>Work Hours Required</th>
+                      <th>Work Hours Completed</th>
+                      <th>Open Hours Required</th>
+                      <th>Open Hours Completed</th>
+                      <th>Created At</th>
+                      <th>Modified At</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {allFormulas.map((wf) => (
+                      <tr key={wf.id}>
+                        <td>{getMemberLabel(wf)}</td>
+                        <td>{wf.work_hours_required}</td>
+                        <td>{wf.work_hours_completed}</td>
+                        <td>{wf.open_hours_required}</td>
+                        <td>{wf.open_hours_completed}</td>
+                        <td>{wf.created_at}</td>
+                        <td>{wf.modified_at}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ))}
         </div>
       </div>
