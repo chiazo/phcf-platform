@@ -72,6 +72,14 @@ func main() {
 			return err
 		}
 
+		if len(os.Args) >= 3 && os.Args[1] == "--import" {
+			if err := runImportCLI(e.App, os.Args[2:]); err != nil {
+				return err
+			}
+
+			os.Exit(0)
+		}
+
 		return ensureAppCollections(app)
 	})
 
@@ -82,6 +90,7 @@ func main() {
 		e.Router.POST("/api/app/admin/users/{id}/demote", demoteAdminUser(app))
 		e.Router.POST("/api/app/admin/work-formula/bulk-update", bulkUpdateWorkFormula(app))
 		e.Router.GET("/api/app/admin/export/members", exportMembersCSV(app))
+		e.Router.POST("/api/admin/import-members", importMembersCSV(app))
 
 		return e.Next()
 	})

@@ -122,5 +122,9 @@ switch .env `BACKEND_PROVIDER` between `fly` and `gcp` depending on desired prov
 `node scripts/pb-seed.mjs --users 5 --boxes 5 --work-formulas 5
 `
 
+## Seed Real Data
+`server/app --import <path-to-csv>.csv --dry-run`
+`server/app --import <path-to-csv>.csv`
+
 ## Wipe GCP 
 `./gcp-manage.sh reset`
