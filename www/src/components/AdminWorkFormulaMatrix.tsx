@@ -7,13 +7,6 @@ import {
   WorkFormulaCriteria,
 } from "../lib/pocketbase";
 
-const boardRoleValues = [
-  MemberRole.PRESIDENT,
-  MemberRole.VICE_PRESIDENT,
-  MemberRole.SECRETARY,
-  MemberRole.TREASURER,
-];
-
 interface Props {
   members: Array<Record<string, any>>; // from allFormulas, for the member override dropdown
   onApplied: () => void; // re-fetch the formula list after a successful apply

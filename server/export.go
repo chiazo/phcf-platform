@@ -15,10 +15,7 @@ func resolveServiceHourCategory(role string, category string) string {
 	if boardRoles[role] {
 		return "BOARD"
 	}
-	if category == "" {
-		return "GOOD_STANDING"
-	}
-	return category
+	return ""
 }
 
 func loadServiceHourRates(app core.App) (map[string]float64, error) {
@@ -188,18 +185,59 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 			snapshots[snapshot.Id] = snapshot
 		}
 
+		requirementRequests := []*core.Record{}
+		if err := app.RecordQuery("requirement_update_request").All(&requirementRequests); err != nil {
+			return e.InternalServerError(
+				"Could not load requirement update requests.",
+				err,
+			)
+		}
+
+		requestsByMemberID := make(map[string][]*core.Record)
+
+		for _, request := range requirementRequests {
+			memberID := request.GetString("member_id")
+			if memberID == "" {
+				continue
+			}
+
+			requestsByMemberID[memberID] = append(
+				requestsByMemberID[memberID],
+				request,
+			)
+		}
+
 		boxes := []*core.Record{}
 		if err := app.RecordQuery("boxes").All(&boxes); err != nil {
 			return e.InternalServerError("Could not load boxes.", err)
 		}
 
 		boxByMemberID := make(map[string]*core.Record)
+		waitlistByMemberID := make(map[string]*WaitlistEntry)
 
 		for _, box := range boxes {
+			// Assigned/current box
 			memberIDs := box.GetStringSlice("box_members")
 
 			for _, memberID := range memberIDs {
 				boxByMemberID[memberID] = box
+			}
+
+			// Waitlist
+			var entries []WaitlistEntry
+
+			if err := box.UnmarshalJSONField("waitlist", &entries); err != nil {
+				fmt.Printf(
+					"EXPORT WARNING: could not parse waitlist for box %s: %v\n",
+					box.Id,
+					err,
+				)
+				continue
+			}
+
+			for i := range entries {
+				entry := entries[i]
+				waitlistByMemberID[entry.MemberID] = &entry
 			}
 		}
 
@@ -213,44 +251,52 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 			snapshotID := member.GetString("member_snapshot_id")
 
 			snapshot, ok := snapshots[snapshotID]
+
 			if !ok {
-				continue
+				fmt.Printf(
+					"EXPORT WARNING: member %s has no snapshot %s\n",
+					member.Id,
+					snapshotID,
+				)
 			}
 
 			var personal ExportPersonalInfo
 			var memberInfo ExportMemberInfo
 
-			if err := snapshot.UnmarshalJSONField(
-				"personal_info",
-				&personal,
-			); err != nil {
-				continue
+			if snapshot != nil {
+				if err := snapshot.UnmarshalJSONField(
+					"personal_info",
+					&personal,
+				); err != nil {
+					fmt.Printf(
+						"EXPORT WARNING: member %s snapshot %s personal_info: %v\n",
+						member.Id,
+						snapshot.Id,
+						err,
+					)
+				}
+
+				if err := snapshot.UnmarshalJSONField(
+					"member_info",
+					&memberInfo,
+				); err != nil {
+					fmt.Printf(
+						"EXPORT WARNING: member %s snapshot %s member_info: %v\n",
+						member.Id,
+						snapshot.Id,
+						err,
+					)
+				}
 			}
 
-			if err := snapshot.UnmarshalJSONField(
-				"member_info",
-				&memberInfo,
-			); err != nil {
-				continue
-			}
 			boxWaitingList := false
 			boxNumber := ""
 			sharingBox := "No"
 			waitlistNumber := ""
 			waitlistJoinDate := ""
 
-			var box *core.Record
-			if found, ok := boxByMemberID[member.Id]; ok {
-				box = found
-			}
-
-			if box != nil {
-				if entry := getWaitlistEntry(box, member.Id); entry != nil {
-					boxWaitingList = true
-					waitlistNumber = fmt.Sprintf("%d", entry.Position)
-					waitlistJoinDate = formatUnixMDY(entry.JoinDate)
-				}
-
+			// Assigned/current box
+			if box, ok := boxByMemberID[member.Id]; ok {
 				if box.GetFloat("box_number") != 0 {
 					boxNumber = fmt.Sprintf("%.0f", box.GetFloat("box_number"))
 				}
@@ -260,9 +306,27 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 				}
 			}
 
+			// Waitlist
+			if entry, ok := waitlistByMemberID[member.Id]; ok {
+				boxWaitingList = true
+				waitlistNumber = fmt.Sprintf("%d", entry.Position)
+				waitlistJoinDate = formatUnixMDY(entry.JoinDate)
+			}
+
 			// Service Hours Percentage Required
 			category := resolveServiceHourCategory(memberInfo.Role, memberInfo.Category)
-			serviceHourPercentage := serviceHourRates[category] // 0 if category has no configured rate yet
+			requirementStatus := " — "
+
+			if category == "BOARD" {
+				requirementStatus = "Board"
+			} else if allRequirementsApproved(requestsByMemberID[member.Id]) {
+				requirementStatus = "Good Standing"
+			}
+			serviceHourPercentage := 100.0
+
+			if rate, ok := serviceHourRates[category]; ok {
+				serviceHourPercentage = rate
+			}
 
 			writer.Write([]string{
 
@@ -282,8 +346,7 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 				personal.EmailInfo.PrimaryEmail,
 
 				// Status for 2026 & Exemptions
-				// TODO: add mapping later
-				"",
+				requirementStatus,
 
 				// Service Hours Percentage Required
 				fmt.Sprintf("%.2f%%", serviceHourPercentage),
@@ -460,4 +523,34 @@ func getWaitlistEntry(box *core.Record, memberID string) *WaitlistEntry {
 	}
 
 	return nil
+}
+
+func allRequirementsApproved(
+	requests []*core.Record,
+) bool {
+	requiredTypes := map[string]bool{
+		"AMOUNT_PAID":   false,
+		"MEETING_HOURS": false,
+		"SERVICE_HOURS": false,
+	}
+
+	for _, request := range requests {
+		requestType := request.GetString("request_type")
+
+		if _, ok := requiredTypes[requestType]; !ok {
+			continue
+		}
+
+		if request.GetString("status") == "APPROVED" {
+			requiredTypes[requestType] = true
+		}
+	}
+
+	for _, approved := range requiredTypes {
+		if !approved {
+			return false
+		}
+	}
+
+	return true
 }

@@ -292,16 +292,16 @@ export default function MemberSnapshotPage() {
 
     const needsApprovalMember = {
       dues: {
-        amountPaid: `${data.amountPaid}`,
+        amountPaid: data.amountPaid,
         dueState: data.dueState,
         duesPaidAt: Math.floor(new Date(data.duesPaidAt).getTime() / 1000),
         paymentType: `${data.paymentType}`,
       },
       memberState: data.memberState,
-      memberType: `${data.memberType}`,
+      memberType: data.memberType,
       orientationDate: orientationDate,
       requirements: {
-        meetingsCompleted: `${data.meetingsCompleted}`,
+        meetingsCompleted: data.meetingsCompleted,
         meetingsRequired: meetingsRequired,
         serviceHoursRequired: serviceHoursRequired,
         serviceRequirements: serviceRequirements,
@@ -557,7 +557,10 @@ export default function MemberSnapshotPage() {
             </p>
             <p>
               <strong>Amount Paid</strong>
-              <input {...register("amountPaid")} disabled={!editMode} />
+              <input
+                {...register("amountPaid", { valueAsNumber: true })}
+                disabled={!editMode}
+              />
             </p>
             <p>
               <strong>Payment Type</strong>
@@ -595,7 +598,7 @@ export default function MemberSnapshotPage() {
               <strong>Meetings Completed</strong>
               <input
                 id="meetingsInput"
-                {...register("meetingsCompleted")}
+                {...register("meetingsCompleted", { valueAsNumber: true })}
                 disabled={!editMode}
               />{" "}
               / {meetingsRequired} Required

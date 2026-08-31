@@ -119,7 +119,7 @@ switch .env `BACKEND_PROVIDER` between `fly` and `gcp` depending on desired prov
 
 ## Seed Fake Data
 
-`node scripts/pb-seed.mjs --users 3 --boxes 3 --work-formulas 3
+`node scripts/pb-seed.mjs --users 5 --boxes 5 --work-formulas 5
 `
 
 ## Wipe GCP 

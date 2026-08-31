@@ -20,10 +20,15 @@ import (
 // boardRoles mirrors models/enums.ts MemberRole — every role other than
 // ROLE_INVALID / PENDING counts as "on the board."
 var boardRoles = map[string]bool{
-	"PRESIDENT":      true,
-	"VICE_PRESIDENT": true,
-	"SECRETARY":      true,
-	"TREASURER":      true,
+	"SECRETARY":                 true,
+	"TREASURER":                 true,
+	"GENERAL_COORDINATOR":       true,
+	"COMMUNICATION_COORDINATOR": true,
+	"SERVICE_HOUR_COORDINATOR":  true,
+	"BOX_COORDINATOR":           true,
+	"COMPOST_COORDINATOR":       true,
+	"LAND_TRUST_REPRESENTATIVE": true,
+	"MASTER_GARDENER":           true,
 }
 
 var serviceHourCategories = []string{

@@ -174,10 +174,7 @@ function describeError(err) {
 // Fake data builders — one per real collection in your schema
 // ---------------------------------------------------------------------------
 
-function fakeMemberSnapshotPayload(userId) {
-  const firstName = faker.person.firstName();
-  const lastName = faker.person.lastName();
-
+function fakeMemberSnapshotPayload(userId, firstName, lastName, email) {
   return {
     user_id: userId,
     // member_id is intentionally omitted here — member doesn't exist yet.
@@ -196,13 +193,11 @@ function fakeMemberSnapshotPayload(userId) {
         zipCode: faker.location.zipCode(),
       },
       emailInfo: {
-        primaryEmail: faker.internet
-          .email({ firstName, lastName })
-          .toLowerCase(),
+        primaryEmail: email,
         onMailingList: faker.datatype.boolean(),
       },
       phoneInfo: {
-        primaryPhoneNumber: faker.phone.number("###-###-####"),
+        primaryPhoneNumber: fakePhoneNumber(),
       },
     },
 
@@ -282,6 +277,13 @@ function fakeBoxPayload(memberIdsPool, boxNumber) {
   };
 }
 
+function fakePhoneNumber() {
+  return `${faker.number.int({ min: 100, max: 999 })}-${faker.number.int({
+    min: 100,
+    max: 999,
+  })}-${faker.number.int({ min: 1000, max: 9999 })}`;
+}
+
 function fakeWorkFormulaPayload(memberIdTextPool) {
   const workRequired = faker.number.int({ min: 10, max: 60 });
   const openRequired = faker.number.int({ min: 5, max: 30 });
@@ -303,16 +305,18 @@ function fakeWorkFormulaPayload(memberIdTextPool) {
     "Snow/Ice Removal/Prevention",
     "Victory Garden",
     "Work Day",
-    "Taking trash to curb"
-  ]
+    "Taking trash to curb",
+  ];
 
   return {
     member_id: memberIdTextPool.length
       ? faker.helpers.arrayElement(memberIdTextPool)
       : faker.string.alphanumeric(8).toUpperCase(),
     volunteer_activity: faker.helpers.arrayElement(type_of_acitivties),
-    volunteer_date: Math.floor(faker.date.recent({ days: 90 }).getTime() / 1000,),
-    volunteer_hours: faker.number.int({ min: 0, max: 12}),
+    volunteer_date: Math.floor(
+      faker.date.recent({ days: 90 }).getTime() / 1000,
+    ),
+    volunteer_hours: faker.number.int({ min: 0, max: 12 }),
     work_hours_required: workRequired,
     work_hours_completed: faker.number.int({ min: 0, max: workRequired }),
     open_hours_required: openRequired,
@@ -374,7 +378,12 @@ async function seedUsersWithProfiles(pb, count) {
 
       // Step 1: create the snapshot without member_id (member doesn't
       // exist yet).
-      const snapshotPayload = fakeMemberSnapshotPayload(user.id);
+      const snapshotPayload = fakeMemberSnapshotPayload(
+        user.id,
+        firstName,
+        lastName,
+        email,
+      );
       const snapshot = await pb
         .collection("member_snapshot")
         .create(snapshotPayload);
@@ -475,8 +484,8 @@ function fakeLegacySnapshotPayload(memberIdsPool) {
         onMailingList: faker.datatype.boolean(),
       },
       phoneInfo: {
-        primaryPhoneNumber: faker.phone.number("###-###-####"),
-        secondaryPhoneNumber: "",
+        primaryPhoneNumber: fakePhoneNumber(),
+        secondaryPhoneNumber: fakePhoneNumber(),
       },
     },
 
@@ -487,7 +496,7 @@ function fakeLegacySnapshotPayload(memberIdsPool) {
         "EXEMPT",
         "INACTIVE",
       ]),
-      memberType: faker.helpers.arrayElement(["GENERAL", "ADMIN"]),
+      memberType: faker.helpers.arrayElement(["GENERAL"]),
       memberState: faker.helpers.arrayElement(["PENDING", "APPROVED"]),
       orientationDate: Math.floor(
         faker.date.past({ years: 2 }).getTime() / 1000,
