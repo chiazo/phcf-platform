@@ -12,7 +12,6 @@ import {
   getCurrentUserMemberSnapshot,
   getMemberUpdateSnapshot,
   getOrCreateCurrentUserMemberSnapshot,
-  isAdmin,
   isLoggedIn,
   listApprovalUpdates,
   listMemberSnapshots,
@@ -39,6 +38,15 @@ import Header from "../components/Header";
 import MemberInfo from "../components/MemberInfo";
 import MemberTable from "../components/MemberTable";
 import { DueState } from "../models/enums";
+import { isAdmin } from "../lib/pocketbase";
+
+type AdminView = "members" | "requests" | "member-progress";
+
+const ADMIN_VIEWS: Array<{ id: AdminView; label: string }> = [
+  { id: "members", label: "All Members" },
+  { id: "requests", label: "Requirement Update Requests" },
+  { id: "member-progress", label: "My Progress" },
+];
 
 function toNumber(value: unknown): number {
   const parsed = Number(value);
@@ -95,10 +103,12 @@ function MemberPersonalView({
   member,
   requests,
   onRequestSubmitted,
+  isAdmin,
 }: {
   member: Record<string, any>;
   requests: Array<Record<string, any>>;
   onRequestSubmitted?: () => void;
+  isAdmin: boolean;
 }) {
   const { interests: volunteerInterestOptions } = useVolunteerInterests();
 
@@ -499,7 +509,7 @@ function MemberPersonalView({
         </table>
         <p style={{ textAlign: "center" }}>
           <Link className="button-link secondary" to={`/snapshot/${member.id}`}>
-            Edit (Admin Approval Needed)
+            Edit{!isAdmin && " (Admin Approval Needed)"}
           </Link>
         </p>
       </section>
@@ -959,9 +969,22 @@ export default function MembersPage() {
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
-  const [workFormulas, setAllFormulas] = useState<Record<string, any> | null>(
-    null,
+  const [workFormulas, setAllFormulas] = useState<Array<Record<string, any>>>(
+    [],
   );
+  const [selectedView, setSelectedView] = useState<AdminView>("members");
+
+  async function handleMyProgressClick() {
+    try {
+      const snapshot =
+        adminSnapshot ?? (await getOrCreateCurrentUserMemberSnapshot());
+
+      setAdminSnapshot(snapshot);
+      setSelectedView("member-progress");
+    } catch (err) {
+      console.error("admin snapshot create/fetch error:", err);
+    }
+  }
 
   async function refreshApprovedMembers() {
     try {
@@ -1007,12 +1030,15 @@ export default function MembersPage() {
 
   function refreshAllMembers() {
     return listMemberSnapshots()
-      .then((res) => {
+      .then(async (res) => {
         setAllMembers(res.items);
+
+        await memberWorkFormulas(res.items);
       })
       .catch((err) => {
-        console.error("requirement update request fetch error:", err);
-        setRequirementUpdateRequests([]);
+        console.error("member fetch error:", err);
+        setAllMembers([]);
+        setAllFormulas([]);
       });
   }
 
@@ -1049,6 +1075,7 @@ export default function MembersPage() {
         refreshApprovedMembers(),
         refreshAllMembers(),
         refreshRequirementUpdateRequests(),
+        refreshMyRequirementUpdateRequests(),
         refreshAdminSnapshot(),
       ]);
     }
@@ -1056,6 +1083,7 @@ export default function MembersPage() {
     setApprovedMembers([]);
     setRequirementUpdateRequests([]);
     setAdminSnapshot(null);
+
     return Promise.all([
       refreshAllMembers(),
       refreshMyRequirementUpdateRequests(),
@@ -1180,38 +1208,81 @@ export default function MembersPage() {
 
       {currentIsAdmin ? (
         <>
-          <Box sx={{ display: "flex", flexWrap: "wrap", bgcolor: "primary" }}>
-            <Box sx={{ width: { xs: "100%", sm: 420, md: 560 } }}>
-              <FormControl fullWidth sx={{ m: 1 }}>
-                <InputLabel htmlFor={`${outlinedAmountId}-input`}>
-                  Search
-                </InputLabel>
-                <OutlinedInput
-                  id={`${outlinedAmountId}-input`}
-                  startAdornment={
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
+          <nav className="admin-view-nav">
+            {ADMIN_VIEWS.map((view) => (
+              <button
+                key={view.id}
+                type="button"
+                className={
+                  "admin-view-nav-item" +
+                  (selectedView === view.id ? " active" : "")
+                }
+                onClick={() => {
+                  if (view.id === "member-progress") {
+                    handleMyProgressClick();
+                  } else {
+                    setSelectedView(view.id);
                   }
-                  label="Search"
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </FormControl>
-            </Box>
-          </Box>
+                }}
+              >
+                {view.label}
+              </button>
+            ))}
+          </nav>
 
-          <MemberTable members={items} work_formulas={[]} />
+          {selectedView === "members" && (
+            <>
+              {/* Search */}
+              <Box
+                sx={{ display: "flex", flexWrap: "wrap", bgcolor: "primary" }}
+              >
+                <Box sx={{ width: "100%", p: 3 }}>
+                  <FormControl fullWidth>
+                    <InputLabel htmlFor={`${outlinedAmountId}-input`}>
+                      Search
+                    </InputLabel>
+                    <OutlinedInput
+                      id={`${outlinedAmountId}-input`}
+                      sx={{ backgroundColor: "white" }}
+                      startAdornment={
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      }
+                      label="Search"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                    />
+                  </FormControl>
+                </Box>
+              </Box>
 
-          <RequirementUpdateRequestTable
-            requests={requirementUpdateRequests}
-            onActionComplete={refreshMembers}
-          />
+              <MemberTable members={items} work_formulas={workFormulas} />
+            </>
+          )}
+
+          {selectedView === "requests" && (
+            <RequirementUpdateRequestTable
+              requests={requirementUpdateRequests}
+              onActionComplete={refreshMembers}
+            />
+          )}
+
+          {selectedView === "member-progress" && adminSnapshot && (
+            <MemberPersonalView
+              member={adminSnapshot}
+              requests={myRequirementUpdateRequests}
+              onRequestSubmitted={refreshMembers}
+              isAdmin={currentIsAdmin}
+            />
+          )}
         </>
       ) : currentMember ? (
         <MemberPersonalView
           member={currentMember}
           requests={myRequirementUpdateRequests}
           onRequestSubmitted={refreshMembers}
+          isAdmin={currentIsAdmin}
         />
       ) : (
         <p className="muted">No member snapshot found.</p>

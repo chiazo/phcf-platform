@@ -936,6 +936,12 @@ func buildMemberPayload(row memberImportRow) map[string]any {
 }
 
 func buildSnapshotPayload(row memberImportRow) map[string]any {
+
+	dueState := "UNPAID"
+	if row.DuesPaidAt >= 10 {
+		dueState = "PAID"
+	}
+
 	memberInfo := map[string]any{
 		"memberType":  row.MemberType,
 		"memberState": row.MemberState,
@@ -949,6 +955,7 @@ func buildSnapshotPayload(row memberImportRow) map[string]any {
 
 		"dues": map[string]any{
 			"amountPaid":  row.AmountPaid,
+			"dueState":    dueState,
 			"duesPaidAt":  row.DuesPaidAt,
 			"paymentType": row.PaymentType,
 		},

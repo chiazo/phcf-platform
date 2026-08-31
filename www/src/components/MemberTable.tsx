@@ -1,31 +1,30 @@
-import * as React from 'react';
+import * as React from "react";
 import { Link } from "react-router-dom";
-import { alpha } from '@mui/material/styles';
-import Box from '@mui/material/Box';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TablePagination from '@mui/material/TablePagination';
-import TableRow from '@mui/material/TableRow';
-import TableSortLabel from '@mui/material/TableSortLabel';
-import Toolbar from '@mui/material/Toolbar';
-import Typography from '@mui/material/Typography';
-import Paper from '@mui/material/Paper';
-import Checkbox from '@mui/material/Checkbox';
-import IconButton from '@mui/material/IconButton';
-import Tooltip from '@mui/material/Tooltip';
-import RuleIcon from '@mui/icons-material/Rule';
-import DeleteIcon from '@mui/icons-material/Delete';
-import MoodRoundedIcon from '@mui/icons-material/MoodRounded';
-import SentimentDissatisfiedRoundedIcon from '@mui/icons-material/SentimentDissatisfiedRounded';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import { visuallyHidden } from '@mui/utils';
+import { alpha } from "@mui/material/styles";
+import Box from "@mui/material/Box";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TablePagination from "@mui/material/TablePagination";
+import TableRow from "@mui/material/TableRow";
+import TableSortLabel from "@mui/material/TableSortLabel";
+import Toolbar from "@mui/material/Toolbar";
+import Typography from "@mui/material/Typography";
+import Paper from "@mui/material/Paper";
+import Checkbox from "@mui/material/Checkbox";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import RuleIcon from "@mui/icons-material/Rule";
+import DeleteIcon from "@mui/icons-material/Delete";
+import MoodRoundedIcon from "@mui/icons-material/MoodRounded";
+import SentimentDissatisfiedRoundedIcon from "@mui/icons-material/SentimentDissatisfiedRounded";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import { visuallyHidden } from "@mui/utils";
 import { useState } from "react";
 
-import {listApprovalUpdates} from "../lib/pocketbase";
-
+import { listApprovalUpdates } from "../lib/pocketbase";
 
 interface Data {
   id: string;
@@ -38,7 +37,7 @@ interface Data {
   meetingsCompleted: number;
   meetingsRequiredMet: string;
   serviceHoursRequired: number; //hours completed
-  serviceHoursCompleted:number; //hours completed
+  serviceHoursCompleted: number; //hours completed
   serviceHoursMet: string;
 }
 
@@ -48,7 +47,7 @@ function toNumber(value: unknown): number {
 }
 
 function yesNo(value: boolean): string {
-  return value ? 'YES' : 'NO';
+  return value ? "YES" : "NO";
 }
 
 // Raw PocketBase member_snapshot records (see MemberSnapshotDTO) are nested
@@ -58,11 +57,11 @@ function toRow(member: Record<string, any>): Data {
   const memberInfo = member.member_info ?? {};
   const dues = memberInfo.dues ?? {};
   const requirements = memberInfo.requirements ?? {};
-  const firstName = personalInfo.firstName ?? ''
-  const lastName = personalInfo.lastName ?? ''
-  const fullName = firstName + ' ' + lastName
+  const firstName = personalInfo.firstName ?? "";
+  const lastName = personalInfo.lastName ?? "";
+  const fullName = firstName + " " + lastName;
   const serviceRequirements = requirements.serviceRequirements ?? [];
-  const dueStatus = dues.dueState ?? '';
+  const dueStatus = dues.dueState ?? "";
   const meetingsRequired = toNumber(requirements.meetingsRequired);
   const meetingsCompleted = toNumber(requirements.meetingsCompleted);
   const serviceHoursRequired = toNumber(requirements.serviceHoursRequired);
@@ -70,12 +69,10 @@ function toRow(member: Record<string, any>): Data {
     (sum: number, s: any) => sum + toNumber(s.hoursCompleted),
     0,
   );
-  const duesPaid = dueStatus === 'PAID' || dueStatus === 'COMPLETE';
+  const duesPaid = dueStatus === "PAID" || dueStatus === "COMPLETE";
   const meetingsMet = meetingsCompleted >= meetingsRequired;
   const serviceHoursMet = serviceHoursCompleted >= serviceHoursRequired;
-  const allMemberRequirementsMet =
-    duesPaid && meetingsMet && serviceHoursMet;
-  
+  const allMemberRequirementsMet = duesPaid && meetingsMet && serviceHoursMet;
 
   return createData(
     member.id,
@@ -104,11 +101,11 @@ function createData(
   meetingsCompleted: number,
   meetingsRequiredMet: string,
   serviceHoursRequired: number, //hours completed
-  serviceHoursCompleted:number,
+  serviceHoursCompleted: number,
   serviceHoursMet: string,
 ): Data {
   return {
-     id,
+    id,
     fullName,
     allMemberRequirementsMet,
     dueStatus, //DueState
@@ -123,7 +120,6 @@ function createData(
   };
 }
 
-
 function descendingComparator<T>(a: T, b: T, orderBy: keyof T) {
   if (b[orderBy] < a[orderBy]) {
     return -1;
@@ -134,21 +130,21 @@ function descendingComparator<T>(a: T, b: T, orderBy: keyof T) {
   return 0;
 }
 
-type Order = 'asc' | 'desc';
+type Order = "asc" | "desc";
 type RequirementFilter =
-  | 'serviceHoursMet'
-  | 'meetingsRequiredMet'
-  | 'duesStatusMet'
-  | 'allMemberRequirementsMet';
+  | "serviceHoursMet"
+  | "meetingsRequiredMet"
+  | "duesStatusMet"
+  | "allMemberRequirementsMet";
 
 const requirementFilters: Array<{
   id: RequirementFilter;
   label: string;
 }> = [
-  { id: 'serviceHoursMet', label: 'Service hours met' },
-  { id: 'meetingsRequiredMet', label: 'Meetings required met' },
-  { id: 'duesStatusMet', label: 'Dues status met' },
-  { id: 'allMemberRequirementsMet', label: 'All requirements met' },
+  { id: "serviceHoursMet", label: "Service hours met" },
+  { id: "meetingsRequiredMet", label: "Meetings required met" },
+  { id: "duesStatusMet", label: "Dues status met" },
+  { id: "allMemberRequirementsMet", label: "All requirements met" },
 ];
 
 function getComparator<Key extends keyof any>(
@@ -158,7 +154,7 @@ function getComparator<Key extends keyof any>(
   a: { [key in Key]: number | string },
   b: { [key in Key]: number | string },
 ) => number {
-  return order === 'desc'
+  return order === "desc"
     ? (a, b) => descendingComparator(a, b, orderBy)
     : (a, b) => -descendingComparator(a, b, orderBy);
 }
@@ -172,46 +168,49 @@ interface HeadCell {
 
 const headCells: readonly HeadCell[] = [
   {
-    id: 'fullName',
+    id: "fullName",
     numeric: false,
     disablePadding: true,
-    label: 'Full Name',
+    label: "Full Name",
   },
   {
-    id: 'allMemberRequirementsMet',
+    id: "allMemberRequirementsMet",
     numeric: false,
     disablePadding: false,
-    label: 'All Member Requirements Met',
+    label: "All Member Requirements Met",
   },
   {
-    id: 'dueStatus',
+    id: "dueStatus",
     numeric: true,
     disablePadding: false,
-    label: 'Current Dues Status',
+    label: "Current Dues Status",
   },
   {
-    id: 'amountPaid',
+    id: "amountPaid",
     numeric: true,
     disablePadding: false,
-    label: 'Amount Paid',
+    label: "Amount Paid",
   },
   {
-    id: 'meetingsRequired',
+    id: "meetingsRequired",
     numeric: true,
     disablePadding: false,
-    label: 'Meetings Required',
+    label: "Meetings Required",
   },
   {
-    id: 'meetingsCompleted',
+    id: "meetingsCompleted",
     numeric: true,
     disablePadding: false,
-    label: 'Meetings Completed',
+    label: "Meetings Completed",
   },
 ];
 
 interface EnhancedTableProps {
   numSelected: number;
-  onRequestSort: (event: React.MouseEvent<unknown>, property: keyof Data) => void;
+  onRequestSort: (
+    event: React.MouseEvent<unknown>,
+    property: keyof Data,
+  ) => void;
   onSelectAllClick: (event: React.ChangeEvent<HTMLInputElement>) => void;
   order: Order;
   orderBy: string;
@@ -219,8 +218,14 @@ interface EnhancedTableProps {
 }
 
 function EnhancedTableHead(props: EnhancedTableProps) {
-  const { onSelectAllClick, order, orderBy, numSelected, rowCount, onRequestSort } =
-    props;
+  const {
+    onSelectAllClick,
+    order,
+    orderBy,
+    numSelected,
+    rowCount,
+    onRequestSort,
+  } = props;
   const createSortHandler =
     (property: keyof Data) => (event: React.MouseEvent<unknown>) => {
       onRequestSort(event, property);
@@ -236,26 +241,26 @@ function EnhancedTableHead(props: EnhancedTableProps) {
             checked={rowCount > 0 && numSelected === rowCount}
             onChange={onSelectAllClick}
             slotProps={{
-              input: { 'aria-label': 'select all desserts' },
+              input: { "aria-label": "select all desserts" },
             }}
           />
         </TableCell>
         {headCells.map((headCell) => (
           <TableCell
             key={headCell.id}
-            align={headCell.numeric ? 'right' : 'left'}
-            padding={headCell.disablePadding ? 'none' : 'normal'}
+            align={headCell.numeric ? "right" : "left"}
+            padding={headCell.disablePadding ? "none" : "normal"}
             sortDirection={orderBy === headCell.id ? order : false}
           >
             <TableSortLabel
               active={orderBy === headCell.id}
-              direction={orderBy === headCell.id ? order : 'asc'}
+              direction={orderBy === headCell.id ? order : "asc"}
               onClick={createSortHandler(headCell.id)}
             >
               {headCell.label}
               {orderBy === headCell.id ? (
                 <Box component="span" sx={visuallyHidden}>
-                  {order === 'desc' ? 'sorted descending' : 'sorted ascending'}
+                  {order === "desc" ? "sorted descending" : "sorted ascending"}
                 </Box>
               ) : null}
             </TableSortLabel>
@@ -278,11 +283,11 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
   const { numSelected } = props;
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
 
-  function displayModal(){
+  function displayModal() {
     const modal = document.getElementById("myModal");
-    
-    if (modal){
-       modal.style.display = "block";
+
+    if (modal) {
+      modal.style.display = "block";
     }
   }
 
@@ -295,7 +300,10 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
         },
         numSelected > 0 && {
           bgcolor: (theme) =>
-            alpha(theme.palette.primary.main, theme.palette.action.activatedOpacity),
+            alpha(
+              theme.palette.primary.main,
+              theme.palette.action.activatedOpacity,
+            ),
         },
       ]}
     >
@@ -304,15 +312,15 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
           variant="subtitle1"
           component="div"
           sx={{
-            color: 'inherit',
-            flex: '1 1 100%',
+            color: "inherit",
+            flex: "1 1 100%",
           }}
         >
           {numSelected} selected
         </Typography>
       ) : (
         <Typography
-          sx={{ flex: '1 1 100%' }}
+          sx={{ flex: "1 1 100%" }}
           variant="h6"
           id="tableTitle"
           component="div"
@@ -336,21 +344,28 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
     </Toolbar>
   );
 }
-export default function EnhancedTable({ members, work_formulas }: { members: Array<Record<string, any>>, work_formulas: Array<Record<string, any> | null> } ) {
-  const [order, setOrder] = React.useState<Order>('asc');
-  const [orderBy, setOrderBy] = React.useState<keyof Data>('dueStatus');
+export default function EnhancedTable({
+  members,
+  work_formulas,
+}: {
+  members: Array<Record<string, any>>;
+  work_formulas: Array<Record<string, any> | null>;
+}) {
+  const [order, setOrder] = React.useState<Order>("asc");
+  const [orderBy, setOrderBy] = React.useState<keyof Data>("dueStatus");
   const [selected, setSelected] = React.useState<readonly string[]>([]);
   const [page, setPage] = React.useState(0);
-  const [rowsPerPage, setRowsPerPage] = React.useState(5);
-  const [activeFilters, setActiveFilters] = React.useState<RequirementFilter[]>([]);
-
+  const [rowsPerPage, setRowsPerPage] = React.useState(10);
+  const [activeFilters, setActiveFilters] = React.useState<RequirementFilter[]>(
+    [],
+  );
 
   const handleRequestSort = (
     event: React.MouseEvent<unknown>,
     property: keyof Data,
   ) => {
-    const isAsc = orderBy === property && order === 'asc';
-    setOrder(isAsc ? 'desc' : 'asc');
+    const isAsc = orderBy === property && order === "asc";
+    setOrder(isAsc ? "desc" : "asc");
     setOrderBy(property);
   };
 
@@ -359,7 +374,7 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
   const filteredRows = React.useMemo(
     () =>
       allRows.filter((row) =>
-        activeFilters.every((filterId) => row[filterId] === 'YES'),
+        activeFilters.every((filterId) => row[filterId] === "YES"),
       ),
     [activeFilters, allRows],
   );
@@ -407,7 +422,9 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
     setPage(newPage);
   };
 
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChangeRowsPerPage = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
@@ -426,23 +443,23 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
 
   return (
     <React.Fragment>
-      <Box sx={{ width: '100%' }}>
-        <Paper sx={{ width: '100%', mb: 2 }}>
+      <Box sx={{ width: "100%" }}>
+        <Paper sx={{ width: "100%", mb: 2 }}>
           <EnhancedTableToolbar numSelected={selected.length} />
           <Box
             sx={{
-              display: 'flex',
-              flexWrap: 'wrap',
+              display: "flex",
+              flexWrap: "wrap",
               gap: 1,
               px: 2,
               py: 1,
               borderTop: 1,
-              borderColor: 'divider',
+              borderColor: "divider",
             }}
           >
             <Typography
               component="span"
-              sx={{ alignSelf: 'center', fontWeight: 600, mr: 1 }}
+              sx={{ alignSelf: "center", fontWeight: 600, mr: 1 }}
             >
               Filters:
             </Typography>
@@ -478,11 +495,18 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
                 {visibleRows.map((row, index) => {
                   const isItemSelected = selected.includes(row.id);
                   const labelId = `enhanced-table-checkbox-${index}`;
-                  const workFormula = work_formulas[index];
-                  const workHoursRequired = workFormula?.work_hours_required ?? 0;
-                  const workHoursCompleted = workFormula?.work_hours_completed ?? 0;
-                  const openHoursRequired = workFormula?.open_hours_required ?? 0;
-                  const openHoursCompleted = workFormula?.open_hours_completed ?? 0;
+                  console.log("wf", work_formulas);
+                  const workFormula = work_formulas.find(
+                    (formula) => formula?.member_id === row.member_id,
+                  );
+                  const workHoursRequired =
+                    workFormula?.work_hours_required ?? 0;
+                  const workHoursCompleted =
+                    workFormula?.work_hours_completed ?? 0;
+                  const openHoursRequired =
+                    workFormula?.open_hours_required ?? 0;
+                  const openHoursCompleted =
+                    workFormula?.open_hours_completed ?? 0;
                   const isWorkFormulaSatisfied =
                     workHoursRequired === workHoursCompleted &&
                     openHoursRequired === openHoursCompleted;
@@ -496,14 +520,14 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
                       tabIndex={-1}
                       key={row.id}
                       selected={isItemSelected}
-                      sx={{ cursor: 'pointer' }}
+                      sx={{ cursor: "pointer" }}
                     >
                       <TableCell padding="checkbox">
                         <Checkbox
                           color="primary"
                           checked={isItemSelected}
                           slotProps={{
-                            input: { 'aria-labelledby': labelId },
+                            input: { "aria-labelledby": labelId },
                           }}
                         />
                       </TableCell>
@@ -513,15 +537,19 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
                         scope="row"
                         padding="none"
                       >
-                        <Link to={`/snapshot/${row.id}`}>
-                          {row.fullName}
-                          </Link>
+                        <Link to={`/snapshot/${row.id}`}>{row.fullName}</Link>
                       </TableCell>
-                      <TableCell align="center">{row.allMemberRequirementsMet}</TableCell>
+                      <TableCell align="center">
+                        {row.allMemberRequirementsMet}
+                      </TableCell>
                       <TableCell align="center">{row.dueStatus}</TableCell>
                       <TableCell align="center">{row.amountPaid}</TableCell>
-                      <TableCell align="center">{row.meetingsRequired}</TableCell>
-                      <TableCell align="center">{row.meetingsCompleted}</TableCell>
+                      <TableCell align="center">
+                        {row.meetingsRequired}
+                      </TableCell>
+                      <TableCell align="center">
+                        {row.meetingsCompleted}
+                      </TableCell>
                       <TableCell align="center">{workHoursRequired}</TableCell>
                       <TableCell align="center">{workHoursCompleted}</TableCell>
                       <TableCell align="center">{openHoursRequired}</TableCell>
@@ -529,12 +557,14 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
                       <TableCell align="center">
                         {workFormula ? (
                           isWorkFormulaSatisfied ? (
-                            <MoodRoundedIcon sx={{ color: 'green' }} />
+                            <MoodRoundedIcon sx={{ color: "green" }} />
                           ) : (
-                            <SentimentDissatisfiedRoundedIcon sx={{ color: 'red' }} />
+                            <SentimentDissatisfiedRoundedIcon
+                              sx={{ color: "red" }}
+                            />
                           )
                         ) : (
-                          'N/A'
+                          "N/A"
                         )}
                       </TableCell>
                     </TableRow>
@@ -553,7 +583,7 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
             </Table>
           </TableContainer>
           <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
+            rowsPerPageOptions={[10, 20, 30]}
             component="div"
             count={filteredRows.length}
             rowsPerPage={rowsPerPage}
@@ -562,8 +592,7 @@ export default function EnhancedTable({ members, work_formulas }: { members: Arr
             onRowsPerPageChange={handleChangeRowsPerPage}
           />
         </Paper>
-    </Box>
-
+      </Box>
     </React.Fragment>
   );
 }

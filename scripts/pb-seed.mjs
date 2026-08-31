@@ -203,8 +203,8 @@ function fakeMemberSnapshotPayload(userId, firstName, lastName, email) {
 
     member_info: {
       role: faker.helpers.arrayElement(["ROLE_INVALID", "BOARD", "VOLUNTEER"]),
-      memberType: faker.helpers.arrayElement(["GENERAL", "ADMIN"]),
-      memberState: faker.helpers.arrayElement(["PENDING", "APPROVED"]),
+      memberType: faker.helpers.arrayElement(["GENERAL"]),
+      memberState: faker.helpers.arrayElement(["APPROVED"]),
       orientationDate: Math.floor(
         faker.date.past({ years: 2 }).getTime() / 1000,
       ),

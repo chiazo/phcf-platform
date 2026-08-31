@@ -119,7 +119,7 @@ switch .env `BACKEND_PROVIDER` between `fly` and `gcp` depending on desired prov
 
 ## Seed Fake Data
 
-`node scripts/pb-seed.mjs --users 5 --boxes 5 --work-formulas 5
+`node scripts/pb-seed.mjs --users 50 --boxes 20 --work-formulas 10
 `
 
 ## Seed Real Data

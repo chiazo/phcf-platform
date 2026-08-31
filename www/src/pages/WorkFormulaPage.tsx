@@ -7,13 +7,21 @@ import {
   currentUser,
   isAdmin,
   isLoggedIn,
+  listMemberSnapshots,
   listWorkFormulas,
   logout,
 } from "../lib/pocketbase";
 import Header from "../components/Header";
 
 function getMemberLabel(workFormula: Record<string, any>) {
-  return workFormula.member_name || workFormula.member_id || "—";
+  const snapshot = workFormula.expand?.member_id?.expand?.member_snapshot_id;
+
+  const firstName = snapshot?.personal_info?.firstName ?? "";
+  const lastName = snapshot?.personal_info?.lastName ?? "";
+
+  const name = `${firstName} ${lastName}`.trim();
+
+  return name || workFormula.member_id || "—";
 }
 
 type AdminView = "matrix" | "rates" | "table";
@@ -155,7 +163,10 @@ export default function WorkFormulaPage() {
                   <tbody>
                     {allFormulas.map((wf) => (
                       <tr key={wf.id}>
-                        <td>{getMemberLabel(wf)}</td>
+                        <td>
+                          {getMemberLabel(wf)}
+                          <small style={{ display: "block" }}>{wf.id}</small>
+                        </td>
                         <td>{wf.work_hours_required}</td>
                         <td>{wf.work_hours_completed}</td>
                         <td>{wf.open_hours_required}</td>

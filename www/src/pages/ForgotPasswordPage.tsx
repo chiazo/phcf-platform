@@ -46,7 +46,8 @@ export default function ForgotPasswordPage() {
 
         {sent && (
           <p className="success">
-            If that email is registered, PocketBase will send a reset link.
+            If that email is registered, you will receive an email with a link
+            to reset your password.
           </p>
         )}
         {error && <p className="error">{error}</p>}

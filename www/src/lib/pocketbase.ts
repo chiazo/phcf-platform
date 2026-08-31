@@ -334,7 +334,7 @@ export async function listMemberSnapshots() {
 
   //looks for any members with ids defined in the filter variable
   //gives back at least 1 member and at most 50 members
-  return await pb.collection("member_snapshot").getList(1, 50, { filter });
+  return await pb.collection("member_snapshot").getList(1, 5000, { filter });
 }
 
 export async function correspondingWorkFormulas(
@@ -1189,7 +1189,11 @@ function countEntries(list: unknown[] | undefined | null): number {
 //gets the full list of work formulas from their collection
 export async function listWorkFormulas() {
   pb.autoCancellation(false);
-  return await pb.collection("work_formula").getList(1, 50);
+
+  return await pb.collection("work_formula").getList(1, 500, {
+    expand: "member_id,member_id.member_snapshot_id",
+    sort: "created_at",
+  });
 }
 
 export async function deleteRequest(currentSnapshot: Record<string, any>) {

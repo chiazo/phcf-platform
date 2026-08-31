@@ -378,6 +378,7 @@ export default function MemberSnapshotPage() {
 
           <Button
             type="submit"
+            className="edit-button"
             variant="contained"
             color={editMode ? "secondary" : "primary"}
           >
