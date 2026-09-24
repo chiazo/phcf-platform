@@ -154,7 +154,10 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
             <option value="">— None —</option>
             {members.map((wf) => (
               <option key={wf.id} value={wf.member_id}>
-                {wf.member_name || wf.member_id || "—"}
+                {wf.expand?.member_id?.expand?.user_id?.name ||
+                  wf.expand?.member_id?.expand?.user_id?.email ||
+                  wf.member_id ||
+                  "—"}
               </option>
             ))}
           </select>

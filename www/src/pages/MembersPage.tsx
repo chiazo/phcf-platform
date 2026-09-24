@@ -557,55 +557,114 @@ function RequirementUpdateRequestTable({
       request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE,
   );
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   async function handleApprove(request: Record<string, any>) {
-    await approveRequirementUpdateRequest(request);
-    if (request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE) {
-      updateAcceptRequest(request);
+    setActionError(null);
+    try {
+      if (
+        request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE
+      ) {
+        await updateAcceptRequest(request);
+      } else {
+        await approveRequirementUpdateRequest(request);
+      }
+    } catch (err) {
+      console.error("approve error:", err, err?.response?.data);
+
+      setActionError(
+        err instanceof Error ? err.message : "Could not approve request.",
+      );
+    } finally {
+      onActionComplete();
     }
-    onActionComplete();
   }
 
   async function handleDeny(request: Record<string, any>) {
-    await denyRequirementUpdateRequest(request);
-    if (request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE) {
-      updateDenyRequest(request);
+    setActionError(null);
+    try {
+      await denyRequirementUpdateRequest(request);
+      if (
+        request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE
+      ) {
+        await updateDenyRequest(request);
+      }
+    } catch (err) {
+      console.error("deny error:", err);
+      setActionError(
+        err instanceof Error ? err.message : "Could not deny request.",
+      );
+    } finally {
+      onActionComplete();
     }
-    onActionComplete();
   }
 
   async function handleApproveAll(
     requestsToApprove: Array<Record<string, any>>,
   ) {
-    try {
-      await Promise.all(
-        requestsToApprove.map((request) =>
-          approveRequirementUpdateRequest(request),
-        ),
-      );
-      onActionComplete();
-    } catch (err) {
-      console.error("bulk approve error:", err);
+    setActionError(null);
+    let failed = 0;
+
+    for (const request of requestsToApprove) {
+      try {
+        await approveRequirementUpdateRequest(request);
+      } catch (err) {
+        console.error("bulk approve error:", err);
+        failed++;
+      }
     }
+
+    if (failed > 0) {
+      setActionError(
+        `${failed} of ${requestsToApprove.length} requests could not be approved.`,
+      );
+    }
+    onActionComplete();
   }
 
   async function handleDenyAll(requestsToDeny: Array<Record<string, any>>) {
-    try {
-      await Promise.all(
-        requestsToDeny.map((request) => denyRequirementUpdateRequest(request)),
+    setActionError(null);
+    const results = await Promise.allSettled(
+      requestsToDeny.map((request) => denyRequirementUpdateRequest(request)),
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
+    if (failed > 0) {
+      setActionError(
+        `${failed} of ${requestsToDeny.length} requests could not be denied.`,
       );
-      onActionComplete();
-    } catch (err) {
-      console.error("bulk deny error:", err);
     }
+    onActionComplete();
   }
 
   function displayModal(request: Record<string, any>) {
     getMemberUpdateSnapshot(request.member_snapshot_id)
-      .then((memberSnapshot) => {
-        setCurrentMemberUpdateRequest(memberSnapshot);
+      .then((s) => {
+        setCurrentMemberUpdateRequest({
+          ...s,
+          memberId: s.member_id,
+          userId: s.user_id,
+          boxInfo: s.box_info,
+          memberInfo: s.member_info,
+          personalInfo: s.personal_info,
+          updatedBy: s.updated_by,
+          meetingExemption: s.meeting_exemption,
+          createdAt: s.created_at,
+          modifiedAt: s.modified_at,
+        });
+
+        const modal = document.getElementById("myModal");
+        if (modal) {
+          modal.style.display = ""; // clear the inline "none" left by closeModal
+          modal.classList.add("modal-open");
+        }
       })
       .catch((err) => {
-        console.error("Error fetching member snapshot:", err);
+        console.error(
+          "Error fetching member snapshot:",
+          err,
+          err?.response?.data,
+        );
+        setCurrentMemberUpdateRequest({});
       });
   }
 
@@ -622,7 +681,7 @@ function RequirementUpdateRequestTable({
     <>
       <section>
         <h2>Membership Requirement Update Requests</h2>
-
+        {actionError && <p className="error">{actionError}</p>}
         {serviceHourRequests.length > 0 && (
           <section>
             <div className="request-table-header">
@@ -795,11 +854,8 @@ function RequirementUpdateRequestTable({
                       <td>{formatDateFromSeconds(request.occurred_at)}</td>
                       <td>{request.notes || "—"}</td>
                       <td>
-                        <Tooltip
-                          title="View proposed changes"
-                          onClick={() => displayModal(request)}
-                        >
-                          <IconButton>
+                        <Tooltip title="View proposed changes">
+                          <IconButton onClick={() => displayModal(request)}>
                             <AssignmentIcon />
                           </IconButton>
                         </Tooltip>

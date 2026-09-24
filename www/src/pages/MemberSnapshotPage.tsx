@@ -600,7 +600,7 @@ export default function MemberSnapshotPage() {
               <input
                 id="meetingsInput"
                 {...register("meetingsCompleted", { valueAsNumber: true })}
-                disabled={!editMode}
+                disabled={true}
               />{" "}
               / {meetingsRequired} Required
             </p>

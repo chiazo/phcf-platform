@@ -13,6 +13,22 @@ import {
 } from "../lib/pocketbase";
 import Header from "../components/Header";
 
+const formatTimestamp = (value?: string) => {
+  if (!value) return "-";
+
+  // PocketBase uses a space instead of "T", which Safari can't parse
+  const date = new Date(value.replace(" ", "T"));
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
 function getMemberLabel(workFormula: Record<string, any>) {
   const snapshot = workFormula.expand?.member_id?.expand?.member_snapshot_id;
 
@@ -165,14 +181,16 @@ export default function WorkFormulaPage() {
                       <tr key={wf.id}>
                         <td>
                           {getMemberLabel(wf)}
-                          <small style={{ display: "block" }}>{wf.id}</small>
+                          <small style={{ display: "block" }}>
+                            <br></br>({wf.id})
+                          </small>
                         </td>
                         <td>{wf.work_hours_required}</td>
                         <td>{wf.work_hours_completed}</td>
                         <td>{wf.open_hours_required}</td>
                         <td>{wf.open_hours_completed}</td>
-                        <td>{wf.created_at}</td>
-                        <td>{wf.modified_at}</td>
+                        <td>{formatTimestamp(wf.created_at)}</td>
+                        <td>{formatTimestamp(wf.modified_at)}</td>
                       </tr>
                     ))}
                   </tbody>

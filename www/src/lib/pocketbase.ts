@@ -712,6 +712,7 @@ export async function approveRequirementUpdateRequest(
   pb.autoCancellation(false);
 
   const quantity = toNumber(request.quantity);
+  console.log("approving", request.id, request.request_type, request.quantity);
   if (quantity <= 0) {
     throw new Error("Request quantity must be greater than zero.");
   }
@@ -1305,7 +1306,7 @@ export async function listWorkFormulas() {
   pb.autoCancellation(false);
 
   return await pb.collection("work_formula").getList(1, 500, {
-    expand: "member_id,member_id.member_snapshot_id",
+    expand: "member_id,member_id.user_id,member_id.member_snapshot_id",
     sort: "created_at",
   });
 }
