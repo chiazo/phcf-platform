@@ -11,6 +11,8 @@ interface Props {
   signedInLabel?: string;
   handleLogout: () => void;
   handleRequestBox?: () => void;
+  handleToggleMove?: () => void;
+  moveMode?: boolean;
   children?: React.ReactNode;
 }
 
@@ -23,6 +25,8 @@ export default function Header({
   signedInLabel,
   handleLogout,
   handleRequestBox,
+  handleToggleMove,
+  moveMode = false,
   children,
 }: Props) {
   return (
@@ -96,15 +100,27 @@ export default function Header({
         </nav>
       </header>
 
-      {handleRequestBox && (
+      {(handleRequestBox || (handleToggleMove && isAdmin())) && (
         <div className="header-below-actions">
-          <button
-            className="secondary"
-            onClick={handleRequestBox}
-            type="button"
-          >
-            Request a Box
-          </button>
+          {handleRequestBox && (
+            <button
+              className="secondary"
+              onClick={handleRequestBox}
+              type="button"
+            >
+              Request a Box
+            </button>
+          )}
+
+          {handleToggleMove && isAdmin() && (
+            <button
+              className="secondary"
+              onClick={handleToggleMove}
+              type="button"
+            >
+              {moveMode ? "Hide Move Buttons" : "Show Move Buttons"}
+            </button>
+          )}
         </div>
       )}
     </>

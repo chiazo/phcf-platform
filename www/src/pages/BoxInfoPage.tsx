@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Fragment } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -12,6 +12,8 @@ import {
   removeMemberFromWaitlist,
   assignWaitlistedMemberToBox,
   countEntries,
+  moveMemberToBox,
+  swapMembers,
   logout,
 } from "../lib/pocketbase";
 import Header from "../components/Header";
@@ -30,6 +32,17 @@ export default function BoxInfoPage() {
 
   // Prevent duplicate remove requests
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+
+  // Handle box swaps
+  const [moveTarget, setMoveTarget] = useState<{
+    memberId: string;
+    name: string;
+    fromBoxId: string;
+  } | null>(null);
+  const [swapWith, setSwapWith] = useState("");
+  const [moveToBoxId, setMoveToBoxId] = useState("");
+  const [moving, setMoving] = useState(false);
+  const [showMoveButtons, setShowMoveButtons] = useState(false);
 
   type WaitlistRow = {
     member_id: string;
@@ -148,6 +161,57 @@ export default function BoxInfoPage() {
   function handleLogout() {
     logout();
     setIsAuthenticated(false);
+  }
+
+  async function handleMoveBox() {
+    if (!isAdmin() || !moveTarget || (!moveToBoxId && !swapWith)) return;
+
+    setMoving(true);
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      if (swapWith) {
+        // swapWith is "boxId:memberId"
+        const [otherBoxId, otherMemberId] = swapWith.split(":");
+        const otherBox = allBoxes.find((b: any) => b.id === otherBoxId);
+        const otherName =
+          otherBox?.box_members_names?.[
+            (otherBox.box_members ?? []).indexOf(otherMemberId)
+          ] || "another member";
+
+        await swapMembers(
+          moveTarget.memberId,
+          moveTarget.fromBoxId,
+          otherMemberId,
+          otherBoxId,
+        );
+        setActionNotice(`${moveTarget.name} and ${otherName} swapped boxes.`);
+      } else {
+        const box = await moveMemberToBox(
+          moveTarget.memberId,
+          moveTarget.fromBoxId,
+          moveToBoxId,
+        );
+        setActionNotice(
+          box?.box_name
+            ? `${moveTarget.name} was moved to ${box.box_name} (Box ${box.box_number}).`
+            : `${moveTarget.name} was moved.`,
+        );
+      }
+
+      setMoveTarget(null);
+      setMoveToBoxId("");
+      setSwapWith("");
+    } catch (err) {
+      console.error("move box error:", err);
+      setActionError(
+        err instanceof Error ? err.message : "Could not move member.",
+      );
+    } finally {
+      await refreshBoxes();
+      setMoving(false);
+    }
   }
 
   async function handleRequestBox() {
@@ -345,6 +409,8 @@ export default function BoxInfoPage() {
         title="Box Info"
         handleLogout={handleLogout}
         handleRequestBox={handleRequestBox}
+        handleToggleMove={() => setShowMoveButtons((v) => !v)}
+        moveMode={showMoveButtons}
       />
 
       {loadError && <p className="error">{loadError}</p>}
@@ -410,19 +476,38 @@ export default function BoxInfoPage() {
                               box.box_members_names?.[index] || memberId;
 
                             return (
-                              <button
-                                key={`remove-box-${memberId}`}
-                                type="button"
-                                className="box-action-button"
-                                disabled={isRemoving}
-                                onClick={() =>
-                                  handleRemoveFromBox(memberId, box.id)
-                                }
-                              >
-                                {isRemoving
-                                  ? "Removing..."
-                                  : `Remove ${memberName.split(" ")[0]} ${memberName.split(" ").at(-1)?.[0] ?? ""}.`}
-                              </button>
+                              <Fragment key={`box-member-${memberId}`}>
+                                {showMoveButtons && (
+                                  <button
+                                    type="button"
+                                    className="box-action-button move-button"
+                                    onClick={() => {
+                                      setMoveToBoxId("");
+                                      setSwapWith("");
+                                      setMoveTarget({
+                                        memberId,
+                                        name: memberName,
+                                        fromBoxId: box.id,
+                                      });
+                                    }}
+                                  >
+                                    {`Move ${memberName.split(" ")[0]} ${memberName.split(" ").at(-1)?.[0] ?? ""}.`}
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  className="box-action-button"
+                                  disabled={isRemoving}
+                                  onClick={() =>
+                                    handleRemoveFromBox(memberId, box.id)
+                                  }
+                                >
+                                  {isRemoving
+                                    ? "Removing..."
+                                    : `Remove ${memberName.split(" ")[0]} ${memberName.split(" ").at(-1)?.[0] ?? ""}.`}
+                                </button>
+                              </Fragment>
                             );
                           })}
 
@@ -595,6 +680,85 @@ export default function BoxInfoPage() {
                 disabled={!selectedMemberId || requestingBox}
               >
                 {requestingBox ? "Requesting..." : "Request Box"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================
+          Admin: Move Boxes Modal
+          ========================================================= */}
+      {moveTarget && (
+        <div className="modal modal-open" onClick={() => setMoveTarget(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Move {moveTarget.name}</h2>
+
+            <p>
+              Select an open box, or swap with a member in another box. The
+              waitlist is not affected.
+            </p>
+
+            <select
+              value={moveToBoxId}
+              onChange={(e) => {
+                setMoveToBoxId(e.target.value);
+                setSwapWith("");
+              }}
+            >
+              <option value="">Move to an open box...</option>
+
+              {allBoxes
+                .filter(
+                  (b: any) =>
+                    b.id !== moveTarget.fromBoxId &&
+                    countEntries(b.box_members) < 2,
+                )
+                .map((b: any) => (
+                  <option key={b.id} value={b.id}>
+                    {b.box_name} (Box {b.box_number}) ·{" "}
+                    {countEntries(b.box_members)}/2
+                  </option>
+                ))}
+            </select>
+
+            <select
+              value={swapWith}
+              onChange={(e) => {
+                setSwapWith(e.target.value);
+                setMoveToBoxId("");
+              }}
+            >
+              <option value="">Or swap with a member...</option>
+
+              {allBoxes
+                .filter((b: any) => b.id !== moveTarget.fromBoxId)
+                .flatMap((b: any) =>
+                  (b.box_members ?? []).map((id: string, i: number) => (
+                    <option key={`${b.id}:${id}`} value={`${b.id}:${id}`}>
+                      {b.box_members_names?.[i] || id} · {b.box_name} (Box{" "}
+                      {b.box_number})
+                    </option>
+                  )),
+                )}
+            </select>
+
+            <div className="button-row">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setMoveTarget(null)}
+                disabled={moving}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleMoveBox}
+                disabled={(!moveToBoxId && !swapWith) || moving}
+              >
+                {moving ? "Working..." : swapWith ? "Swap" : "Move"}
               </button>
             </div>
           </div>

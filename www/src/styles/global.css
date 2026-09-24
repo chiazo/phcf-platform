@@ -651,6 +651,21 @@ th {
   white-space: nowrap;
 }
 
+.box-action-button.move-button {
+  background: #263e3f00;
+  border-color: #263e3f;
+  color: #2e2e2e;
+}
+
+.box-action-button.move-button:hover:not(:disabled) {
+  background: #cad8ff;
+}
+
+.box-action-button.move-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .current-user-box {
   background: rgba(255, 255, 255, 0.06);
   box-shadow: inset 3px 0 0 #8b5cf6;

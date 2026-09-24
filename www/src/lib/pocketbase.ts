@@ -1180,6 +1180,113 @@ export async function assignWaitlistedMemberToBox(memberId: string) {
   return assignedBox;
 }
 
+export async function moveMemberToBox(
+  memberId: string,
+  fromBoxId: string,
+  toBoxId: string,
+) {
+  pb.autoCancellation(false);
+
+  if (fromBoxId === toBoxId) throw new Error("Choose a different box.");
+
+  // Fresh reads, not the React state
+  const from = await pb.collection("boxes").getOne(fromBoxId);
+  const to = await pb.collection("boxes").getOne(toBoxId);
+
+  if (!(from.box_members ?? []).includes(memberId)) {
+    throw new Error("Member is not in that box.");
+  }
+  if (countEntries(to.box_members) >= 2) {
+    throw new Error("That box is full.");
+  }
+
+  // Add to the new box first, so a failure never leaves them with no box
+  const box = await pb.collection("boxes").update(to.id, {
+    box_members: [...(to.box_members ?? []), memberId],
+    notes: "Member moved to box.",
+    box_state: "ASSIGNED",
+    updated_by: "admin",
+  });
+
+  const remaining = (from.box_members ?? []).filter(
+    (id: string) => id !== memberId,
+  );
+
+  try {
+    await pb.collection("boxes").update(from.id, {
+      box_members: remaining,
+      notes: "Member moved to another box.",
+      box_state: remaining.length === 0 ? "UNASSIGNED" : "ASSIGNED",
+      updated_by: "admin",
+    });
+  } catch (err) {
+    throw new Error(
+      "Member was added to the new box, but could not be removed from the old one. Remove them manually.",
+    );
+  }
+
+  return box;
+}
+
+export async function swapMembers(
+  memberId: string,
+  boxId: string,
+  otherMemberId: string,
+  otherBoxId: string,
+) {
+  pb.autoCancellation(false);
+
+  if (boxId === otherBoxId) {
+    throw new Error("Choose a member in a different box.");
+  }
+
+  // Fresh reads, not the React state
+  const a = await pb.collection("boxes").getOne(boxId);
+  const b = await pb.collection("boxes").getOne(otherBoxId);
+
+  const aMembers: string[] = a.box_members ?? [];
+  const bMembers: string[] = b.box_members ?? [];
+
+  if (!aMembers.includes(memberId) || !bMembers.includes(otherMemberId)) {
+    throw new Error(
+      "Members are no longer in those boxes. Refresh and try again.",
+    );
+  }
+  if (aMembers.includes(otherMemberId) || bMembers.includes(memberId)) {
+    throw new Error("One of these members is already in both boxes.");
+  }
+
+  const swapIn = (members: string[], out: string, inn: string) =>
+    members.map((id) => (id === out ? inn : id));
+
+  await pb.collection("boxes").update(a.id, {
+    box_members: swapIn(aMembers, memberId, otherMemberId),
+    notes: "Members swapped between boxes.",
+    updated_by: "admin",
+  });
+
+  try {
+    await pb.collection("boxes").update(b.id, {
+      box_members: swapIn(bMembers, otherMemberId, memberId),
+      notes: "Members swapped between boxes.",
+      updated_by: "admin",
+    });
+  } catch (err) {
+    // Two separate writes, so undo the first one if the second fails
+    let rolledBack = true;
+    try {
+      await pb.collection("boxes").update(a.id, { box_members: aMembers });
+    } catch {
+      rolledBack = false;
+    }
+    throw new Error(
+      rolledBack
+        ? "Could not complete the swap. No changes were made."
+        : "The swap only partly went through. Check both boxes and fix them manually.",
+    );
+  }
+}
+
 export async function listMembersForBoxRequest() {
   pb.autoCancellation(false);
 
