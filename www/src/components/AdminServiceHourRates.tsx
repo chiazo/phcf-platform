@@ -8,6 +8,8 @@ import {
 
 const categoryLabels: Record<string, string> = {
   GOOD_STANDING: "Good Standing",
+  NOT_IN_GOOD_STANDING: "Not in Good Standing",
+  NO_LONGER_A_MEMBER: "No Longer a Member",
   BOARD: "Board",
   EMERITUS: "Emeritus",
   SENIOR: "Senior",

@@ -32,6 +32,8 @@ var boardRoles = map[string]bool{
 }
 
 var serviceHourCategories = []string{
+	"NOT_IN_GOOD_STANDING",
+	"NO_LONGER_A_MEMBER",
 	"GOOD_STANDING",
 	"BOARD",
 	"EMERITUS",
@@ -404,11 +406,13 @@ func configureServiceHourRatesCollection(app core.App, collection *core.Collecti
 // admin has already set — it only fills in rows that are missing entirely.
 func seedServiceHourRates(app core.App) error {
 	defaults := map[string]float64{
-		"GOOD_STANDING": 100,
-		"BOARD":         50,
-		"EMERITUS":      0,
-		"SENIOR":        0,
-		"NEW":           100,
+		"NOT_IN_GOOD_STANDING": 100,
+		"NO_LONGER_A_MEMBER":   0,
+		"GOOD_STANDING":        100,
+		"BOARD":                50,
+		"EMERITUS":             0,
+		"SENIOR":               0,
+		"NEW":                  100,
 	}
 
 	collection, err := app.FindCollectionByNameOrId("service_hour_rates")
