@@ -117,10 +117,19 @@ switch .env `BACKEND_PROVIDER` between `fly` and `gcp` depending on desired prov
 ./deploy.sh                          # auto mode, current BACKEND_PROVIDER
 ```
 
-## Seed Fake Data
+## Seed Fake Data Locally
 
 `node scripts/pb-seed.mjs --users 50 --boxes 20 --work-formulas 10
 `
+
+## Seed Fake Data in Production
+
+```
+node scripts/pb-seed.mjs \
+  --url "https://<DB-URL>" \
+  --users 50 --boxes 20 --work-formulas 10 --legacy_snapshots 0
+
+```
 
 ## Seed Real Data
 `server/app --import <path-to-csv>.csv --dry-run`

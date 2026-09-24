@@ -237,41 +237,20 @@ function fakeMemberSnapshotPayload(userId, firstName, lastName, email) {
   };
 }
 
-function fakeBoxPayload(memberIdsPool, boxNumber) {
-  const memberCount = faker.number.int({
-    min: 0,
-    max: Math.min(4, memberIdsPool.length),
-  });
-
-  const boxMembers = faker.helpers.arrayElements(memberIdsPool, memberCount);
-
-  // Only members who aren't already in this box can be waitlisted.
-  const availableForWaitlist = memberIdsPool.filter(
-    (memberId) => !boxMembers.includes(memberId),
-  );
-
-  const waitlistCount = faker.number.int({
-    min: 0,
-    max: Math.min(3, availableForWaitlist.length),
-  });
-
-  const waitlistMembers = faker.helpers
-    .arrayElements(availableForWaitlist, waitlistCount)
-    .map((memberId, index) => ({
-      member_id: memberId,
-      join_date: Math.floor(faker.date.past({ years: 1 }).getTime() / 1000),
-      position: index + 1,
-    }));
-
+function fakeBoxPayload(boxMembers, waitlistIds, boxNumber) {
   const adjective = faker.food.adjective();
 
   return {
-    box_state: "ASSIGNED",
+    box_state: boxMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED",
     box_name: `${adjective.charAt(0).toUpperCase()}${adjective.slice(1)} Box`,
     box_number: boxNumber,
     updated_by: "pb-seed script",
     box_members: boxMembers,
-    waitlist: waitlistMembers,
+    waitlist: waitlistIds.map((memberId, index) => ({
+      member_id: memberId,
+      join_date: Math.floor(faker.date.past({ years: 1 }).getTime() / 1000),
+      position: index + 1,
+    })),
     notes: faker.datatype.boolean() ? faker.lorem.sentence() : "",
     [SEED_MARKER_FIELD]: true,
   };
@@ -424,9 +403,25 @@ async function seedBoxes(pb, count, memberIdsPool) {
   console.log(`\n📦 Seeding ${count} fake boxes record(s)...`);
   const created = [];
 
+  // Each member is placed exactly once: in one box, or on one waitlist.
+  const CAPACITY = 2;
+  const shuffled = faker.helpers.shuffle([...memberIdsPool]);
+  const seated = shuffled.slice(0, count * CAPACITY);
+  const waiting = shuffled.slice(count * CAPACITY);
+
+  const membersByBox = Array.from({ length: count }, () => []);
+  seated.forEach((id, i) => membersByBox[i % count].push(id));
+
+  const waitlistByBox = Array.from({ length: count }, () => []);
+  waiting.forEach((id, i) => waitlistByBox[i % count].push(id));
+
   for (let i = 0; i < count; i++) {
     const boxNumber = i + 1;
-    const payload = fakeBoxPayload(memberIdsPool, boxNumber);
+    const payload = fakeBoxPayload(
+      membersByBox[i],
+      waitlistByBox[i],
+      boxNumber,
+    );
 
     if (DRY_RUN) {
       console.log(
