@@ -268,9 +268,6 @@ function MemberPersonalView({
               <option value={RequirementUpdateRequestType.SERVICE_HOURS}>
                 Work Hours
               </option>
-              <option value={RequirementUpdateRequestType.MEETING_HOURS}>
-                Meeting Hours
-              </option>
             </select>
           </label>
 
@@ -349,36 +346,6 @@ function MemberPersonalView({
                 the name of another volunteer who was present in the notes
                 below.
               </p>
-            </>
-          )}
-
-          {requestType === RequirementUpdateRequestType.MEETING_HOURS && (
-            <>
-              <p className="form-description">
-                Submit the number of qualifying meeting hours you completed.
-              </p>
-
-              <label>
-                How many meeting hours are you submitting?
-                <input
-                  min="0"
-                  step="0.25"
-                  type="number"
-                  value={quantity}
-                  onChange={(event) => setQuantity(event.target.value)}
-                  required
-                />
-              </label>
-
-              <label>
-                What date did you attend the meeting?
-                <input
-                  type="date"
-                  value={occurredAt}
-                  onChange={(event) => setOccurredAt(event.target.value)}
-                  required
-                />
-              </label>
             </>
           )}
 
@@ -580,11 +547,6 @@ function RequirementUpdateRequestTable({
       request.request_type === RequirementUpdateRequestType.SERVICE_HOURS,
   );
 
-  const meetingHourRequests = requests.filter(
-    (request) =>
-      request.request_type === RequirementUpdateRequestType.MEETING_HOURS,
-  );
-
   const paymentRequests = requests.filter(
     (request) =>
       request.request_type === RequirementUpdateRequestType.AMOUNT_PAID,
@@ -708,77 +670,6 @@ function RequirementUpdateRequestTable({
                       <td>{request.activity || "—"}</td>
                       <td>{formatDateFromSeconds(request.occurred_at)}</td>
                       <td>{request.project_leader || "—"}</td>
-                      <td>{request.notes || "—"}</td>
-                      <td>
-                        <button
-                          className="icon-action approve-action"
-                          onClick={() => handleApprove(request)}
-                          type="button"
-                          title="Approve"
-                        >
-                          ✓
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                          className="icon-action deny-action"
-                          onClick={() => handleDeny(request)}
-                          type="button"
-                          title="Deny"
-                        >
-                          ×
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-        {meetingHourRequests.length > 0 && (
-          <section>
-            <div className="request-table-header">
-              <h3>Meeting Hour Requests</h3>
-
-              <div className="bulk-action-row">
-                <button
-                  className="bulk-action-button approve-action"
-                  onClick={() => handleApproveAll(meetingHourRequests)}
-                  type="button"
-                >
-                  Approve All
-                </button>
-
-                <button
-                  className="bulk-action-button deny-action"
-                  onClick={() => handleDenyAll(meetingHourRequests)}
-                  type="button"
-                >
-                  Deny All
-                </button>
-              </div>
-            </div>
-
-            <div className="modal-table-wrapper always-visible-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Member</th>
-                    <th>Hours</th>
-                    <th>Date</th>
-                    <th>Notes</th>
-                    <th></th>
-                    <th></th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {meetingHourRequests.map((request) => (
-                    <tr key={request.id}>
-                      <td>{getRequestMemberLabel(request)}</td>
-                      <td>{request.quantity}</td>
-                      <td>{formatDateFromSeconds(request.occurred_at)}</td>
                       <td>{request.notes || "—"}</td>
                       <td>
                         <button

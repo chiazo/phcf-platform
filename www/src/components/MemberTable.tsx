@@ -495,10 +495,10 @@ export default function EnhancedTable({
                 {visibleRows.map((row, index) => {
                   const isItemSelected = selected.includes(row.id);
                   const labelId = `enhanced-table-checkbox-${index}`;
-                  console.log("wf", work_formulas);
-                  const workFormula = work_formulas.find(
-                    (formula) => formula?.member_id === row.member_id,
-                  );
+                  const workFormula = work_formulas
+                    .filter((wf) => !!wf)
+                    .find((formula) => formula?.member_id === row.member_id);
+
                   const workHoursRequired =
                     workFormula?.work_hours_required ?? 0;
                   const workHoursCompleted =
