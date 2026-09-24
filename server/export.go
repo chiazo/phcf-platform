@@ -165,6 +165,10 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 			"On Leave",
 			"Till by May 1",
 			"Notes",
+			"Work Hours Required",
+			"Work Hours Completed",
+			"Open Hours Required",
+			"Open Hours Completed",
 		})
 
 		// Load members
@@ -205,6 +209,34 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 				requestsByMemberID[memberID],
 				request,
 			)
+		}
+
+		// Load work formulas once
+		workFormulas := []*core.Record{}
+		if err := app.RecordQuery("work_formula").
+			OrderBy("created_at DESC").
+			All(&workFormulas); err != nil {
+			return e.InternalServerError(
+				"Could not load work formulas.",
+				err,
+			)
+		}
+
+		// Map the newest work formula to each member.
+		workFormulaByMemberID := make(map[string]*core.Record)
+
+		for _, workFormula := range workFormulas {
+			memberID := workFormula.GetString("member_id")
+
+			if memberID == "" {
+				continue
+			}
+
+			// Since results are newest-first, keep the first formula
+			// we encounter for each member.
+			if _, exists := workFormulaByMemberID[memberID]; !exists {
+				workFormulaByMemberID[memberID] = workFormula
+			}
 		}
 
 		boxes := []*core.Record{}
@@ -289,11 +321,50 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 				}
 			}
 
+			workFormula := workFormulaByMemberID[member.Id]
+
+			workHoursRequired := ""
+			workHoursCompleted := ""
+			openHoursRequired := ""
+			openHoursCompleted := ""
+
+			if workFormula != nil {
+				workHoursRequired = fmt.Sprintf(
+					"%d",
+					workFormula.GetInt("work_hours_required"),
+				)
+
+				workHoursCompleted = fmt.Sprintf(
+					"%d",
+					workFormula.GetInt("work_hours_completed"),
+				)
+
+				openHoursRequired = fmt.Sprintf(
+					"%d",
+					workFormula.GetInt("open_hours_required"),
+				)
+
+				openHoursCompleted = fmt.Sprintf(
+					"%d",
+					workFormula.GetInt("open_hours_completed"),
+				)
+			}
+
 			boxWaitingList := false
 			boxNumber := ""
 			sharingBox := "No"
 			waitlistNumber := ""
 			waitlistJoinDate := ""
+			meetingExemption := ""
+			notes := ""
+
+			if snapshot != nil {
+				meetingExemption = fmt.Sprintf(
+					"%d",
+					snapshot.GetInt("meeting_exemption"),
+				)
+				notes = snapshot.GetString("notes")
+			}
 
 			// Assigned/current box
 			if box, ok := boxByMemberID[member.Id]; ok {
@@ -352,10 +423,7 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 				fmt.Sprintf("%.2f%%", serviceHourPercentage),
 
 				// Meeting Exemption
-				fmt.Sprintf(
-					"%d",
-					snapshot.GetInt("meeting_exemption"),
-				),
+				meetingExemption,
 
 				// Dues Paid Date
 				formatUnixMDY(memberInfo.Dues.DuesPaidAt),
@@ -425,7 +493,19 @@ func exportMembersCSV(app core.App) func(e *core.RequestEvent) error {
 				"",
 
 				// Notes
-				snapshot.GetString("notes"),
+				notes,
+
+				// Work Hours Required
+				workHoursRequired,
+
+				// Work Hours Completed
+				workHoursCompleted,
+
+				// Open Hours Required
+				openHoursRequired,
+
+				// Open Hours Completed
+				openHoursCompleted,
 			})
 		}
 

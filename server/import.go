@@ -68,6 +68,11 @@ const (
 	colTillByMay1             = "Till by May 1"
 	colNotes                  = "Notes"
 
+	colWorkHoursRequired  = "Work Hours Required"
+	colWorkHoursCompleted = "Work Hours Completed"
+	colOpenHoursRequired  = "Open Hours Required"
+	colOpenHoursCompleted = "Open Hours Completed"
+
 	// Optional column. It does not currently exist in the export, but the
 	// importer accepts it if it is added to a CSV.
 	colMemberState = "Member State"
@@ -115,6 +120,11 @@ type memberImportRow struct {
 	BoxNumber string
 
 	Notes string
+
+	WorkHoursRequired  *int
+	WorkHoursCompleted *int
+	OpenHoursRequired  *int
+	OpenHoursCompleted *int
 }
 
 type importBox struct {
@@ -494,6 +504,38 @@ func readMemberCSV(r io.Reader) ([]memberImportRow, error) {
 			memberState = defaultMemberState
 		}
 
+		workHoursRequired, err := parseNullableInt(
+			get(colWorkHoursRequired),
+			fmt.Sprintf("row %d: %s", rowNumber, colWorkHoursRequired),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		workHoursCompleted, err := parseNullableInt(
+			get(colWorkHoursCompleted),
+			fmt.Sprintf("row %d: %s", rowNumber, colWorkHoursCompleted),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		openHoursRequired, err := parseNullableInt(
+			get(colOpenHoursRequired),
+			fmt.Sprintf("row %d: %s", rowNumber, colOpenHoursRequired),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		openHoursCompleted, err := parseNullableInt(
+			get(colOpenHoursCompleted),
+			fmt.Sprintf("row %d: %s", rowNumber, colOpenHoursCompleted),
+		)
+		if err != nil {
+			return nil, err
+		}
+
 		rows = append(rows, memberImportRow{
 			RowNumber: rowNumber,
 
@@ -532,7 +574,11 @@ func readMemberCSV(r io.Reader) ([]memberImportRow, error) {
 
 			BoxNumber: get(colBoxNumber),
 
-			Notes: get(colNotes),
+			Notes:              get(colNotes),
+			WorkHoursRequired:  workHoursRequired,
+			WorkHoursCompleted: workHoursCompleted,
+			OpenHoursRequired:  openHoursRequired,
+			OpenHoursCompleted: openHoursCompleted,
 		})
 	}
 
@@ -717,6 +763,28 @@ type boxImportPlan struct {
 
 	memberEmails []string
 	waitlistRows []memberImportRow
+}
+
+func parseNullableInt(
+	value string,
+	context string,
+) (*int, error) {
+	value = strings.TrimSpace(value)
+
+	if value == "" || value == "-" || value == "—" {
+		return nil, nil
+	}
+
+	result, err := strconv.Atoi(value)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%s: invalid integer %q",
+			context,
+			value,
+		)
+	}
+
+	return &result, nil
 }
 
 func buildImportPlan(

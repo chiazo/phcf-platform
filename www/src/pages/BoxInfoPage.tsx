@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -10,6 +10,8 @@ import {
   addToBoxWaitlist,
   removeMemberFromBox,
   removeMemberFromWaitlist,
+  assignWaitlistedMemberToBox,
+  countEntries,
   logout,
 } from "../lib/pocketbase";
 import Header from "../components/Header";
@@ -24,11 +26,95 @@ export default function BoxInfoPage() {
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [members, setMembers] = useState<Array<Record<string, any>>>([]);
   const [selectedMemberId, setSelectedMemberId] = useState("");
-  const [selectedBox, setSelectedBox] = useState("");
   const [requestingBox, setRequestingBox] = useState(false);
 
   // Prevent duplicate remove requests
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+
+  type WaitlistRow = {
+    member_id: string;
+    join_date?: number;
+    position: number;
+    name: string;
+    box_ids: string[];
+  };
+
+  const formatName = (fullName: string) => {
+    const parts = fullName.trim().split(" ");
+    if (parts.length < 2) return fullName;
+    return `${parts[0]} ${parts.at(-1)?.[0] ?? ""}.`;
+  };
+
+  const formatJoinDate = (joinDate?: number) => {
+    if (!joinDate) return "-";
+
+    // Treat small values as Unix seconds, larger ones as milliseconds
+    const ms = joinDate < 1e12 ? joinDate * 1000 : joinDate;
+
+    return new Date(ms).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const hasEmptyBox = allBoxes.some(
+    (b: any) => countEntries(b.box_members) < 2,
+  );
+
+  const unavailableMemberIds = new Set<string>(
+    allBoxes.flatMap((box: any) => [
+      ...(box.box_members ?? []),
+      ...(box.waitlist ?? []).map((e: any) => e.member_id),
+    ]),
+  );
+
+  const waitlist: WaitlistRow[] = useMemo(() => {
+    // Everyone who currently holds a box
+    const boxHolders = new Set<string>(
+      (allBoxes ?? []).flatMap((box: any) =>
+        Array.isArray(box.box_members) ? box.box_members : [],
+      ),
+    );
+
+    const rows = (allBoxes ?? [])
+      .flatMap((box: any) =>
+        (box.waitlist ?? []).map((entry: any, index: number) => ({
+          ...entry,
+          box_id: box.id,
+          name: box.waitlist_names?.[index]?.name || entry.member_id,
+        })),
+      )
+      // Skip anyone who already has a box
+      .filter((row: any) => !boxHolders.has(row.member_id))
+      .sort(
+        (a: any, b: any) =>
+          (a.join_date ?? Infinity) - (b.join_date ?? Infinity),
+      );
+
+    const byMember = new Map<string, WaitlistRow>();
+    for (const row of rows) {
+      const existing = byMember.get(row.member_id);
+      if (existing) {
+        existing.box_ids.push(row.box_id);
+      } else {
+        byMember.set(row.member_id, { ...row, box_ids: [row.box_id] });
+      }
+    }
+
+    return Array.from(byMember.values());
+  }, [allBoxes]);
+
+  async function refreshSafely() {
+    try {
+      await refreshBoxes();
+    } catch (err) {
+      console.error("refresh error:", err);
+      setActionError(
+        "The change may have gone through, but the page could not refresh. Reload to see the latest data.",
+      );
+    }
+  }
 
   async function refreshBoxes() {
     const res = await listBoxes();
@@ -92,7 +178,6 @@ export default function BoxInfoPage() {
 
       setMembers(memberRecords);
       setSelectedMemberId("");
-      setSelectedBox("");
       setRequestModalOpen(true);
     } catch (err) {
       console.error("member fetch error:", err);
@@ -100,39 +185,90 @@ export default function BoxInfoPage() {
     }
   }
 
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [requestingMemberId, setRequestingMemberId] = useState<string | null>(
+    null,
+  );
+
+  async function handleAssignBoxFromTable(
+    memberId: string,
+    name: string,
+    index: number,
+  ) {
+    if (!isAdmin()) return;
+
+    const message =
+      index > 0
+        ? `Assign a box to ${name}? This skips ${index} member${index === 1 ? "" : "s"} who joined the waitlist earlier.`
+        : `Assign a box to ${name}?`;
+
+    if (!window.confirm(message)) return;
+
+    setRequestingMemberId(memberId);
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      const box = await assignWaitlistedMemberToBox(memberId);
+      setActionNotice(
+        box?.box_name
+          ? `${name} was assigned to ${box.box_name} (Box ${box.box_number}).`
+          : `Box assigned to ${name}.`,
+      );
+    } catch (err) {
+      console.error("assign box error:", err);
+      setActionError(
+        err instanceof Error ? err.message : "Could not assign a box.",
+      );
+    } finally {
+      await refreshBoxes();
+      setRequestingMemberId(null);
+    }
+  }
+
   async function handleAdminRequestBox() {
     if (!selectedMemberId) {
-      setLoadError("Please select a member.");
-      return;
-    }
-
-    if (!selectedBox) {
-      setLoadError("Please select a box.");
+      setActionError("Please select a member.");
       return;
     }
 
     setRequestingBox(true);
-    setLoadError(null);
+    setActionError(null);
+    setActionNotice(null);
 
     try {
-      await addToBoxWaitlist(allBoxes, selectedMemberId, selectedBox);
-
-      await refreshBoxes();
+      const box = await addToBoxWaitlist(allBoxes, selectedMemberId);
+      const selectedMember = members.find((m) => m.id === selectedMemberId);
+      const selectedName =
+        selectedMember?.expand?.user_id?.name ||
+        selectedMember?.expand?.user_id?.email ||
+        selectedMemberId;
+      const openBox = allBoxes.find(
+        (b: any) => countEntries(b.box_members) < 2,
+      );
+      setActionNotice(
+        box.box_members?.includes(selectedMemberId)
+          ? `${selectedName} was assigned to ${box.box_name} (Box ${box.box_number}).`
+          : openBox
+            ? `${openBox.box_name} (Box ${openBox.box_number}) is open, but others are already waiting. ${selectedName} was added to the end of the waitlist.`
+            : `No empty box available. ${selectedName} was added to the end of the waitlist.`,
+      );
 
       setRequestModalOpen(false);
       setSelectedMemberId("");
-      setSelectedBox("");
     } catch (err) {
       console.error("admin request box error:", err);
-      setLoadError(
+      setActionError(
         err instanceof Error ? err.message : "Could not request a box.",
       );
     } finally {
+      await refreshBoxes();
       setRequestingBox(false);
     }
   }
 
-  async function handleRemoveFromBox(memberId: string) {
+  async function handleRemoveFromBox(memberId: string, boxId: string) {
     if (!isAdmin()) return;
 
     const confirmed = window.confirm(
@@ -145,7 +281,7 @@ export default function BoxInfoPage() {
     setLoadError(null);
 
     try {
-      await removeMemberFromBox(memberId);
+      await removeMemberFromBox(memberId, boxId);
       await refreshBoxes();
     } catch (err) {
       console.error("remove from box error:", err);
@@ -160,26 +296,24 @@ export default function BoxInfoPage() {
   async function handleRemoveFromWaitlist(memberId: string) {
     if (!isAdmin()) return;
 
-    const confirmed = window.confirm(
-      "Remove this member from the box waitlist?",
-    );
-
-    if (!confirmed) return;
+    if (!window.confirm("Remove this member from the box waitlist?")) return;
 
     setRemovingMemberId(memberId);
-    setLoadError(null);
+    setActionError(null);
+    setActionNotice(null);
 
     try {
       await removeMemberFromWaitlist(memberId);
-      await refreshBoxes();
+      setActionNotice("Member removed from the waitlist.");
     } catch (err) {
       console.error("remove from waitlist error:", err);
-      setLoadError(
+      setActionError(
         err instanceof Error
           ? err.message
           : "Could not remove member from waitlist.",
       );
     } finally {
+      await refreshSafely();
       setRemovingMemberId(null);
     }
   }
@@ -214,6 +348,8 @@ export default function BoxInfoPage() {
       />
 
       {loadError && <p className="error">{loadError}</p>}
+      {actionError && <p className="error">{actionError}</p>}
+      {actionNotice && <p className="muted">{actionNotice}</p>}
 
       {allBoxes.length === 0 && !loadError ? (
         <p className="muted">No boxes found.</p>
@@ -226,7 +362,6 @@ export default function BoxInfoPage() {
                 <th>Box Number</th>
                 <th>Status</th>
                 <th>Members</th>
-                <th>Waitlist</th>
                 <th>Updated By</th>
                 {/* <th>Notes</th> */}
                 {isAdmin() && <th>Actions</th>}
@@ -237,10 +372,6 @@ export default function BoxInfoPage() {
               {allBoxes.map((box) => {
                 const boxMembers = Array.isArray(box.box_members)
                   ? box.box_members
-                  : [];
-
-                const waitlist = Array.isArray(box.waitlist)
-                  ? box.waitlist
                   : [];
 
                 const isCurrentUserBox = box.box_members_names.includes(
@@ -257,21 +388,14 @@ export default function BoxInfoPage() {
 
                     <td>
                       <span className="badge">
-                        {boxMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED"}
+                        {boxMembers.length}/2
+                        {/* {boxMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED"} */}
                       </span>
                     </td>
 
                     <td>
                       {box.box_members_names?.length
                         ? box.box_members_names.join(", ")
-                        : "—"}
-                    </td>
-
-                    <td>
-                      {box.waitlist_names?.length
-                        ? box.waitlist_names
-                            .map((entry: { name: string }) => entry.name)
-                            .join(", ")
                         : "—"}
                     </td>
 
@@ -291,7 +415,9 @@ export default function BoxInfoPage() {
                                 type="button"
                                 className="box-action-button"
                                 disabled={isRemoving}
-                                onClick={() => handleRemoveFromBox(memberId)}
+                                onClick={() =>
+                                  handleRemoveFromBox(memberId, box.id)
+                                }
                               >
                                 {isRemoving
                                   ? "Removing..."
@@ -300,7 +426,92 @@ export default function BoxInfoPage() {
                             );
                           })}
 
-                          {waitlist.map(
+                          {boxMembers.length === 0 && (
+                            <span className="muted">No actions</span>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <br></br>
+      {waitlist.length === 0 ? (
+        <p className="muted">No one is on the waitlist currently!</p>
+      ) : (
+        <div className="table-wrapper">
+          <table className="waitlist-table">
+            <thead>
+              <tr>
+                <th>Waitlist Rank</th>
+                <th>Member</th>
+                <th>Join Date</th>
+                {isAdmin() && <th>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {waitlist.map((entry, index) => {
+                return (
+                  <tr key={`waitlist-${entry.member_id}`}>
+                    <td>{index + 1}</td>
+                    <td>{formatName(entry.name)}</td>
+                    <td>{formatJoinDate(entry.join_date)}</td>
+
+                    {isAdmin() && (
+                      <td>
+                        <button
+                          type="button"
+                          className="box-action-button"
+                          disabled={removingMemberId === entry.member_id}
+                          onClick={() =>
+                            handleRemoveFromWaitlist(entry.member_id)
+                          }
+                        >
+                          {removingMemberId === entry.member_id
+                            ? "Removing..."
+                            : "Remove"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="box-action-button"
+                          disabled={
+                            !hasEmptyBox ||
+                            requestingMemberId !== null ||
+                            removingMemberId === entry.member_id
+                          }
+                          title={
+                            !hasEmptyBox
+                              ? "No empty boxes available"
+                              : undefined
+                          }
+                          onClick={() =>
+                            handleAssignBoxFromTable(
+                              entry.member_id,
+                              formatName(entry.name),
+                              index,
+                            )
+                          }
+                        >
+                          {requestingMemberId === entry.member_id
+                            ? "Assigning..."
+                            : "Assign Box"}
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* {waitlist.map(
                             (
                               entry: {
                                 member_id: string;
@@ -331,21 +542,7 @@ export default function BoxInfoPage() {
                                 </button>
                               );
                             },
-                          )}
-
-                          {boxMembers.length === 0 && waitlist.length === 0 && (
-                            <span className="muted">No actions</span>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                          )} */}
 
       {/* =========================================================
           Admin: Request Box Modal
@@ -366,31 +563,17 @@ export default function BoxInfoPage() {
             >
               <option value="">Select a member...</option>
 
-              {members.map((member) => {
-                const user = member.expand?.user_id;
+              {members
+                .filter((member) => !unavailableMemberIds.has(member.id))
+                .map((member) => {
+                  const user = member.expand?.user_id;
 
-                return (
-                  <option key={member.id} value={member.id}>
-                    {user?.name || user?.email || member.id}
-                  </option>
-                );
-              })}
-            </select>
-            <p>Select the box you'd like to add them to.</p>
-
-            <select
-              value={selectedBox}
-              onChange={(e) => setSelectedBox(e.target.value)}
-            >
-              <option value="">Select a box...</option>
-
-              {allBoxes.map((box) => {
-                return (
-                  <option key={box.id} value={box.id}>
-                    Box #{box.box_number} - {box.box_name}
-                  </option>
-                );
-              })}
+                  return (
+                    <option key={member.id} value={member.id}>
+                      {user?.name || user?.email || member.id}
+                    </option>
+                  );
+                })}
             </select>
 
             <div className="button-row">
