@@ -1002,12 +1002,25 @@ func ensureLegacySnapshotCollection(app core.App, usersCollectionId string) (*co
 }
 
 func configureLegacySnapshotCollection(app core.App, collection *core.Collection, usersCollectionId string) error {
-	adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
+	// adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
+	// ownRecordRule := "id = @request.auth.id"
 
-	collection.ListRule = types.Pointer(adminRule)
-	collection.ViewRule = types.Pointer(adminRule)
-	collection.CreateRule = types.Pointer(adminRule)
-	collection.UpdateRule = types.Pointer(adminRule)
+	// collection.ListRule = types.Pointer(ownRecordRule)
+	// collection.ViewRule = types.Pointer(ownRecordRule)
+	// collection.CreateRule = types.Pointer(ownRecordRule)
+	// collection.UpdateRule = types.Pointer(ownRecordRule)
+	// collection.DeleteRule = types.Pointer(adminRule)
+
+	adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
+	// add secondary rule so users can submit legacy_snapshots when editting their profile
+	ownRecordRule := "user_id = @request.auth.id"
+	createRule := "user_id = @request.auth.id || (@request.auth.id != '' && @request.auth.is_admin = true)"
+
+	collection.ListRule = types.Pointer(ownRecordRule)
+	collection.ViewRule = types.Pointer(ownRecordRule)
+	// users need to be able to create legacy_snapshots automatically after updating a stale profile
+	collection.CreateRule = types.Pointer(createRule)
+	collection.UpdateRule = types.Pointer(ownRecordRule)
 	collection.DeleteRule = types.Pointer(adminRule)
 
 	if err := addTimeAttributeFields(app, collection); err != nil {

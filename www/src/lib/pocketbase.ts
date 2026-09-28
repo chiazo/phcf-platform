@@ -622,9 +622,10 @@ export async function deleteDuplicateSnapshot(
       }
       if (i===(totalSnapshotsLength-2)){
         console.log('allSnapshots.items[i].id to be deleted:',allSnapshots.items[i].id);
+        console.log('auth check:',pb.authStore.isValid, pb.authStore.record?.id, pb.authStore.record?.collectionName);
         archiveSnapshotIfStale(allSnapshots.items[i].id, member);
         console.log('should we delete this one? allSnapshots.items[i].id:',allSnapshots.items[i].id);
-        continue;
+        // continue;
       }
       deleteRequest(allSnapshots.items[i]);
     }
@@ -1270,6 +1271,7 @@ export async function archiveSnapshotIfStale(
   if (isStale) {
     try {
       console.log('attempting to make legacy snap')
+      console.log('legacyPayload.user_id:', legacyPayload.user_id, 'authId:', pb.authStore.record?.id);
       await pb.collection("legacy_snapshots").create(legacyPayload);
     } catch (err) {
       console.error("archiveSnapshotIfStale: failed to archive stale snapshot:", err);
