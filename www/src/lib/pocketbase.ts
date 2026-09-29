@@ -1447,13 +1447,21 @@ export async function cleanupMemberSnapshots(
  
   const [, ...previous] = snapshots; // index 0 is the current snapshot, skip current
   const cutoff = monthsAgo(3, now);   // 3 month cut-off window
-  console.log('entering parse section size', cutoff, 'with snapshots:',snapshots);
   await Promise.all(
     previous.map(async (snapshot) => {
       try {
         if (parseDate(snapshot["created_at"]) < cutoff) {
-          await pb.collection("legacy_snapshots").create(toLegacyPayload(snapshot));
-          await pb.collection("member_snapshot").delete(snapshot.id);
+          if (snapshot.notes !== "Recently Deleted") {
+            // if we haven't marked this snap for deletion from member_snapshots previously
+            await pb.collection("legacy_snapshots").create(toLegacyPayload(snapshot));
+            // add this old snap to legay snapshots
+          }else{
+            // mark it as deleted
+            // then, pass over this snap as it is already in the legacy_snapshots collection
+            await pb
+            .collection("member_snapshot")
+            .update(snapshot.id, { notes: "Recently Deleted" });
+          }
           result.archived.push(snapshot.id);
         } else if (snapshot.notes !== "Recently Deleted") {
           await pb
