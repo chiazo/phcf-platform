@@ -1441,7 +1441,7 @@ export async function cleanupMemberSnapshots(
     sort: `-${"created_at"}`,
   });
   // const snapshots = await pb.collection("member_snapshot").getFullList()
-  console.log('snapshots',snapshots);
+  // console.log('snapshots',snapshots);
  
   if (snapshots.length <= 1) return result;
  
@@ -1452,16 +1452,14 @@ export async function cleanupMemberSnapshots(
     previous.map(async (snapshot) => {
       try {
         if (parseDate(snapshot["created_at"]) < cutoff) {
-          console.log('found an oldie:',snapshot,'\n');
           await pb.collection("legacy_snapshots").create(toLegacyPayload(snapshot));
           await pb.collection("member_snapshot").delete(snapshot.id);
           result.archived.push(snapshot.id);
-        } else if (snapshot.note !== "Recently Deleted") {
+        } else if (snapshot.notes !== "Recently Deleted") {
           await pb
             .collection("member_snapshot")
-            .update(snapshot.id, { note: "Recently Deleted" });
+            .update(snapshot.id, { notes: "Recently Deleted" });
           result.markedDeleted.push(snapshot.id);
-          console.log('updated note for:',snapshot,'\n')
         }
       } catch (error) {
         result.failed.push({ id: snapshot.id, error });
