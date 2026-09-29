@@ -1067,10 +1067,14 @@ func ensureLegacySnapshotCollection(app core.App, usersCollectionId string) (*co
 
 func configureLegacySnapshotCollection(app core.App, collection *core.Collection, usersCollectionId string) error {
 	adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
+	authenticatedRule := "@request.auth.id != ''"
+	// heres another sample rule from configureWorkFormula
+	// 	ownRowOrAdminRule := "@request.auth.id != '' && (member_id.user_id = @request.auth.id || @request.auth.is_admin = true)"
+
 
 	collection.ListRule = types.Pointer(adminRule)
 	collection.ViewRule = types.Pointer(adminRule)
-	collection.CreateRule = types.Pointer(adminRule)
+	collection.CreateRule = types.Pointer(authenticatedRule) // logged in user can add to their own legacy snapsot when the update their user info
 	collection.UpdateRule = types.Pointer(adminRule)
 	collection.DeleteRule = types.Pointer(adminRule)
 
