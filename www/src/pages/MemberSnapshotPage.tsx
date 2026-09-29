@@ -12,10 +12,12 @@ import {
   newFormUpdate,
   updateMemberSnapshotDirect,
   updatePronouns,
+  cleanupMemberSnapshots,
 } from "../lib/pocketbase";
 import { useVolunteerInterests } from "../lib/form";
 
 import MemberSnapshot from "../models/MemberSnapshot";
+
 
 import {
   DueState,
@@ -354,6 +356,19 @@ export default function MemberSnapshotPage() {
           ? "Snapshot was successfully updated."
           : "Form was successfully completed.",
     );
+
+    // HERE HERE HERE
+    // adding in snapshot cleanup helper function
+    // moves old snapshots to legacy snapshots
+    // sets <3 month old snapshots to be reviewed for deletion
+    try {
+      // const userId = memberId //pb.authStore.record?.id; // or pb.authStore.model?.id on older SDKs
+      // console.log()
+      if (memberId) await cleanupMemberSnapshots(memberId);
+    } catch (err) {
+      console.error("Snapshot cleanup failed", err); // don't block the submit flow
+    }
+
   };
 
   return (

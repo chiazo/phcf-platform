@@ -4,6 +4,7 @@ import { config } from "./config";
 
 import { DueState, MemberType } from "../models/enums";
 import MemberSnapshot from "../models/MemberSnapshot";
+import type { RecordModel } from "pocketbase";
 
 export const pb = new PocketBase(config.pbUrl);
 
@@ -1396,4 +1397,77 @@ export async function updateDenyRequest(currentSnapshot: Record<string, any>) {
   await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
     notes: "Recently Denied",
   });
+}
+
+
+export interface SnapshotCleanupResult {
+  archived: string[]; // ids moved to legacy_snapshots
+  markedDeleted: string[]; // ids whose note was set to "Recently Deleted"
+  failed: { id: string; error: unknown }[];
+}
+ 
+/** PocketBase returns "YYYY-MM-DD HH:mm:ss.SSSZ"; normalize so all browsers parse it. */
+function parseDate(value: string): Date {
+  return new Date(value.replace(" ", "T"));
+}
+ 
+function monthsAgo(months: number, from: Date): Date {
+  const d = new Date(from);
+  d.setMonth(d.getMonth() - months);
+  return d;
+}
+ 
+/** Strip PocketBase system fields so the record can be re-created elsewhere. */
+function toLegacyPayload(record: RecordModel): Record<string, unknown> {
+  const { id, collectionId, collectionName, expand, ...fields } = record;
+  return { ...fields, original_snapshot_id: id }; // ignored if the field doesn't exist
+}
+ 
+/**
+ * If the user has more than one member_snapshot:
+ *  - older than 3 months  -> moved to legacy_snapshots
+ *  - newer than 3 months  -> note set to "Recently Deleted"
+ * The most recent snapshot is always left alone.
+ */
+export async function cleanupMemberSnapshots(
+  memberID: string,
+  now: Date = new Date(),
+): Promise<SnapshotCleanupResult> {
+  const result: SnapshotCleanupResult = { archived: [], markedDeleted: [], failed: [] };
+ 
+  const snapshots = await pb.collection("member_snapshot").getFullList({
+    // check parameter name
+    filter: pb.filter(`${"member_id"} = {:memberID}`, { memberID }),
+    sort: `-${"created_at"}`,
+  });
+  // const snapshots = await pb.collection("member_snapshot").getFullList()
+  console.log('snapshots',snapshots);
+ 
+  if (snapshots.length <= 1) return result;
+ 
+  const [, ...previous] = snapshots; // index 0 is the current snapshot, skip current
+  const cutoff = monthsAgo(3, now);   // 3 month cut-off window
+  console.log('entering parse section size', cutoff, 'with snapshots:',snapshots);
+  await Promise.all(
+    previous.map(async (snapshot) => {
+      try {
+        if (parseDate(snapshot["created_at"]) < cutoff) {
+          console.log('found an oldie:',snapshot,'\n');
+          await pb.collection("legacy_snapshots").create(toLegacyPayload(snapshot));
+          await pb.collection("member_snapshot").delete(snapshot.id);
+          result.archived.push(snapshot.id);
+        } else if (snapshot.note !== "Recently Deleted") {
+          await pb
+            .collection("member_snapshot")
+            .update(snapshot.id, { note: "Recently Deleted" });
+          result.markedDeleted.push(snapshot.id);
+          console.log('updated note for:',snapshot,'\n')
+        }
+      } catch (error) {
+        result.failed.push({ id: snapshot.id, error });
+      }
+    }),
+  );
+ 
+  return result;
 }
