@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
-import { SubmitHandler, useForm } from "react-hook-form";
-import { Link, useParams } from "react-router-dom";
+import {
+  SubmitHandler,
+  UseFormRegisterReturn,
+  useForm,
+} from "react-hook-form";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import Button from "@mui/material/Button";
 
 import {
   currentUser,
+  getLastApprovedSnapshot,
+  getLatestPendingSnapshot,
   getMemberSnapshot,
   getMemberWorkFormula,
   isAdmin,
@@ -26,6 +32,9 @@ import {
   emailPattern,
   phonePattern,
 } from "../models/enums";
+
+// Must match the notes text written by newFormUpdate in pocketbase.ts
+const PENDING_NOTE = "Update needs approval by an admin.";
 
 interface IFormInput {
   //personal_info
@@ -52,6 +61,10 @@ interface IFormInput {
   volunteerInterestOtherSelected?: boolean;
 }
 
+function getPath(obj: any, path: string) {
+  return path.split(".").reduce((o, key) => o?.[key], obj);
+}
+
 function toDateInputValue(unixSeconds: number | undefined): string {
   const date = unixSeconds ? new Date(unixSeconds * 1000) : new Date();
   return date.toISOString().split("T")[0]; // "YYYY-MM-DD"
@@ -69,10 +82,46 @@ function normalizeCheckboxValues(value: unknown): string[] {
   return [];
 }
 
+function PendingSelect({
+  label,
+  registration,
+  options,
+  current,
+  pending,
+  disabled,
+}: {
+  label: string;
+  registration: UseFormRegisterReturn;
+  options: string[];
+  current: string;
+  pending: boolean;
+  disabled: boolean;
+}) {
+  const pretty = (v: string) => v.replace(/_/g, " ");
+  return (
+    <p>
+      <strong>{label}</strong>
+      <select {...registration} disabled={disabled}>
+        {options.map((opt) => {
+          const isCurrentPending = pending && opt === current;
+          return (
+            <option key={opt} value={opt} disabled={isCurrentPending}>
+              {isCurrentPending ? `PENDING (${pretty(opt)})` : pretty(opt)}
+            </option>
+          );
+        })}
+      </select>
+    </p>
+  );
+}
+
 export default function MemberSnapshotPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [member, setMember] = useState<MemberSnapshot | null>(null);
+  const [isPendingSnapshot, setIsPendingSnapshot] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [baseline, setBaseline] = useState<any>(null);
   const [editMode, setEditMode] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [workFormula, setWorkFormula] = useState<Record<string, any> | null>(
@@ -88,35 +137,65 @@ export default function MemberSnapshotPage() {
   } = useForm<IFormInput>();
 
   async function refreshMember() {
-    if (!id) return Promise.resolve();
+    if (!id) return;
 
-    return getMemberSnapshot(id)
-      .then((raw) => {
-        if (!raw) {
-          console.error("could not find specific");
-          setNotFound(true);
-          return;
-        }
+    try {
+      const raw = await getMemberSnapshot(id);
 
-        getMemberWorkFormula(raw)
-          .then((result) => {
-            setWorkFormula(result);
-          })
-          .catch((err) => {
-            console.error("issues with fetching work formula:", err);
-          });
-
-        setMember(new MemberSnapshot(raw as any));
-      })
-      .catch((err) => {
-        console.error("member snapshot fetch error:", err);
+      if (!raw) {
+        console.error("could not find specific");
         setNotFound(true);
-      });
+        return;
+      }
+
+      // Non-admins: if they have a newer pending snapshot for this member,
+      // show that one instead of the last approved snapshot.
+      const userName = currentUser()?.name;
+      if (!isAdmin() && userName) {
+        const pending = await getLatestPendingSnapshot(
+          (raw as any).member_id,
+          userName,
+        );
+        if (pending && pending.id !== (raw as any).id) {
+          navigate(`/snapshot/${pending.id}`, { replace: true });
+          return; // the [id] effect will load the pending snapshot
+        }
+      }
+
+      getMemberWorkFormula(raw)
+        .then((result) => {
+          setWorkFormula(result);
+        })
+        .catch((err) => {
+          console.error("issues with fetching work formula:", err);
+        });
+
+      setIsPendingSnapshot((raw as any).notes === PENDING_NOTE);
+      setMember(new MemberSnapshot(raw as any));
+    } catch (err) {
+      console.error("member snapshot fetch error:", err);
+      setNotFound(true);
+    }
   }
 
   useEffect(() => {
     refreshMember();
   }, [id]);
+
+  // Load the last approved snapshot to diff against when viewing a pending one
+  useEffect(() => {
+    if (!member || !id) return;
+    const m = member as any;
+    const ownPending =
+      isPendingSnapshot && m.updatedBy === currentUser()?.name && !isAdmin();
+    if (!ownPending) {
+      setBaseline(null);
+      return;
+    }
+    getLastApprovedSnapshot(m.memberId, id).then((raw) => {
+      setBaseline(raw ? new MemberSnapshot(raw as any) : null);
+    });
+  }, [member, id, isPendingSnapshot]);
 
   useEffect(() => {
     if (member) {
@@ -183,6 +262,8 @@ export default function MemberSnapshotPage() {
     });
   }, [member, interestsLoading, volunteerInterestOptions, reset]);
 
+  // ---- all hooks are above this line; early returns are safe below ----
+
   if (notFound) return <p>Not found</p>;
   if (!member) return <p>Loading…</p>;
 
@@ -190,9 +271,19 @@ export default function MemberSnapshotPage() {
     member as any;
 
   const isOwnPendingSubmission =
-    updatedBy === currentUser()?.name && !isAdmin();
+    isPendingSnapshot && updatedBy === currentUser()?.name && !isAdmin();
 
+  // A field is "pending" only if it differs from the last approved snapshot.
+  // Works for any path in memberInfo, e.g. isPending("dues.amountPaid").
+  const base = baseline?.memberInfo;
+  const isPending = (path: string) =>
+    isOwnPendingSubmission &&
+    !!base &&
+    getPath(base, path) !== getPath(memberInfo, path);
+  const pendingClass = (path: string) => (isPending(path) ? "pending-field" : "");
   const { orientationDate } = memberInfo;
+
+  
 
   const { firstName, lastName, pronouns, address, emailInfo, phoneInfo } =
     personalInfo;
@@ -214,23 +305,7 @@ export default function MemberSnapshotPage() {
     serviceHoursRequired = 0,
   } = requirements;
 
-  const knownLabels = new Set(volunteerInterestOptions.map((i) => i.label));
-
-  const customVolunteerInterest = interestsLoading
-    ? ""
-    : (volunteerInterests.find(
-        (interest: string) =>
-          interest.startsWith("Other:") || !knownLabels.has(interest),
-      ) ?? "");
-
-  const customVolunteerInterestText =
-    customVolunteerInterest === "Other"
-      ? ""
-      : customVolunteerInterest.replace(/^Other:\s*/, "").trim();
-
   const onSubmit: SubmitHandler<IFormInput> = async (data) => {
-    //check all of the inputs
-    //if any are incorrect check add it to the patch
     if (!editMode) {
       setEditMode(true);
       return; // first click just enters edit mode, don't process the form yet
@@ -238,6 +313,7 @@ export default function MemberSnapshotPage() {
 
     setSubmitMessage(null);
     let hadError = false;
+    let navigated = false;
 
     if (!isAdmin() && data.pronouns !== pronouns) {
       const newPersonalData = {
@@ -308,12 +384,12 @@ export default function MemberSnapshotPage() {
         volunteerInterests: [
           ...normalizeCheckboxValues(data.volunteerInterests),
           ...(data.volunteerInterestOtherSelected ||
-          data.volunteerInterestOther?.trim()
+            data.volunteerInterestOther?.trim()
             ? [
-                data.volunteerInterestOther?.trim()
-                  ? `Other: ${data.volunteerInterestOther.trim()}`
-                  : "Other",
-              ]
+              data.volunteerInterestOther?.trim()
+                ? `Other: ${data.volunteerInterestOther.trim()}`
+                : "Other",
+            ]
             : []),
         ],
       },
@@ -335,13 +411,21 @@ export default function MemberSnapshotPage() {
         JSON.stringify(needsApprovalPersonal),
         JSON.stringify(needsApprovalMember),
         Math.floor(Date.now() / 1000),
-      ).catch((err) => {
-        console.error("error in member snapshot updates: ", err);
-        hadError = true;
-      });
+      )
+        .then((newSnapshot) => {
+          navigated = true;
+          navigate(`/snapshot/${newSnapshot.id}`, { replace: true });
+        })
+        .catch((err) => {
+          console.error("error in member snapshot updates: ", err);
+          hadError = true;
+        });
     }
 
-    await refreshMember();
+    // After navigating, the [id] effect loads the new snapshot
+    if (!navigated) {
+      await refreshMember();
+    }
 
     if (!hadError) {
       setEditMode(false);
@@ -413,65 +497,39 @@ export default function MemberSnapshotPage() {
               <strong>Pronouns</strong>
               <input {...register("pronouns")} disabled={!editMode} />
             </p>
-            <p>
-              <strong>Member Role</strong>
-              <select {...register("memberRole")} disabled={!editMode}>
-                {Object.values(MemberRole)
-                  .filter(
-                    (role) =>
-                      role !== MemberRole.PENDING &&
-                      role !== MemberRole.INVALID,
-                  )
-                  .map((role) => (
-                    <option
-                      key={role}
-                      value={role}
-                      disabled={isOwnPendingSubmission && role === memberRole}
-                    >
-                      {isOwnPendingSubmission && role === memberRole
-                        ? `PENDING (${role.replace(/_/g, " ")})`
-                        : role.replace(/_/g, " ")}
-                    </option>
-                  ))}
-              </select>
-            </p>
 
-            <p>
-              <strong>Member Type</strong>
-              <select {...register("memberType")} disabled={!editMode}>
-                {Object.values(MemberType)
-                  .filter((type) => type !== MemberType.PENDING)
-                  .map((type) => (
-                    <option
-                      key={type}
-                      value={type}
-                      disabled={isOwnPendingSubmission && type === memberType}
-                    >
-                      {isOwnPendingSubmission && type === memberType
-                        ? `PENDING (${type})`
-                        : type}
-                    </option>
-                  ))}
-              </select>
-            </p>
-            <p>
-              <strong>Status</strong>
-              <select {...register("memberState")} disabled={!editMode}>
-                {Object.values(MemberState)
-                  .filter((state) => state !== MemberState.PENDING)
-                  .map((state) => (
-                    <option
-                      key={state}
-                      value={state}
-                      disabled={isOwnPendingSubmission && state === memberState}
-                    >
-                      {isOwnPendingSubmission && state === memberState
-                        ? `PENDING (${state})`
-                        : state}
-                    </option>
-                  ))}
-              </select>
-            </p>
+            <PendingSelect
+              label="Member Role"
+              registration={register("memberRole")}
+              options={Object.values(MemberRole).filter(
+                (r) => r !== MemberRole.PENDING && r !== MemberRole.INVALID,
+              )}
+              current={memberRole}
+              pending={isPending("memberRole")}
+              disabled={!editMode}
+            />
+
+            <PendingSelect
+              label="Member Type"
+              registration={register("memberType")}
+              options={Object.values(MemberType).filter(
+                (t) => t !== MemberType.PENDING,
+              )}
+              current={memberType}
+              pending={isPending("memberType")}
+              disabled={!editMode}
+            />
+
+            <PendingSelect
+              label="Status"
+              registration={register("memberState")}
+              options={Object.values(MemberState).filter(
+                (s) => s !== MemberState.PENDING,
+              )}
+              current={memberState}
+              pending={isPending("memberState")}
+              disabled={!editMode}
+            />
           </section>
           {/* Contact */}
           <section>
@@ -534,39 +592,31 @@ export default function MemberSnapshotPage() {
           <section>
             <h2>Dues</h2>
 
-            <p>
-              <strong>Status</strong>
-              <select
-                {...register("dueState")}
-                defaultValue={dueState}
-                disabled={!editMode}
-              >
-                {Object.values(DueState)
-                  .filter((state) => state !== DueState.PENDING)
-                  .map((state) => (
-                    <option
-                      key={state}
-                      value={state}
-                      disabled={isOwnPendingSubmission && state === dueState}
-                    >
-                      {isOwnPendingSubmission && state === dueState
-                        ? `PENDING (${state})`
-                        : state}
-                    </option>
-                  ))}
-              </select>
-            </p>
+            <PendingSelect
+              label="Status"
+              registration={register("dueState")}
+              options={Object.values(DueState).filter(
+                (s) => s !== DueState.PENDING,
+              )}
+              current={dueState}
+              pending={isPending("dues.dueState")}
+              disabled={!editMode}
+            />
             <p>
               <strong>Amount Paid</strong>
               <input
                 {...register("amountPaid", { valueAsNumber: true })}
+                className={pendingClass("memberInfo.dues.amountPaid")}
                 disabled={!editMode}
               />
             </p>
             <p>
               <strong>Payment Type</strong>
-              <select {...register("paymentType")} disabled={!editMode}>
-                {Object.values(PaymentType).map((type) => (
+              <select
+                {...register("paymentType")}
+                className={pendingClass("memberInfo.dues.paymentType")}
+                disabled={!editMode}
+              >                {Object.values(PaymentType).map((type) => (
                   <option key={type} value={type}>
                     {type.toUpperCase()}
                   </option>
@@ -578,6 +628,7 @@ export default function MemberSnapshotPage() {
               <input
                 type="date"
                 {...register("duesPaidAt")}
+                className={pendingClass("memberInfo.dues.duesPaidAt")}
                 disabled={!editMode}
               />
             </p>

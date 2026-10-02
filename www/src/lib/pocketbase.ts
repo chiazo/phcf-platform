@@ -615,6 +615,36 @@ export async function newFormUpdate(
       created_at: now,
       modified_at: now,
     });
+
+    return snapshot;
+}
+
+export async function getLastApprovedSnapshot(memberId: string, excludeId: string) {
+  try {
+    return await pb.collection("member_snapshot").getFirstListItem(
+      pb.filter(
+        'member_id = {:memberId} && id != {:excludeId} && notes != "Update needs approval by an admin."',
+        { memberId, excludeId },
+      ),
+      { sort: "-created_at" },
+    );
+  } catch {
+    return null; // no baseline found
+  }
+}
+
+export async function getLatestPendingSnapshot(memberId: string, authorName: string) {
+  try {
+    return await pb.collection("member_snapshot").getFirstListItem(
+      pb.filter(
+        'member_id = {:memberId} && updated_by = {:authorName} && notes = "Update needs approval by an admin."',
+        { memberId, authorName },
+      ),
+      { sort: "-created_at" },
+    );
+  } catch {
+    return null;
+  }
 }
 
 export async function updateMemberSnapshotDirect(
