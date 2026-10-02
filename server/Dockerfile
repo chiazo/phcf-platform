@@ -2,7 +2,7 @@ FROM golang:1.26 AS builder
 
 WORKDIR /app
 COPY . .
-RUN go build -o app export.go import.go main.go
+RUN go build -o app export.go bulk_import.go import.go main.go
 
 FROM debian:bookworm-slim
 

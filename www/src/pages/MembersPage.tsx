@@ -22,7 +22,10 @@ import {
   submitRequirementUpdateRequest,
   updateAcceptRequest,
   updateDenyRequest,
+  ImportKind
 } from "../lib/pocketbase";
+import BulkImportModal from "../components/BulkImportModal"
+import ActionMenu from "../components/ActionMenu"
 
 import SearchIcon from "@mui/icons-material/Search";
 import AssignmentIcon from "@mui/icons-material/Assignment";
@@ -912,6 +915,9 @@ function RequirementUpdateRequestTable({
 
 export default function MembersPage() {
   const navigate = useNavigate();
+  // with the other useState calls in MembersPage
+  const [importKind, setImportKind] = useState<ImportKind | null>(null);
+
   //holds all of the members fetched from the server
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
   const [approvedMembers, setApprovedMembers] = useState<
@@ -1193,30 +1199,40 @@ export default function MembersPage() {
           {selectedView === "members" && (
             <>
               {/* Search */}
-              <Box
-                sx={{ display: "flex", flexWrap: "wrap", bgcolor: "primary" }}
-              >
-                <Box sx={{ width: "100%", p: 3 }}>
-                  <FormControl fullWidth>
-                    <InputLabel htmlFor={`${outlinedAmountId}-input`}>
-                      Search
-                    </InputLabel>
-                    <OutlinedInput
-                      id={`${outlinedAmountId}-input`}
-                      sx={{ backgroundColor: "white" }}
-                      startAdornment={
-                        <InputAdornment position="start">
-                          <SearchIcon />
-                        </InputAdornment>
-                      }
-                      label="Search"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                    />
-                  </FormControl>
+              <Box sx={{ p: 3, display: "flex", alignItems: "center", gap: 2 }}>
+                <FormControl sx={{ flex: 1 }}>
+                  <InputLabel htmlFor={`${outlinedAmountId}-input`}>Search</InputLabel>
+                  <OutlinedInput
+                    id={`${outlinedAmountId}-input`}
+                    sx={{ backgroundColor: "white" }}
+                    startAdornment={
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    }
+                    label="Search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </FormControl>
+
+                <Box sx={{ flexShrink: 0 }}>
+                  <ActionMenu
+                    label="CSV Data"
+                    items={[
+                      { label: "Export Member Data", onClick: handleExportMembers },
+                      { label: "Import Due Data", onClick: () => setImportKind("dues") },
+                      { label: "Import Hour Data", onClick: () => setImportKind("hours") },
+                      {
+                        label: "Open Database View ↗",
+                        href: `${config.pbUrl}/_/`,
+                        dividerBefore: true,
+                      },
+                    ]}
+                  />
                 </Box>
               </Box>
-
+       
               <MemberTable members={items} work_formulas={workFormulas} />
             </>
           )}
@@ -1249,21 +1265,13 @@ export default function MembersPage() {
       )}
 
       <br />
-      {currentIsAdmin && (
-        <div className="fab-container">
-          <button className="fab" onClick={handleExportMembers} type="button">
-            Export Members CSV →
-          </button>
-
-          <a
-            className="fab"
-            href={`${config.pbUrl}/_/`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Open DB View →
-          </a>
-        </div>
+    
+      {importKind && (
+        <BulkImportModal
+          kind={importKind}
+          onClose={() => setImportKind(null)}
+          onApplied={refreshMembers}
+        />
       )}
     </>
   );

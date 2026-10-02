@@ -93,6 +93,8 @@ func main() {
 		e.Router.POST("/api/app/admin/work-formula/bulk-update", bulkUpdateWorkFormula(app))
 		e.Router.GET("/api/app/admin/export/members", exportMembersCSV(app))
 		e.Router.POST("/api/admin/import-members", importMembersCSV(app))
+		e.Router.POST("/api/app/admin/import/dues", importDuesCSV(app))
+		e.Router.POST("/api/app/admin/import/hours", importOpenHoursCSV(app))
 
 		return e.Next()
 	})

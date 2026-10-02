@@ -684,6 +684,12 @@ th {
   background: #8e1c1c;
 }
 
+.members-toolbar {
+  padding: 0 24px 16px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 .current-user-box {
   background: rgba(255, 255, 255, 0.06);
   box-shadow: inset 3px 0 0 #8b5cf6;

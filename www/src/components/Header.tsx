@@ -1,6 +1,13 @@
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import AdminStatusButton from "./AdminStatusButton";
 import { isAdmin } from "../lib/pocketbase";
+import ActionMenu from "../components/ActionMenu";
+
+const ADMIN_LINKS = [
+  { label: "Work Formulas", to: "/work-formula" },
+  { label: "Legacy Snapshots", to: "/legacy-snapshots" },
+  { label: "Admin User Access", to: "/admin" },
+];
 
 interface Props {
   currUser: any;
@@ -31,6 +38,7 @@ export default function Header({
   moveMode = false,
   children,
 }: Props) {
+  const { pathname } = useLocation();
   return (
     <>
       <header className="page-header">
@@ -61,32 +69,11 @@ export default function Header({
                 Box Info
               </NavLink>
 
-              <NavLink
-                to="/work-formula"
-                className={({ isActive }) =>
-                  `button-link secondary${isActive ? " active-page" : ""}`
-                }
-              >
-                Work Formulas
-              </NavLink>
-
-              <NavLink
-                to="/legacy-snapshots"
-                className={({ isActive }) =>
-                  `button-link secondary${isActive ? " active-page" : ""}`
-                }
-              >
-                Legacy Snapshots
-              </NavLink>
-
-              <NavLink
-                to="/admin"
-                className={({ isActive }) =>
-                  `button-link secondary${isActive ? " active-page" : ""}`
-                }
-              >
-                Admin access
-              </NavLink>
+              <ActionMenu
+                label="Admin"
+                active={ADMIN_LINKS.some((l) => pathname.startsWith(l.to))}
+                items={ADMIN_LINKS}
+              />
             </>
           )}
 

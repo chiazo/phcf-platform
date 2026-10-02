@@ -14,6 +14,44 @@ export interface WorkFormulaCriteria {
   memberId?: string;
 }
 
+export type ImportKind = "dues" | "hours";
+
+export interface ImportRowResult {
+  row: number;
+  email: string;
+  name: string;
+  status: "update" | "unchanged" | "unmatched" | "invalid";
+  message?: string;
+  before?: string;
+  after?: string;
+}
+
+export interface ImportResult {
+  preview: boolean;
+  updated: number;
+  unchanged: number;
+  unmatched: number;
+  invalid: number;
+  rows: ImportRowResult[];
+}
+
+export async function importMembersData(
+  kind: ImportKind,
+  file: File,
+  preview: boolean,
+) {
+  pb.autoCancellation(false);
+
+  const body = new FormData();
+  body.append("file", file);
+  body.append("preview", String(preview));
+
+  return await pb.send<ImportResult>(`/api/app/admin/import/${kind}`, {
+    method: "POST",
+    body,
+  });
+}
+
 export interface ServiceHourRate {
   id: string;
   category: string;
