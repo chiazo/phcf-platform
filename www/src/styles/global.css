@@ -666,6 +666,24 @@ th {
   cursor: not-allowed;
 }
 
+.header-below-actions button.secondary.header-action-button {
+  background: #e8f5e9;
+  border-color: #43a047;
+  color: #2e7d32;
+}
+
+.header-below-actions button.secondary.header-action-button:hover {
+  background: #c8e6c9;
+}
+
+.box-action-button.box-action-danger {
+  background: #c62828;
+  color: #fff;
+}
+.box-action-button.box-action-danger:hover:not(:disabled) {
+  background: #8e1c1c;
+}
+
 .current-user-box {
   background: rgba(255, 255, 255, 0.06);
   box-shadow: inset 3px 0 0 #8b5cf6;

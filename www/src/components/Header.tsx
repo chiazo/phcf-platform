@@ -12,6 +12,7 @@ interface Props {
   handleLogout: () => void;
   handleRequestBox?: () => void;
   handleToggleMove?: () => void;
+  handleAddBox?: () => void;
   moveMode?: boolean;
   children?: React.ReactNode;
 }
@@ -26,6 +27,7 @@ export default function Header({
   handleLogout,
   handleRequestBox,
   handleToggleMove,
+  handleAddBox,
   moveMode = false,
   children,
 }: Props) {
@@ -100,11 +102,11 @@ export default function Header({
         </nav>
       </header>
 
-      {(handleRequestBox || (handleToggleMove && isAdmin())) && (
+      {(handleRequestBox || (isAdmin() && (handleToggleMove || handleAddBox))) && (
         <div className="header-below-actions">
           {handleRequestBox && (
             <button
-              className="secondary"
+              className="secondary header-action-button"
               onClick={handleRequestBox}
               type="button"
             >
@@ -112,12 +114,18 @@ export default function Header({
             </button>
           )}
 
-          {handleToggleMove && isAdmin() && (
+          {handleAddBox && isAdmin() && (
             <button
-              className="secondary"
-              onClick={handleToggleMove}
+              className="secondary header-action-button"
+              onClick={handleAddBox}
               type="button"
             >
+              + Add Box
+            </button>
+          )}
+
+          {handleToggleMove && isAdmin() && (
+            <button className="secondary" onClick={handleToggleMove} type="button">
               {moveMode ? "Hide Move Buttons" : "Show Move Buttons"}
             </button>
           )}

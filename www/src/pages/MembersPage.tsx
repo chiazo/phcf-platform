@@ -1151,9 +1151,9 @@ export default function MembersPage() {
         signedInLabel={signedInLabel}
         handleLogout={handleLogout}
       >
-        <Link className="button-link secondary" to="/box-info">
+        {!currentIsAdmin && (<Link className="button-link secondary" to="/box-info">
           Box Info
-        </Link>
+        </Link>)}
 
         {currentIsAdmin && (
           <button

@@ -14,7 +14,7 @@ import {
   countEntries,
   moveMemberToBox,
   swapMembers,
-  logout,
+  logout, createBox, deleteBox
 } from "../lib/pocketbase";
 import Header from "../components/Header";
 
@@ -249,11 +249,87 @@ export default function BoxInfoPage() {
     }
   }
 
+  const [addBoxOpen, setAddBoxOpen] = useState(false);
+  const [newBoxName, setNewBoxName] = useState("");
+  const [newBoxNumber, setNewBoxNumber] = useState("");
+  const [addBoxError, setAddBoxError] = useState<string | null>(null);
+  const [savingBox, setSavingBox] = useState(false);
+  const [decommissioningBoxId, setDecommissioningBoxId] = useState<
+    string | null
+  >(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [requestingMemberId, setRequestingMemberId] = useState<string | null>(
     null,
   );
+
+  function openAddBox() {
+    const nextNumber =
+      Math.max(0, ...allBoxes.map((b: any) => Number(b.box_number) || 0)) + 1;
+    setNewBoxName("");
+    setNewBoxNumber(String(nextNumber));
+    setAddBoxError(null);
+    setAddBoxOpen(true);
+  }
+
+  async function handleAddBox() {
+    if (!isAdmin()) return;
+
+    const name = newBoxName.trim();
+    const number = Number(newBoxNumber);
+
+    if (!name || !Number.isInteger(number) || number <= 0) {
+      setAddBoxError("Enter a box name and a positive whole number.");
+      return;
+    }
+
+    setSavingBox(true);
+    setAddBoxError(null);
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      await createBox(name, number);
+      setActionNotice(`${name} (Box ${number}) was added.`);
+      setAddBoxOpen(false);
+    } catch (err) {
+      console.error("add box error:", err);
+      setAddBoxError(err instanceof Error ? err.message : "Could not add box.");
+    } finally {
+      await refreshBoxes();
+      setSavingBox(false);
+    }
+  }
+
+  async function handleDecommissionBox(box: Record<string, any>) {
+    if (!isAdmin()) return;
+
+    const label = `${box.box_name} (Box ${box.box_number})`;
+    if (
+      !window.confirm(
+        `Permanently remove ${label}? This deletes the box and can't be undone.`,
+      )    )
+      return;
+
+    setDecommissioningBoxId(box.id);
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      await deleteBox(box.id);
+      setActionNotice(
+         `${label} was permanently removed.`,
+      );
+    } catch (err) {
+      console.error("decommission box error:", err);
+      setActionError(
+        err instanceof Error ? err.message : "Could not decommission box.",
+      );
+    } finally {
+      await refreshBoxes();
+      setDecommissioningBoxId(null);
+    }
+  }
 
   async function handleAssignBoxFromTable(
     memberId: string,
@@ -410,8 +486,10 @@ export default function BoxInfoPage() {
         handleLogout={handleLogout}
         handleRequestBox={handleRequestBox}
         handleToggleMove={() => setShowMoveButtons((v) => !v)}
+        handleAddBox={openAddBox}
         moveMode={showMoveButtons}
       />
+      
 
       {loadError && <p className="error">{loadError}</p>}
       {actionError && <p className="error">{actionError}</p>}
@@ -507,12 +585,19 @@ export default function BoxInfoPage() {
                                     ? "Removing..."
                                     : `Remove ${memberName.split(" ")[0]} ${memberName.split(" ").at(-1)?.[0] ?? ""}.`}
                                 </button>
+                                
                               </Fragment>
                             );
                           })}
-
                           {boxMembers.length === 0 && (
-                            <span className="muted">No actions</span>
+                            <button
+                              type="button"
+                              className="box-action-button box-action-danger"
+                              disabled={decommissioningBoxId === box.id}
+                              onClick={() => handleDecommissionBox(box)}
+                            >
+                              {decommissioningBoxId === box.id ? "Removing box..." : "Permanently Remove Box"}
+                            </button>
                           )}
                         </div>
                       </td>
@@ -680,6 +765,54 @@ export default function BoxInfoPage() {
                 disabled={!selectedMemberId || requestingBox}
               >
                 {requestingBox ? "Requesting..." : "Request Box"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================
+          Admin: Add New Box Modal
+          ========================================================= */}
+      {addBoxOpen && (
+        <div className="modal modal-open" onClick={() => setAddBoxOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Add a Box</h2>
+
+            {addBoxError && <p className="error">{addBoxError}</p>}
+
+            <label>
+              Box Name
+              <input
+                type="text"
+                value={newBoxName}
+                onChange={(e) => setNewBoxName(e.target.value)}
+              />
+            </label>
+
+            <label>
+              Box Number
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={newBoxNumber}
+                onChange={(e) => setNewBoxNumber(e.target.value)}
+              />
+            </label>
+
+            <div className="button-row">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setAddBoxOpen(false)}
+                disabled={savingBox}
+              >
+                Cancel
+              </button>
+
+              <button type="button" onClick={handleAddBox} disabled={savingBox}>
+                {savingBox ? "Adding..." : "Add Box"}
               </button>
             </div>
           </div>

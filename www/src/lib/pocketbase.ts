@@ -1341,6 +1341,97 @@ export async function listWorkFormulas() {
   });
 }
 
+export async function createBox(boxName: string, boxNumber: number) {
+  pb.autoCancellation(false);
+
+  const existing = await pb
+    .collection("boxes")
+    .getFirstListItem(pb.filter("box_number = {:n}", { n: boxNumber }))
+    .catch((err: any) => {
+      if (err?.status === 404) return null;
+      throw err;
+    });
+
+  if (existing) throw new Error(`Box ${boxNumber} already exists.`);
+
+  const now = new Date().toISOString();
+
+  return await pb.collection("boxes").create({
+    box_name: boxName,
+    box_number: boxNumber,
+    box_state: "UNASSIGNED",
+    box_members: [],
+    waitlist: [],
+    notes: "Box added by an admin.",
+    updated_by: currentUser()?.name || currentUser()?.email || "admin",
+    created_at: now,
+    modified_at: now,
+  });
+}
+
+export async function deleteBox(boxId: string) {
+  pb.autoCancellation(false);
+
+  // Fresh read, not React state
+  const box = await pb.collection("boxes").getOne(boxId);
+
+  if (countEntries(box.box_members) > 0) {
+    throw new Error(
+      "Remove or move the members out of this box before decommissioning it.",
+    );
+  }
+
+  const waitlist: any[] = Array.isArray(box.waitlist) ? box.waitlist : [];
+  let movedWaitlist = 0;
+  let rollback: (() => Promise<unknown>) | null = null;
+
+  // Waitlist entries live on a single box, so hand them to another box first
+  if (waitlist.length > 0) {
+    const others = (await pb.collection("boxes").getFullList()).filter(
+      (b: any) => b.id !== boxId,
+    );
+
+    if (others.length === 0) {
+      throw new Error(
+        "This box holds waitlist entries and there is no other box to move them to. Add another box first.",
+      );
+    }
+
+    const target = others.reduce((shortest: any, b: any) =>
+      countEntries(b.waitlist) < countEntries(shortest.waitlist) ? b : shortest,
+    );
+    const targetWaitlist: any[] = Array.isArray(target.waitlist)
+      ? target.waitlist
+      : [];
+
+    const incoming = waitlist.filter(
+      (e: any) => !targetWaitlist.some((t: any) => t.member_id === e.member_id),
+    );
+    const merged = [...targetWaitlist, ...incoming].map((e: any, i: number) => ({
+      ...e,
+      position: i + 1,
+    }));
+
+    await pb.collection("boxes").update(target.id, {
+      waitlist: merged,
+      notes: "Waitlist entries moved from a decommissioned box.",
+    });
+
+    movedWaitlist = incoming.length;
+    rollback = () =>
+      pb.collection("boxes").update(target.id, { waitlist: targetWaitlist });
+  }
+
+  try {
+    await pb.collection("boxes").delete(boxId);
+  } catch (err) {
+    if (rollback) await rollback().catch(() => {}); // undo the waitlist move
+    throw err;
+  }
+
+  return { movedWaitlist };
+}
+
 export async function deleteRequest(currentSnapshot: Record<string, any>) {
   pb.autoCancellation(false);
   await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
