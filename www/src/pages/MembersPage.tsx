@@ -559,19 +559,27 @@ function RequirementUpdateRequestTable({
 
   const [actionError, setActionError] = useState<string | null>(null);
 
+  async function approveOne(request: Record<string, any>) {
+    if (request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE) {
+      await updateAcceptRequest(request);
+    } else {
+      await approveRequirementUpdateRequest(request);
+    }
+  }
+
+  async function denyOne(request: Record<string, any>) {
+    await denyRequirementUpdateRequest(request);
+    if (request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE) {
+      await updateDenyRequest(request);
+    }
+  }
+
   async function handleApprove(request: Record<string, any>) {
     setActionError(null);
     try {
-      if (
-        request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE
-      ) {
-        await updateAcceptRequest(request);
-      } else {
-        await approveRequirementUpdateRequest(request);
-      }
+      await approveOne(request);
     } catch (err) {
-      console.error("approve error:", err, err?.response?.data);
-
+      console.error("approve error:", err);
       setActionError(
         err instanceof Error ? err.message : "Could not approve request.",
       );
@@ -583,12 +591,7 @@ function RequirementUpdateRequestTable({
   async function handleDeny(request: Record<string, any>) {
     setActionError(null);
     try {
-      await denyRequirementUpdateRequest(request);
-      if (
-        request.request_type === RequirementUpdateRequestType.PROFILE_UPDATE
-      ) {
-        await updateDenyRequest(request);
-      }
+      await denyOne(request);
     } catch (err) {
       console.error("deny error:", err);
       setActionError(
@@ -599,42 +602,37 @@ function RequirementUpdateRequestTable({
     }
   }
 
-  async function handleApproveAll(
-    requestsToApprove: Array<Record<string, any>>,
+  // Sequential and oldest-first, so the newest profile update is applied last
+  async function handleBulk(
+    list: Array<Record<string, any>>,
+    action: (request: Record<string, any>) => Promise<void>,
+    verb: string,
   ) {
     setActionError(null);
+    const ordered = [...list].sort((a, b) =>
+      String(a.created_at).localeCompare(String(b.created_at)),
+    );
     let failed = 0;
 
-    for (const request of requestsToApprove) {
+    for (const request of ordered) {
       try {
-        await approveRequirementUpdateRequest(request);
+        await action(request);
       } catch (err) {
-        console.error("bulk approve error:", err);
+        console.error(`bulk ${verb} error:`, err);
         failed++;
       }
     }
 
     if (failed > 0) {
-      setActionError(
-        `${failed} of ${requestsToApprove.length} requests could not be approved.`,
-      );
+      setActionError(`${failed} of ${list.length} requests could not be ${verb}.`);
     }
     onActionComplete();
   }
 
-  async function handleDenyAll(requestsToDeny: Array<Record<string, any>>) {
-    setActionError(null);
-    const results = await Promise.allSettled(
-      requestsToDeny.map((request) => denyRequirementUpdateRequest(request)),
-    );
-    const failed = results.filter((r) => r.status === "rejected").length;
-    if (failed > 0) {
-      setActionError(
-        `${failed} of ${requestsToDeny.length} requests could not be denied.`,
-      );
-    }
-    onActionComplete();
-  }
+  const handleApproveAll = (list: Array<Record<string, any>>) =>
+    handleBulk(list, approveOne, "approved");
+  const handleDenyAll = (list: Array<Record<string, any>>) =>
+    handleBulk(list, denyOne, "denied");
 
   function displayModal(request: Record<string, any>) {
     getMemberUpdateSnapshot(request.member_snapshot_id)
@@ -686,7 +684,6 @@ function RequirementUpdateRequestTable({
           <section>
             <div className="request-table-header">
               <h3>Work Hour Requests</h3>
-
               <div className="bulk-action-row">
                 <button
                   className="bulk-action-button approve-action"
@@ -695,7 +692,6 @@ function RequirementUpdateRequestTable({
                 >
                   Approve All
                 </button>
-
                 <button
                   className="bulk-action-button deny-action"
                   onClick={() => handleDenyAll(serviceHourRequests)}
@@ -761,7 +757,6 @@ function RequirementUpdateRequestTable({
           <section>
             <div className="request-table-header">
               <h3>Payment Requests</h3>
-
               <div className="bulk-action-row">
                 <button
                   className="bulk-action-button approve-action"
@@ -770,7 +765,6 @@ function RequirementUpdateRequestTable({
                 >
                   Approve All
                 </button>
-
                 <button
                   className="bulk-action-button deny-action"
                   onClick={() => handleDenyAll(paymentRequests)}
@@ -833,6 +827,25 @@ function RequirementUpdateRequestTable({
         {profileUpdateRequests.length > 0 && (
           <section>
             <h3>Profile Update Requests</h3>
+            <div className="request-table-header">
+              <h3>Profile Update Requests</h3>
+              <div className="bulk-action-row">
+                <button
+                  className="bulk-action-button approve-action"
+                  onClick={() => handleApproveAll(profileUpdateRequests)}
+                  type="button"
+                >
+                  Approve All
+                </button>
+                <button
+                  className="bulk-action-button deny-action"
+                  onClick={() => handleDenyAll(profileUpdateRequests)}
+                  type="button"
+                >
+                  Deny All
+                </button>
+              </div>
+            </div>
 
             <div className="modal-table-wrapper always-visible-table">
               <table>

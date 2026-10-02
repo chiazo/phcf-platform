@@ -1397,33 +1397,38 @@ export async function getMemberUpdateSnapshot(memberSnapshotId: string) {
   return await pb.collection("member_snapshot").getOne(memberSnapshotId);
 }
 
-export async function updateAcceptRequest(
-  currentSnapshot: Record<string, any>,
-) {
+export async function updateAcceptRequest(request: Record<string, any>) {
   pb.autoCancellation(false);
-  //find the user with that id from the currentSnapshot's user_id
-  const currentUser = await pb
-    .collection("users")
-    .getFirstListItem(`id = "${currentSnapshot.user_id}"`);
 
-  //use the id from currentUser and find the member with that user_id
-  const currentMember = await pb
+  const snapshotId = request.member_snapshot_id;
+
+  const requester = await pb.collection("users").getOne(request.user_id);
+
+  const member = await pb
     .collection("member")
-    .getFirstListItem(`user_id = "${currentUser.id}"`);
+    .getFirstListItem(pb.filter("user_id = {:uid}", { uid: requester.id }));
 
-  //update the currentSnapshot id to the currentMember's member_snapshot_id
-  await pb.collection("member").update(`${currentMember.id}`, {
-    member_snapshot_id: `${currentSnapshot.id}`,
+  // point the member at the approved snapshot
+  await pb.collection("member").update(member.id, {
+    member_snapshot_id: snapshotId,
   });
 
-  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
+  await pb.collection("member_snapshot").update(snapshotId, {
     notes: "Recently Updated",
+  });
+
+  // close out the request so it leaves the pending list
+  await pb.collection("requirement_update_request").update(request.id, {
+    status: "APPROVED",
+    reviewed_by: currentUser()?.name ?? "",
+    reviewed_at: Math.floor(Date.now() / 1000),
   });
 }
 
-export async function updateDenyRequest(currentSnapshot: Record<string, any>) {
+export async function updateDenyRequest(request: Record<string, any>) {
   pb.autoCancellation(false);
-  await pb.collection("member_snapshot").update(`${currentSnapshot.id}`, {
+
+  await pb.collection("member_snapshot").update(request.member_snapshot_id, {
     notes: "Recently Denied",
   });
 }
