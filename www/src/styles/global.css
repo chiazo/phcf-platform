@@ -708,6 +708,10 @@ th {
   border-right: 1px solid rgba(139, 92, 246, 0.35);
 }
 
+.modal-content.modal-import {
+  min-width: 1000px;
+}
+
 .modal-content {
   width: min(600px, 100%);
   max-height: 90vh;

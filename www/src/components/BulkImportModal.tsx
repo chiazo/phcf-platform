@@ -64,7 +64,7 @@ export default function BulkImportModal({
 
   return (
     <div className="modal modal-open" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content modal-import" onClick={(e) => e.stopPropagation()}>
         <h2>{copy.title}</h2>
 
         <p className="muted">
