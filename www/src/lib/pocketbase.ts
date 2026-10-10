@@ -586,23 +586,19 @@ export async function listVolunteerInterests() {
 
 export async function updatePronouns(
   oldMemberInfo: MemberSnapshot | null,
-  newRecord: string,
+  pronouns: string,
 ) {
   pb.autoCancellation(false);
+  if (!oldMemberInfo?.memberId) return;
 
-  if (oldMemberInfo) {
-    //find the member through the member_id on the member_snapshot table
-    const currentMemberSnapshot = await pb
-      .collection("member_snapshot")
-      .getFirstListItem(`member_id = "${oldMemberInfo.memberId}"`);
+  const member = await pb.collection("member").getOne(oldMemberInfo.memberId);
+  const current = await pb
+    .collection("member_snapshot")
+    .getOne(member.member_snapshot_id);
 
-    // update the info in the member table
-    const record = await pb
-      .collection("member_snapshot")
-      .update(`${currentMemberSnapshot.id}`, {
-        personal_info: newRecord,
-      });
-  }
+  await pb.collection("member_snapshot").update(current.id, {
+    personal_info: { ...current.personal_info, pronouns },
+  });
 }
 
 export async function newFormUpdate(

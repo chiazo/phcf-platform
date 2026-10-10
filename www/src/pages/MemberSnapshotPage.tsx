@@ -98,11 +98,14 @@ function PendingSelect({
   disabled: boolean;
 }) {
   const pretty = (v: string) => v.replace(/_/g, " ");
+  const allOptions =
+    current && !options.includes(current) ? [current, ...options] : options;
+
   return (
     <p>
       <strong>{label}</strong>
       <select {...registration} disabled={disabled}>
-        {options.map((opt) => {
+        {allOptions.map((opt) => {
           const isCurrentPending = pending && opt === current;
           return (
             <option key={opt} value={opt} disabled={isCurrentPending}>
@@ -316,30 +319,7 @@ export default function MemberSnapshotPage() {
     let navigated = false;
 
     if (!isAdmin() && data.pronouns !== pronouns) {
-      const newPersonalData = {
-        address: {
-          city: city,
-          line1: line1,
-          line2: "",
-          zipCode: zipCode,
-        },
-        emailInfo: {
-          onMailingList: true,
-          primaryEmail: primaryEmail,
-          secondaryEmail: "",
-        },
-        firstName: firstName,
-        lastName: lastName,
-        phoneInfo: {
-          primaryPhoneNumber: primaryPhoneNumber,
-          secondaryPhoneNumber: "",
-        },
-        pronouns: `${data.pronouns}`,
-      };
-
-      const newPersonalInfo = JSON.stringify(newPersonalData);
-
-      await updatePronouns(member, newPersonalInfo).catch((err) => {
+      await updatePronouns(member, data.pronouns).catch((err) => {
         console.error("error in updating pronouns: ", err);
         hadError = true;
       });
