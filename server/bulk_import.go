@@ -19,6 +19,10 @@ import (
 // Shared types and helpers
 // ---------------------------------------------------------------------------
 
+// Notes value on a snapshot that is waiting for admin approval. Must match
+// what newFormUpdate writes in pocketbase.ts.
+const pendingSnapshotNote = "Update needs approval by an admin."
+
 type bulkImportRow struct {
 	Row     int    `json:"row"`
 	Email   string `json:"email"`
@@ -474,6 +478,27 @@ func importDuesCSV(app core.App) func(e *core.RequestEvent) error {
 
 		reviewer := bulkReviewerName(e)
 
+		// A pending profile edit is a full copy of the member's info. If it is
+		// approved later it replaces their current snapshot, which would undo
+		// an imported payment. Load them so we can keep their dues in sync.
+		pendingRecords, err := app.FindRecordsByFilter(
+			"member_snapshot",
+			"notes = {:notes}",
+			"",
+			0,
+			0,
+			dbx.Params{"notes": pendingSnapshotNote},
+		)
+		if err != nil {
+			return e.InternalServerError("Could not load pending profile edits.", err)
+		}
+
+		pendingByMember := map[string][]*core.Record{}
+		for _, p := range pendingRecords {
+			id := p.GetString("member_id")
+			pendingByMember[id] = append(pendingByMember[id], p)
+		}
+
 		for _, email := range order {
 			t := totals[email]
 			row := bulkImportRow{Row: t.row, Email: email}
@@ -504,8 +529,10 @@ func importDuesCSV(app core.App) func(e *core.RequestEvent) error {
 			}
 
 			amount := math.Round(t.amount*100) / 100
+			// Existing data mixes "CASH" and "cash", so a case-only difference
+			// isn't a change: keep whatever is already stored.
 			paymentType := t.paymentType
-			if paymentType == "" {
+			if paymentType == "" || strings.EqualFold(paymentType, info.Dues.PaymentType) {
 				paymentType = info.Dues.PaymentType
 			}
 			paidAt := t.paidAt
@@ -513,22 +540,59 @@ func importDuesCSV(app core.App) func(e *core.RequestEvent) error {
 				paidAt = info.Dues.DuesPaidAt
 			}
 
+			currentSame := info.Dues.AmountPaid == amount &&
+				info.Dues.PaymentType == paymentType &&
+				info.Dues.DuesPaidAt == paidAt
+
+			// Pending edits whose dues don't match what we're importing
+			var stalePending []*core.Record
+			pendingBefore := ""
+			for _, p := range pendingByMember[member.Id] {
+				var pInfo MemberInfo
+				if err := p.UnmarshalJSONField("member_info", &pInfo); err == nil &&
+					pInfo.Dues.AmountPaid == amount &&
+					strings.EqualFold(pInfo.Dues.PaymentType, paymentType) &&
+					pInfo.Dues.DuesPaidAt == paidAt {
+					continue
+				}
+				stalePending = append(stalePending, p)
+				if pendingBefore == "" {
+					pendingBefore = fmt.Sprintf("$%.2f", pInfo.Dues.AmountPaid)
+				}
+			}
+
 			row.Before = fmt.Sprintf("$%.2f", info.Dues.AmountPaid)
 			row.After = fmt.Sprintf("$%.2f", amount)
 
-			if info.Dues.AmountPaid == amount &&
-				info.Dues.PaymentType == paymentType &&
-				info.Dues.DuesPaidAt == paidAt {
+			if currentSame && len(stalePending) == 0 {
 				row.Status = "unchanged"
 				result.add(row)
 				continue
+			}
+
+			if n := len(stalePending); n > 0 {
+				plural := "s"
+				if n == 1 {
+					plural = ""
+				}
+				row.Message = fmt.Sprintf(
+					"Also updates %d pending profile edit%s, so approving it won't undo this.",
+					n, plural,
+				)
+				if currentSame {
+					row.Before = pendingBefore + " (pending edit)"
+				}
 			}
 
 			row.Status = "update"
 
 			if !preview {
 				err := app.RunInTransaction(func(txApp core.App) error {
-					return applyImportedDues(txApp, member, snapshot, amount, paymentType, paidAt, reviewer)
+					return applyImportedDues(
+						txApp, member, snapshot,
+						amount, paymentType, paidAt, reviewer,
+						!currentSame, stalePending,
+					)
 				})
 				if err != nil {
 					row.Status = "invalid"
@@ -543,23 +607,8 @@ func importDuesCSV(app core.App) func(e *core.RequestEvent) error {
 	}
 }
 
-func applyImportedDues(
-	app core.App,
-	member *core.Record,
-	snapshot *core.Record,
-	amount float64,
-	paymentType string,
-	paidAt int64,
-	reviewer string,
-) error {
-	var info map[string]any
-	if err := snapshot.UnmarshalJSONField("member_info", &info); err != nil {
-		return err
-	}
-	if info == nil {
-		info = map[string]any{}
-	}
-
+// setImportedDues writes the imported payment into a member_info map.
+func setImportedDues(info map[string]any, amount float64, paymentType string, paidAt int64) {
 	dues, _ := info["dues"].(map[string]any)
 	if dues == nil {
 		dues = map[string]any{}
@@ -576,30 +625,87 @@ func applyImportedDues(
 	if amount > 0 {
 		dues["dueState"] = "COMPLETE"
 	}
+
 	info["dues"] = dues
+}
 
-	collection, err := app.FindCollectionByNameOrId("member_snapshot")
-	if err != nil {
-		return err
+func readMemberInfoMap(record *core.Record) (map[string]any, error) {
+	var info map[string]any
+	if err := record.UnmarshalJSONField("member_info", &info); err != nil {
+		return nil, err
 	}
+	if info == nil {
+		info = map[string]any{}
+	}
+	return info, nil
+}
 
+// applyImportedDues does two things inside one transaction:
+//  1. if updateCurrent, creates a new snapshot with the imported dues and
+//     points the member at it (history is kept)
+//  2. writes the same dues into the member's pending profile edits, so
+//     approving one later keeps the imported dues instead of reverting them.
+//     The pending edit's other fields, notes and author are left alone.
+func applyImportedDues(
+	app core.App,
+	member *core.Record,
+	snapshot *core.Record,
+	amount float64,
+	paymentType string,
+	paidAt int64,
+	reviewer string,
+	updateCurrent bool,
+	pending []*core.Record,
+) error {
 	now := time.Now()
-	next := core.NewRecord(collection)
-	next.Set("user_id", snapshot.GetString("user_id"))
-	next.Set("member_id", member.Id)
-	next.Set("updated_by", reviewer)
-	next.Set("notes", "Dues imported from CSV.")
-	next.Set("personal_info", snapshot.Get("personal_info"))
-	next.Set("member_info", info)
-	next.Set("box_info", snapshot.Get("box_info"))
-	next.Set("meeting_exemption", snapshot.GetInt("meeting_exemption"))
-	next.Set("created_at", now)
-	next.Set("modified_at", now)
 
-	if err := app.Save(next); err != nil {
-		return err
+	if updateCurrent {
+		info, err := readMemberInfoMap(snapshot)
+		if err != nil {
+			return err
+		}
+		setImportedDues(info, amount, paymentType, paidAt)
+
+		collection, err := app.FindCollectionByNameOrId("member_snapshot")
+		if err != nil {
+			return err
+		}
+
+		next := core.NewRecord(collection)
+		next.Set("user_id", snapshot.GetString("user_id"))
+		next.Set("member_id", member.Id)
+		next.Set("updated_by", reviewer)
+		next.Set("notes", "Dues imported from CSV.")
+		next.Set("personal_info", snapshot.Get("personal_info"))
+		next.Set("member_info", info)
+		next.Set("box_info", snapshot.Get("box_info"))
+		next.Set("meeting_exemption", snapshot.GetInt("meeting_exemption"))
+		next.Set("created_at", now)
+		next.Set("modified_at", now)
+
+		if err := app.Save(next); err != nil {
+			return err
+		}
+
+		member.Set("member_snapshot_id", next.Id)
+		if err := app.Save(member); err != nil {
+			return err
+		}
 	}
 
-	member.Set("member_snapshot_id", next.Id)
-	return app.Save(member)
+	for _, p := range pending {
+		info, err := readMemberInfoMap(p)
+		if err != nil {
+			return err
+		}
+		setImportedDues(info, amount, paymentType, paidAt)
+
+		p.Set("member_info", info)
+		p.Set("modified_at", now)
+		if err := app.Save(p); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

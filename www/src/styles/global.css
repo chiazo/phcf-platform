@@ -17,8 +17,14 @@
   --shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
 
   --max-width: 1200px;
-  --content-width: 1000px;
+  --content-width: 1200px;
 }
+
+.table-header > span {
+  text-align: center;
+  font-weight: bold;
+}
+
 
 *,
 *::before,
@@ -709,7 +715,7 @@ th {
 }
 
 .modal-content.modal-import {
-  min-width: 1000px;
+  min-width: 10y00px;
 }
 
 .modal-content {

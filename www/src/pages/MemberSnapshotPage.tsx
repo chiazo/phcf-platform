@@ -648,12 +648,7 @@ export default function MemberSnapshotPage() {
             </p>
             <p>
               <strong>Meetings Completed</strong>
-              <input
-                id="meetingsInput"
-                {...register("meetingsCompleted", { valueAsNumber: true })}
-                disabled={true}
-              />{" "}
-              / {meetingsRequired} Required
+              {meetingsCompleted} / {meetingsRequired} Required
             </p>
           </section>
 

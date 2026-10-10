@@ -1,7 +1,10 @@
-import * as React from "react";
-import { Link } from "react-router-dom";
-import { alpha } from "@mui/material/styles";
+import MoodRoundedIcon from "@mui/icons-material/MoodRounded";
+import SentimentDissatisfiedRoundedIcon from "@mui/icons-material/SentimentDissatisfiedRounded";
 import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Paper from "@mui/material/Paper";
+import { alpha } from "@mui/material/styles";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -12,22 +15,15 @@ import TableRow from "@mui/material/TableRow";
 import TableSortLabel from "@mui/material/TableSortLabel";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
-import Paper from "@mui/material/Paper";
-import Checkbox from "@mui/material/Checkbox";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import RuleIcon from "@mui/icons-material/Rule";
-import DeleteIcon from "@mui/icons-material/Delete";
-import MoodRoundedIcon from "@mui/icons-material/MoodRounded";
-import SentimentDissatisfiedRoundedIcon from "@mui/icons-material/SentimentDissatisfiedRounded";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import { visuallyHidden } from "@mui/utils";
+import * as React from "react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
-import { listApprovalUpdates } from "../lib/pocketbase";
 
 interface Data {
   id: string;
+  member_id: string;
   fullName: string;
   allMemberRequirementsMet: string;
   dueStatus: string; //DueState
@@ -39,6 +35,11 @@ interface Data {
   serviceHoursRequired: number; //hours completed
   serviceHoursCompleted: number; //hours completed
   serviceHoursMet: string;
+  workHoursRequired: number;
+  workHoursCompleted: number;
+  openHoursRequired: number;
+  openHoursCompleted: number;
+  workFormulaStatus: boolean;
 }
 
 function toNumber(value: unknown): number {
@@ -50,32 +51,44 @@ function yesNo(value: boolean): string {
   return value ? "YES" : "NO";
 }
 
-// Raw PocketBase member_snapshot records (see MemberSnapshotDTO) are nested
-// and snake_case; flatten them into the shape the table sorts/renders on.
 function toRow(member: Record<string, any>): Data {
   const personalInfo = member.personal_info ?? {};
   const memberInfo = member.member_info ?? {};
   const dues = memberInfo.dues ?? {};
-  const requirements = memberInfo.requirements ?? {};
+  const workFormula = member.work_formula ?? {};
+
   const firstName = personalInfo.firstName ?? "";
   const lastName = personalInfo.lastName ?? "";
   const fullName = firstName + " " + lastName;
-  const serviceRequirements = requirements.serviceRequirements ?? [];
+
+  const serviceRequirements = workFormula.serviceRequirements ?? [];
   const dueStatus = dues.dueState ?? "";
-  const meetingsRequired = toNumber(requirements.meetingsRequired);
-  const meetingsCompleted = toNumber(requirements.meetingsCompleted);
-  const serviceHoursRequired = toNumber(requirements.serviceHoursRequired);
+
+  const meetingsRequired = toNumber(workFormula.meetingsRequired);
+  const meetingsCompleted = toNumber(workFormula.meetingsCompleted);
+  const serviceHoursRequired = toNumber(workFormula.serviceHoursRequired);
+
   const serviceHoursCompleted = serviceRequirements.reduce(
     (sum: number, s: any) => sum + toNumber(s.hoursCompleted),
     0,
   );
+
   const duesPaid = dueStatus === "PAID" || dueStatus === "COMPLETE";
   const meetingsMet = meetingsCompleted >= meetingsRequired;
   const serviceHoursMet = serviceHoursCompleted >= serviceHoursRequired;
   const allMemberRequirementsMet = duesPaid && meetingsMet && serviceHoursMet;
+  const workHoursRequired = toNumber(workFormula.work_hours_required);
+  const workHoursCompleted = toNumber(workFormula.work_hours_completed);
+  const openHoursRequired = toNumber(workFormula.open_hours_required);
+  const openHoursCompleted = toNumber(workFormula.open_hours_completed);
+
+  const workFormulaStatus =
+    workHoursCompleted >= workHoursRequired &&
+    openHoursCompleted >= openHoursRequired;
 
   return createData(
     member.id,
+    member.member_id ?? "",
     fullName,
     yesNo(allMemberRequirementsMet),
     dueStatus,
@@ -87,11 +100,17 @@ function toRow(member: Record<string, any>): Data {
     serviceHoursRequired,
     serviceHoursCompleted,
     yesNo(serviceHoursMet),
+    workHoursRequired,
+    workHoursCompleted,
+    openHoursRequired,
+    openHoursCompleted,
+    workFormulaStatus
   );
 }
 
 function createData(
   id: string,
+  member_id: string,
   fullName: string,
   allMemberRequirementsMet: string,
   dueStatus: string, //DueState
@@ -103,9 +122,15 @@ function createData(
   serviceHoursRequired: number, //hours completed
   serviceHoursCompleted: number,
   serviceHoursMet: string,
+  workHoursRequired: number,
+  workHoursCompleted: number,
+  openHoursRequired: number,
+  openHoursCompleted: number,
+  workFormulaStatus: boolean
 ): Data {
   return {
     id,
+    member_id,
     fullName,
     allMemberRequirementsMet,
     dueStatus, //DueState
@@ -117,17 +142,12 @@ function createData(
     serviceHoursRequired, //hours completed
     serviceHoursCompleted,
     serviceHoursMet,
+    workHoursRequired,
+    workHoursCompleted,
+    openHoursRequired,
+    openHoursCompleted,
+    workFormulaStatus
   };
-}
-
-function descendingComparator<T>(a: T, b: T, orderBy: keyof T) {
-  if (b[orderBy] < a[orderBy]) {
-    return -1;
-  }
-  if (b[orderBy] > a[orderBy]) {
-    return 1;
-  }
-  return 0;
 }
 
 type Order = "asc" | "desc";
@@ -147,13 +167,35 @@ const requirementFilters: Array<{
   { id: "allMemberRequirementsMet", label: "All requirements met" },
 ];
 
-function getComparator<Key extends keyof any>(
+function descendingComparator<T>(
+  a: T,
+  b: T,
+  orderBy: keyof T,
+): number {
+  const aValue = a[orderBy];
+  const bValue = b[orderBy];
+
+  if (typeof aValue === "boolean" && typeof bValue === "boolean") {
+    return Number(bValue) - Number(aValue);
+  }
+
+  if (typeof aValue === "number" && typeof bValue === "number") {
+    return bValue - aValue;
+  }
+
+  const aString = String(aValue ?? "").toLowerCase();
+  const bString = String(bValue ?? "").toLowerCase();
+
+  return bString.localeCompare(aString, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function getComparator<T>(
   order: Order,
-  orderBy: Key,
-): (
-  a: { [key in Key]: number | string },
-  b: { [key in Key]: number | string },
-) => number {
+  orderBy: keyof T,
+): (a: T, b: T) => number {
   return order === "desc"
     ? (a, b) => descendingComparator(a, b, orderBy)
     : (a, b) => -descendingComparator(a, b, orderBy);
@@ -181,7 +223,7 @@ const headCells: readonly HeadCell[] = [
   },
   {
     id: "dueStatus",
-    numeric: true,
+    numeric: false,
     disablePadding: false,
     label: "Current Dues Status",
   },
@@ -202,6 +244,36 @@ const headCells: readonly HeadCell[] = [
     numeric: true,
     disablePadding: false,
     label: "Meetings Completed",
+  },
+  {
+    id: "workHoursRequired",
+    numeric: true,
+    disablePadding: false,
+    label: "Work Hours Required",
+  },
+  {
+    id: "workHoursCompleted",
+    numeric: true,
+    disablePadding: false,
+    label: "Work Hours Completed",
+  },
+  {
+    id: "openHoursRequired",
+    numeric: true,
+    disablePadding: false,
+    label: "Open Hours Required",
+  },
+  {
+    id: "openHoursCompleted",
+    numeric: true,
+    disablePadding: false,
+    label: "Open Hours Completed",
+  },
+  {
+    id: "workFormulaStatus",
+    numeric: false,
+    disablePadding: false,
+    label: "Status",
   },
 ];
 
@@ -248,6 +320,7 @@ function EnhancedTableHead(props: EnhancedTableProps) {
         {headCells.map((headCell) => (
           <TableCell
             key={headCell.id}
+            className="table-header"
             align={headCell.numeric ? "right" : "left"}
             padding={headCell.disablePadding ? "none" : "normal"}
             sortDirection={orderBy === headCell.id ? order : false}
@@ -266,11 +339,6 @@ function EnhancedTableHead(props: EnhancedTableProps) {
             </TableSortLabel>
           </TableCell>
         ))}
-        <TableCell align="center">Work Hours Required</TableCell>
-        <TableCell align="center">Work Hours Completed</TableCell>
-        <TableCell align="center">Open Hours Required</TableCell>
-        <TableCell align="center">Open Hours Completed</TableCell>
-        <TableCell align="center">Status</TableCell>
       </TableRow>
     </TableHead>
   );
@@ -360,6 +428,7 @@ export default function EnhancedTable({
     [],
   );
 
+
   const handleRequestSort = (
     event: React.MouseEvent<unknown>,
     property: keyof Data,
@@ -369,7 +438,24 @@ export default function EnhancedTable({
     setOrderBy(property);
   };
 
-  const allRows = React.useMemo(() => members.map(toRow), [members]);
+  const allRows = React.useMemo(
+    () =>
+      members.map((member) => {
+        const row = toRow(member);
+        const formula = work_formulas.find(
+          (wf) => wf?.member_id === row.member_id,
+        );
+
+        return {
+          ...row,
+          workHoursRequired: toNumber(formula?.work_hours_required),
+          workHoursCompleted: toNumber(formula?.work_hours_completed),
+          openHoursRequired: toNumber(formula?.open_hours_required),
+          openHoursCompleted: toNumber(formula?.open_hours_completed),
+        };
+      }),
+    [members, work_formulas],
+  );
 
   const filteredRows = React.useMemo(
     () =>
@@ -495,21 +581,9 @@ export default function EnhancedTable({
                 {visibleRows.map((row, index) => {
                   const isItemSelected = selected.includes(row.id);
                   const labelId = `enhanced-table-checkbox-${index}`;
-                  const workFormula = work_formulas
-                    .filter((wf) => !!wf)
-                    .find((formula) => formula?.member_id === row.member_id);
-
-                  const workHoursRequired =
-                    workFormula?.work_hours_required ?? 0;
-                  const workHoursCompleted =
-                    workFormula?.work_hours_completed ?? 0;
-                  const openHoursRequired =
-                    workFormula?.open_hours_required ?? 0;
-                  const openHoursCompleted =
-                    workFormula?.open_hours_completed ?? 0;
-                  const isWorkFormulaSatisfied =
-                    workHoursRequired === workHoursCompleted &&
-                    openHoursRequired === openHoursCompleted;
+                  const workFormula = work_formulas.find(
+                    (wf) => wf?.member_id === row.member_id,
+                  );
 
                   return (
                     <TableRow
@@ -550,13 +624,13 @@ export default function EnhancedTable({
                       <TableCell align="center">
                         {row.meetingsCompleted}
                       </TableCell>
-                      <TableCell align="center">{workHoursRequired}</TableCell>
-                      <TableCell align="center">{workHoursCompleted}</TableCell>
-                      <TableCell align="center">{openHoursRequired}</TableCell>
-                      <TableCell align="center">{openHoursCompleted}</TableCell>
+                      <TableCell align="center">{row.workHoursRequired}</TableCell>
+                      <TableCell align="center">{row.workHoursCompleted}</TableCell>
+                      <TableCell align="center">{row.openHoursRequired}</TableCell>
+                      <TableCell align="center">{row.openHoursCompleted}</TableCell>
                       <TableCell align="center">
                         {workFormula ? (
-                          isWorkFormulaSatisfied ? (
+                          row.workFormulaStatus ? (
                             <MoodRoundedIcon sx={{ color: "green" }} />
                           ) : (
                             <SentimentDissatisfiedRoundedIcon
@@ -576,7 +650,7 @@ export default function EnhancedTable({
                       height: 53 * emptyRows,
                     }}
                   >
-                    <TableCell colSpan={11} />
+                    <TableCell colSpan={12} />
                   </TableRow>
                 )}
               </TableBody>

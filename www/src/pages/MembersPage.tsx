@@ -829,7 +829,6 @@ function RequirementUpdateRequestTable({
         )}
         {profileUpdateRequests.length > 0 && (
           <section>
-            <h3>Profile Update Requests</h3>
             <div className="request-table-header">
               <h3>Profile Update Requests</h3>
               <div className="bulk-action-row">
@@ -968,7 +967,7 @@ export default function MembersPage() {
       return setAllFormulas(res.items);
     } catch (err) {
       console.error("work formula fetch error:", err);
-      setAllMembers([]);
+      setAllFormulas([]);
     }
   }
 
@@ -1082,6 +1081,20 @@ export default function MembersPage() {
     });
   }, [allMembers, query]);
 
+  const membersWithHours = useMemo(() => {
+    const formulaByMember = new Map<string, Record<string, any> | null>(
+      allMembers.map((m, i): [string, Record<string, any> | null] => [
+        m.id,
+        workFormulas[i] ?? null,
+      ]),
+    );
+
+    return items.map((m) => ({
+      ...m,
+      work_formula: formulaByMember.get(m.id) ?? null,
+    }));
+  }, [allMembers, workFormulas, items]);
+
   function handleLogout() {
     logout();
     setIsAuthenticated(false);
@@ -1120,6 +1133,8 @@ export default function MembersPage() {
     ? `${displayName} (${signedInEmail})`
     : signedInEmail;
   const currentMember = allMembers[0];
+
+
 
   if (!isAuthenticated) {
     return (
@@ -1218,7 +1233,7 @@ export default function MembersPage() {
 
                 <Box sx={{ flexShrink: 0 }}>
                   <ActionMenu
-                    label="CSV Data"
+                    label="Manage Data"
                     items={[
                       { label: "Export Member Data", onClick: handleExportMembers },
                       { label: "Import Due Data", onClick: () => setImportKind("dues") },
@@ -1233,7 +1248,7 @@ export default function MembersPage() {
                 </Box>
               </Box>
        
-              <MemberTable members={items} work_formulas={workFormulas} />
+              <MemberTable members={membersWithHours} work_formulas={membersWithHours.map((m) => m.work_formula)} />
             </>
           )}
 
