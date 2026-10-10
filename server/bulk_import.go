@@ -61,6 +61,53 @@ type bulkCSVTable struct {
 	rows    [][]string
 }
 
+type duesImportTotal struct {
+	row         int
+	amount      float64
+	paidAt      int64
+	paymentType string
+}
+
+// aggregateDuesPayment adds an individual transaction to a member's total.
+// Amounts are summed, the latest payment date is retained, and differing
+// non-empty payment types are represented as MULTIPLE.
+func aggregateDuesPayment(
+	totals map[string]*duesImportTotal,
+	email string,
+	row int,
+	amount float64,
+	paidAt int64,
+	paymentType string,
+) {
+	paymentType = normalizePaymentType(paymentType)
+
+	existing, ok := totals[email]
+	if !ok {
+		totals[email] = &duesImportTotal{
+			row:         row,
+			amount:      amount,
+			paidAt:      paidAt,
+			paymentType: paymentType,
+		}
+		return
+	}
+
+	existing.amount += amount
+
+	if paidAt > existing.paidAt {
+		existing.paidAt = paidAt
+	}
+
+	if paymentType != "" {
+		if existing.paymentType == "" {
+			existing.paymentType = paymentType
+		} else if existing.paymentType != "MULTIPLE" &&
+			existing.paymentType != paymentType {
+			existing.paymentType = "MULTIPLE"
+		}
+	}
+}
+
 func readBulkCSV(e *core.RequestEvent) (*bulkCSVTable, error) {
 	file, _, err := e.Request.FormFile("file")
 	if err != nil {
@@ -408,13 +455,7 @@ func importDuesCSV(app core.App) func(e *core.RequestEvent) error {
 			return e.InternalServerError("Could not load members.", err)
 		}
 
-		type total struct {
-			row         int
-			amount      float64
-			paidAt      int64
-			paymentType string
-		}
-		totals := map[string]*total{}
+		totals := map[string]*duesImportTotal{}
 		order := []string{}
 
 		for i, row := range table.rows {
@@ -455,25 +496,20 @@ func importDuesCSV(app core.App) func(e *core.RequestEvent) error {
 				}
 			}
 
-			paymentType := strings.ToLower(bulkCell(row, typeCol))
+			paymentType := strings.ToUpper(strings.TrimSpace(bulkCell(row, typeCol)))
 
-			if t, ok := totals[email]; ok {
-				t.amount += amount
-				if paidAt > t.paidAt {
-					t.paidAt = paidAt
-				}
-				if paymentType != "" {
-					t.paymentType = paymentType
-				}
-			} else {
-				totals[email] = &total{
-					row:         line,
-					amount:      amount,
-					paidAt:      paidAt,
-					paymentType: paymentType,
-				}
+			if _, exists := totals[email]; !exists {
 				order = append(order, email)
 			}
+
+			aggregateDuesPayment(
+				totals,
+				email,
+				line,
+				amount,
+				paidAt,
+				paymentType,
+			)
 		}
 
 		reviewer := bulkReviewerName(e)
@@ -708,4 +744,23 @@ func applyImportedDues(
 	}
 
 	return nil
+}
+
+func normalizePaymentType(value string) string {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "CASH":
+		return "Cash"
+	case "CARD":
+		return "Card"
+	case "CHECK":
+		return "Check"
+	case "VENMO":
+		return "Venmo"
+	case "PAYPAL":
+		return "Paypal"
+	case "OTHER":
+		return "Other"
+	default:
+		return ""
+	}
 }
