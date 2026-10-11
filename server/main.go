@@ -82,7 +82,11 @@ func main() {
 			os.Exit(0)
 		}
 
-		return ensureAppCollections(app)
+		if err := ensureAppCollections(app); err != nil {
+			return err
+		}
+
+		return normalizeDueStates(app)
 	})
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
@@ -105,12 +109,18 @@ func main() {
 			return e.Next() // admins can change anything
 		}
 
+		// Members can't edit any of the four hours fields. Completed hours
+		// only change through approved requests, which run as admin.
 		original := e.Record.Original()
-		if e.Record.GetFloat("work_hours_required") != original.GetFloat("work_hours_required") {
-			return e.ForbiddenError("Only admins can change work_hours_required.", nil)
-		}
-		if e.Record.GetFloat("open_hours_required") != original.GetFloat("open_hours_required") {
-			return e.ForbiddenError("Only admins can change open_hours_required.", nil)
+		for _, field := range []string{
+			"work_hours_required",
+			"open_hours_required",
+			"work_hours_completed",
+			"open_hours_completed",
+		} {
+			if e.Record.GetFloat(field) != original.GetFloat(field) {
+				return e.ForbiddenError("Only admins can change "+field+".", nil)
+			}
 		}
 
 		return e.Next()

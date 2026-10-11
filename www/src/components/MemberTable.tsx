@@ -1,10 +1,12 @@
 import MoodRoundedIcon from "@mui/icons-material/MoodRounded";
 import SentimentDissatisfiedRoundedIcon from "@mui/icons-material/SentimentDissatisfiedRounded";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
+import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import { alpha } from "@mui/material/styles";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -13,6 +15,7 @@ import TableHead from "@mui/material/TableHead";
 import TablePagination from "@mui/material/TablePagination";
 import TableRow from "@mui/material/TableRow";
 import TableSortLabel from "@mui/material/TableSortLabel";
+import TextField from "@mui/material/TextField";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import { visuallyHidden } from "@mui/utils";
@@ -51,60 +54,111 @@ function yesNo(value: boolean): string {
   return value ? "YES" : "NO";
 }
 
-function toRow(member: Record<string, any>): Data {
+function csvCell(value: string | number): string {
+  let text = String(value ?? "");
+  // Members type their own names, so stop spreadsheets running them as formulas
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) {
+    text = "'" + text;
+  }
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function formatDatePaid(unixSeconds: unknown): string {
+  const seconds = Number(unixSeconds);
+  if (!Number.isFinite(seconds) || seconds <= 0) return "";
+  return new Date(seconds * 1000).toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function downloadCsv(
+  filename: string,
+  header: string[],
+  rows: Array<Array<string | number>>,
+) {
+  const body = [header, ...rows]
+    .map((row) => row.map(csvCell).join(","))
+    .join("\r\n");
+
+  // The BOM makes Excel read accented names correctly
+  const blob = new Blob(["\ufeff" + body], {
+    type: "text/csv;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Open hours can cover the work-hours requirement, but work hours can't
+// cover open hours (per the requirements notes).
+function hoursRequirementsMet(
+  workRequired: number,
+  workCompleted: number,
+  openRequired: number,
+  openCompleted: number,
+): boolean {
+  const spareOpenHours = Math.max(0, openCompleted - openRequired);
+  return (
+    openCompleted >= openRequired &&
+    workCompleted + spareOpenHours >= workRequired
+  );
+}
+
+function toRow(
+  member: Record<string, any>,
+  formula: Record<string, any> | null,
+): Data {
   const personalInfo = member.personal_info ?? {};
   const memberInfo = member.member_info ?? {};
   const dues = memberInfo.dues ?? {};
-  const workFormula = member.work_formula ?? {};
+  const requirements = memberInfo.requirements ?? {};
 
-  const firstName = personalInfo.firstName ?? "";
-  const lastName = personalInfo.lastName ?? "";
-  const fullName = firstName + " " + lastName;
-
-  const serviceRequirements = workFormula.serviceRequirements ?? [];
+  const fullName =
+    `${personalInfo.firstName ?? ""} ${personalInfo.lastName ?? ""}`.trim();
   const dueStatus = dues.dueState ?? "";
 
-  const meetingsRequired = toNumber(workFormula.meetingsRequired);
-  const meetingsCompleted = toNumber(workFormula.meetingsCompleted);
-  const serviceHoursRequired = toNumber(workFormula.serviceHoursRequired);
+  const meetingsRequired = toNumber(requirements.meetingsRequired);
+  const meetingsCompleted = toNumber(requirements.meetingsCompleted);
 
-  const serviceHoursCompleted = serviceRequirements.reduce(
-    (sum: number, s: any) => sum + toNumber(s.hoursCompleted),
-    0,
-  );
+  const workHoursRequired = toNumber(formula?.work_hours_required);
+  const workHoursCompleted = toNumber(formula?.work_hours_completed);
+  const openHoursRequired = toNumber(formula?.open_hours_required);
+  const openHoursCompleted = toNumber(formula?.open_hours_completed);
 
   const duesPaid = dueStatus === "PAID" || dueStatus === "COMPLETE";
   const meetingsMet = meetingsCompleted >= meetingsRequired;
-  const serviceHoursMet = serviceHoursCompleted >= serviceHoursRequired;
-  const allMemberRequirementsMet = duesPaid && meetingsMet && serviceHoursMet;
-  const workHoursRequired = toNumber(workFormula.work_hours_required);
-  const workHoursCompleted = toNumber(workFormula.work_hours_completed);
-  const openHoursRequired = toNumber(workFormula.open_hours_required);
-  const openHoursCompleted = toNumber(workFormula.open_hours_completed);
-
-  const workFormulaStatus =
-    workHoursCompleted >= workHoursRequired &&
-    openHoursCompleted >= openHoursRequired;
+  // No formula row means no requirement we can check, so don't call it met
+  const hoursMet = formula
+    ? hoursRequirementsMet(
+      workHoursRequired,
+      workHoursCompleted,
+      openHoursRequired,
+      openHoursCompleted,
+    )
+    : false;
 
   return createData(
     member.id,
     member.member_id ?? "",
     fullName,
-    yesNo(allMemberRequirementsMet),
+    yesNo(duesPaid && meetingsMet && hoursMet),
     dueStatus,
     yesNo(duesPaid),
     toNumber(dues.amountPaid),
     meetingsRequired,
     meetingsCompleted,
     yesNo(meetingsMet),
-    serviceHoursRequired,
-    serviceHoursCompleted,
-    yesNo(serviceHoursMet),
+    workHoursRequired + openHoursRequired,
+    workHoursCompleted + openHoursCompleted,
+    yesNo(hoursMet),
     workHoursRequired,
     workHoursCompleted,
     openHoursRequired,
     openHoursCompleted,
-    workFormulaStatus
+    hoursMet,
   );
 }
 
@@ -151,22 +205,31 @@ function createData(
 }
 
 type Order = "asc" | "desc";
+
 type RequirementFilter =
   | "serviceHoursMet"
   | "meetingsRequiredMet"
   | "duesStatusMet"
   | "allMemberRequirementsMet";
 
+type FilterState = "any" | "met" | "unmet";
+
 const requirementFilters: Array<{
   id: RequirementFilter;
   label: string;
 }> = [
-  { id: "serviceHoursMet", label: "Service hours met" },
-  { id: "meetingsRequiredMet", label: "Meetings required met" },
-  { id: "duesStatusMet", label: "Dues status met" },
-  { id: "allMemberRequirementsMet", label: "All requirements met" },
-];
+    { id: "serviceHoursMet", label: "Service hours" },
+    { id: "meetingsRequiredMet", label: "Meetings" },
+    { id: "duesStatusMet", label: "Dues status" },
+    { id: "allMemberRequirementsMet", label: "All requirements" },
+  ];
 
+const noFilters: Record<RequirementFilter, FilterState> = {
+  serviceHoursMet: "any",
+  meetingsRequiredMet: "any",
+  duesStatusMet: "any",
+  allMemberRequirementsMet: "any",
+};
 function descendingComparator<T>(
   a: T,
   b: T,
@@ -423,10 +486,9 @@ export default function EnhancedTable({
   const [orderBy, setOrderBy] = React.useState<keyof Data>("dueStatus");
   const [selected, setSelected] = React.useState<readonly string[]>([]);
   const [page, setPage] = React.useState(0);
-  const [rowsPerPage, setRowsPerPage] = React.useState(10);
-  const [activeFilters, setActiveFilters] = React.useState<RequirementFilter[]>(
-    [],
-  );
+  const [rowsPerPage, setRowsPerPage] = React.useState(30);
+  const [filterValues, setFilterValues] =
+    React.useState<Record<RequirementFilter, FilterState>>(noFilters);
 
 
   const handleRequestSort = (
@@ -438,43 +500,118 @@ export default function EnhancedTable({
     setOrderBy(property);
   };
 
-  const allRows = React.useMemo(
-    () =>
-      members.map((member) => {
-        const row = toRow(member);
-        const formula = work_formulas.find(
-          (wf) => wf?.member_id === row.member_id,
-        );
+  const allRows = React.useMemo(() => {
+    const formulaByMemberId = new Map<string, Record<string, any>>();
+    for (const wf of work_formulas) {
+      if (wf?.member_id && !formulaByMemberId.has(wf.member_id)) {
+        formulaByMemberId.set(wf.member_id, wf);
+      }
+    }
 
-        return {
-          ...row,
-          workHoursRequired: toNumber(formula?.work_hours_required),
-          workHoursCompleted: toNumber(formula?.work_hours_completed),
-          openHoursRequired: toNumber(formula?.open_hours_required),
-          openHoursCompleted: toNumber(formula?.open_hours_completed),
-        };
-      }),
-    [members, work_formulas],
-  );
+    return members.map((member) =>
+      toRow(member, formulaByMemberId.get(member.member_id) ?? null),
+    );
+  }, [members, work_formulas]);
+  
 
   const filteredRows = React.useMemo(
     () =>
       allRows.filter((row) =>
-        activeFilters.every((filterId) => row[filterId] === "YES"),
+        requirementFilters.every(({ id }) => {
+          const wanted = filterValues[id];
+          if (wanted === "any") return true;
+          return row[id] === (wanted === "met" ? "YES" : "NO");
+        }),
       ),
-    [activeFilters, allRows],
+    [filterValues, allRows],
   );
+
+  const detailsById = React.useMemo(
+    () =>
+      new Map(
+        members.map(
+          (m): [string, { email: string; paymentType: string; datePaid: string }] => [
+            m.id,
+            {
+              email: m.personal_info?.emailInfo?.primaryEmail ?? "",
+              paymentType: String(
+                m.member_info?.dues?.paymentType ?? "",
+              ).toUpperCase(),
+              datePaid: formatDatePaid(m.member_info?.dues?.duesPaidAt),
+            },
+          ],
+        ),
+      ),
+    [members],
+  );
+
+  const handleExportFiltered = () => {
+    const includePaymentType =
+      filterValues.duesStatusMet === "met" ||
+      filterValues.allMemberRequirementsMet === "met";
+
+    const header = [
+      "Full Name",
+      "Email",
+      "All Requirements Met",
+      "Dues Met",
+      "Meetings Met",
+      "Hours Met",
+      "Dues Status",
+      "Amount Paid",
+      ...(includePaymentType ? ["Payment Type", "Date Paid"] : []),
+      "Meetings Required",
+      "Meetings Completed",
+      "Work Hours Required",
+      "Work Hours Completed",
+      "Open Hours Required",
+      "Open Hours Completed",
+    ];
+
+    const rows = [...filteredRows]
+      .sort(getComparator(order, orderBy))
+      .map((row) => {
+        const details = detailsById.get(row.id);
+
+        return [
+          row.fullName,
+          details?.email ?? "",
+          row.allMemberRequirementsMet,
+          row.duesStatusMet,
+          row.meetingsRequiredMet,
+          row.serviceHoursMet,
+          row.dueStatus,
+          row.amountPaid,
+          ...(includePaymentType
+            ? [details?.paymentType ?? "", details?.datePaid ?? ""]
+            : []),
+          row.meetingsRequired,
+          row.meetingsCompleted,
+          row.workHoursRequired,
+          row.workHoursCompleted,
+          row.openHoursRequired,
+          row.openHoursCompleted,
+        ];
+      });
+
+    downloadCsv(
+      `members-filtered-${new Date().toISOString().slice(0, 10)}.csv`,
+      header,
+      rows,
+    );
+  };
+
+  const anyFilterActive = Object.values(filterValues).some((v) => v !== "any");
 
   const handleFilterChange =
     (filterId: RequirementFilter) =>
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      setActiveFilters((current) =>
-        event.target.checked
-          ? [...current, filterId]
-          : current.filter((id) => id !== filterId),
-      );
-      setPage(0);
-    };
+      (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        setFilterValues((current) => ({
+          ...current,
+          [filterId]: event.target.value as FilterState,
+        }));
+        setPage(0);
+      };
 
   const handleSelectAllClick = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.checked) {
@@ -536,32 +673,58 @@ export default function EnhancedTable({
             sx={{
               display: "flex",
               flexWrap: "wrap",
-              gap: 1,
+              alignItems: "center",
+              gap: 2,
               px: 2,
-              py: 1,
+              py: 1.5,
               borderTop: 1,
               borderColor: "divider",
             }}
           >
-            <Typography
-              component="span"
-              sx={{ alignSelf: "center", fontWeight: 600, mr: 1 }}
-            >
+            <Typography component="span" sx={{ fontWeight: 600 }}>
               Filters:
             </Typography>
+
             {requirementFilters.map((filter) => (
-              <FormControlLabel
+              <TextField
                 key={filter.id}
-                control={
-                  <Checkbox
-                    checked={activeFilters.includes(filter.id)}
-                    onChange={handleFilterChange(filter.id)}
-                    size="small"
-                  />
-                }
+                select
+                size="small"
                 label={filter.label}
-              />
+                value={filterValues[filter.id]}
+                onChange={handleFilterChange(filter.id)}
+                sx={{ minWidth: 150 }}
+              >
+                <MenuItem value="any">Any</MenuItem>
+                <MenuItem value="met">Met</MenuItem>
+                <MenuItem value="unmet">Not met</MenuItem>
+              </TextField>
             ))}
+
+            {anyFilterActive && (
+              <>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<FileDownloadIcon />}
+                  disabled={filteredRows.length === 0}
+                  onClick={handleExportFiltered}
+                >
+                  Export {filteredRows.length}{" "}
+                  {filteredRows.length === 1 ? "member" : "members"}
+                </Button>
+
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setFilterValues(noFilters);
+                    setPage(0);
+                  }}
+                >
+                  Clear filters
+                </Button>
+              </>
+            )}
           </Box>
           <TableContainer>
             <Table
