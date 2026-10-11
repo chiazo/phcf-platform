@@ -996,9 +996,10 @@ export default function MembersPage() {
   function refreshAllMembers() {
     return listMemberSnapshots()
       .then(async (res) => {
-        setAllMembers(res.items);
+        const activeMembers = res.items.filter(r => r.member_info.memberState == "ACTIVE");
+        setAllMembers(activeMembers);
 
-        await memberWorkFormulas(res.items);
+        await memberWorkFormulas(activeMembers);
       })
       .catch((err) => {
         console.error("member fetch error:", err);
@@ -1087,7 +1088,7 @@ export default function MembersPage() {
         m.id,
         workFormulas[i] ?? null,
       ]),
-    );
+    );  
 
     return items.map((m) => ({
       ...m,

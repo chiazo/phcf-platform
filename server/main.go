@@ -98,6 +98,7 @@ func main() {
 		e.Router.GET("/api/app/admin/export/members", exportMembersCSV(app))
 		e.Router.POST("/api/admin/import-members", importMembersCSV(app))
 		e.Router.POST("/api/app/admin/import/dues", importDuesCSV(app))
+		e.Router.POST("/api/app/admin/rollover", rolloverHandler(app))
 		e.Router.POST("/api/app/admin/import/hours", importOpenHoursCSV(app))
 
 		return e.Next()
@@ -130,6 +131,57 @@ func main() {
 		log.Fatal(err)
 	}
 	_ = os.Args
+}
+
+// normalizeDueStates rewrites the legacy "PAID" dues status to "COMPLETE" and
+// logs any other values that aren't in the DueState enum. Safe to re-run;
+// remove once the data is clean.
+func normalizeDueStates(app core.App) error {
+	snapshots := []*core.Record{}
+	if err := app.RecordQuery("member_snapshot").All(&snapshots); err != nil {
+		return err
+	}
+
+	known := map[string]bool{"COMPLETE": true, "PENDING": true, "UNPAID": true}
+	unknown := map[string]int{}
+	fixed := 0
+
+	for _, s := range snapshots {
+		var info map[string]any
+		if err := s.UnmarshalJSONField("member_info", &info); err != nil {
+			continue
+		}
+
+		dues, _ := info["dues"].(map[string]any)
+		if dues == nil {
+			continue
+		}
+
+		state, _ := dues["dueState"].(string)
+		if state != "PAID" {
+			if state != "" && !known[state] {
+				unknown[state]++
+			}
+			continue
+		}
+
+		dues["dueState"] = "COMPLETE"
+		s.Set("member_info", info)
+		if err := app.Save(s); err != nil {
+			log.Printf("normalizeDueStates: skipped snapshot %s: %v", s.Id, err)
+			continue
+		}
+		fixed++
+	}
+
+	if fixed > 0 {
+		log.Printf("normalizeDueStates: PAID -> COMPLETE on %d snapshots", fixed)
+	}
+	if len(unknown) > 0 {
+		log.Printf("normalizeDueStates: dues statuses outside the enum: %v", unknown)
+	}
+
+	return nil
 }
 
 func ensureAppCollections(app core.App) error {
@@ -1122,6 +1174,15 @@ func configureLegacySnapshotCollection(app core.App, collection *core.Collection
 		Name:     "box_info",
 		Required: true,
 	})
+
+	addFieldIfMissing(collection, &core.NumberField{Name: "year", OnlyInt: true})
+	addFieldIfMissing(collection, &core.BoolField{Name: "is_final"})
+	addFieldIfMissing(collection, &core.TextField{Name: "standing"})
+	addFieldIfMissing(collection, &core.JSONField{Name: "hours"})
+	addFieldIfMissing(collection, &core.JSONField{Name: "requests"})
+	addFieldIfMissing(collection, &core.TextField{Name: "source_snapshot_id"})
+	addFieldIfMissing(collection, &core.TextField{Name: "archived_by"})
+	addFieldIfMissing(collection, &core.DateField{Name: "archived_at"})
 
 	return nil
 }

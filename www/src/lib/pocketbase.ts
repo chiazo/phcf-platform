@@ -2,8 +2,9 @@ import PocketBase from "pocketbase";
 
 import { config } from "./config";
 
-import { DueState, MemberType } from "../models/enums";
+import { DueState, MemberType, MemberState } from '../models/enums';
 import MemberSnapshot from "../models/MemberSnapshot";
+import MemberInfo from '../models/MemberInfo';
 
 export const pb = new PocketBase(config.pbUrl);
 
@@ -145,6 +146,52 @@ export interface RegisterFarmMemberInput {
   onMailingList: boolean;
   volunteerInterests?: string[];
 }
+
+   export type RolloverAction = "archive" | "reset";
+
+   export interface RolloverRow {
+     memberId: string;
+     name: string;
+     email: string;
+     standing: string;
+     reasons?: string[];
+   }
+
+   export interface RolloverResult {
+     preview: boolean;
+     action: RolloverAction;
+     year: number;
+     total: number;
+     carryOver: RolloverRow[];
+     inactive: RolloverRow[];
+     alreadyInactive: number;
+     legacyRows: number;
+     requestsRemoved: number;
+     snapshotsRemoved: number;
+     warnings: string[];
+     failures: string[];
+     backup?: string;
+   }
+
+   export async function runRollover(
+     action: RolloverAction,
+     year: number,
+     preview: boolean,
+     keepActive: string[] = [],
+   ) {
+     pb.autoCancellation(false);
+     return await pb.send<RolloverResult>("/api/app/admin/rollover", {
+       method: "POST",
+       body: { action, year, preview, keepActive },
+     });
+   }
+
+   export async function listLegacyYearRows() {
+     pb.autoCancellation(false);
+     return await pb
+       .collection("legacy_snapshots")
+       .getFullList({ filter: "is_final = true || year = 0", sort: "-year" });
+   }
 
 export function currentUser() {
   return pb.authStore.record;
@@ -1514,7 +1561,7 @@ export async function getMemberWorkFormula(
 // gets the full list of legacy snapshots from the legacy_snapshots collection
 export async function listLegacySnapshots() {
   pb.autoCancellation(false);
-  return await pb.collection("legacy_snapshots").getList(1, 50);
+  return await pb.collection("legacy_snapshots").getList(1, 50, { filter: "is_final = true || year = 0", sort: "-year" })
 }
 
 export async function getMemberUpdateSnapshot(memberSnapshotId: string) {

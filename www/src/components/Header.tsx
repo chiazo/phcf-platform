@@ -7,6 +7,7 @@ const ADMIN_LINKS = [
   { label: "Work Formulas", to: "/work-formula" },
   { label: "Legacy Snapshots", to: "/legacy-snapshots" },
   { label: "Admin User Access", to: "/admin" },
+  { label: "Yearly Reports", to: "/yearly" }
 ];
 
 interface Props {

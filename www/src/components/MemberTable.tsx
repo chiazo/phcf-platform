@@ -21,6 +21,7 @@ import Typography from "@mui/material/Typography";
 import { visuallyHidden } from "@mui/utils";
 import * as React from "react";
 import { useState } from "react";
+import {downloadCsv} from "../lib/csv"
 import { Link } from "react-router-dom";
 
 
@@ -54,42 +55,11 @@ function yesNo(value: boolean): string {
   return value ? "YES" : "NO";
 }
 
-function csvCell(value: string | number): string {
-  let text = String(value ?? "");
-  // Members type their own names, so stop spreadsheets running them as formulas
-  if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) {
-    text = "'" + text;
-  }
-  return `"${text.replace(/"/g, '""')}"`;
-}
 
 function formatDatePaid(unixSeconds: unknown): string {
   const seconds = Number(unixSeconds);
   if (!Number.isFinite(seconds) || seconds <= 0) return "";
   return new Date(seconds * 1000).toISOString().slice(0, 10); // YYYY-MM-DD
-}
-
-function downloadCsv(
-  filename: string,
-  header: string[],
-  rows: Array<Array<string | number>>,
-) {
-  const body = [header, ...rows]
-    .map((row) => row.map(csvCell).join(","))
-    .join("\r\n");
-
-  // The BOM makes Excel read accented names correctly
-  const blob = new Blob(["\ufeff" + body], {
-    type: "text/csv;charset=utf-8",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 // Open hours can cover the work-hours requirement, but work hours can't
@@ -336,7 +306,7 @@ const headCells: readonly HeadCell[] = [
     id: "workFormulaStatus",
     numeric: false,
     disablePadding: false,
-    label: "Status",
+    label: "Hour Status",
   },
 ];
 
@@ -412,7 +382,6 @@ interface EnhancedTableToolbarProps {
 
 function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
   const { numSelected } = props;
-  const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
 
   function displayModal() {
     const modal = document.getElementById("myModal");

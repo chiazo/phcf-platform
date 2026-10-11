@@ -1,17 +1,18 @@
-import { Navigate, Routes, Route } from "react-router-dom";
 import type { ReactNode } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
 
+import { isAdmin, isLoggedIn } from "./lib/pocketbase";
 import AdminPage from "./pages/AdminPage";
-import WorkFormulaPage from "./pages/WorkFormulaPage";
 import BoxInfoPage from "./pages/BoxInfoPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
-import LoginPage from "./pages/LoginPage";
-import MembersPage from "./pages/MembersPage";
-import MemberSnapshotPage from "./pages/MemberSnapshotPage";
 import LegacySnapshotPage from "./pages/LegacySnapshotPage";
+import LoginPage from "./pages/LoginPage";
+import MemberSnapshotPage from "./pages/MemberSnapshotPage";
+import MembersPage from "./pages/MembersPage";
 import RegisterPage from "./pages/RegisterPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
-import { isAdmin, isLoggedIn } from "./lib/pocketbase";
+import WorkFormulaPage from "./pages/WorkFormulaPage";
+import YearlyReportPage from "./pages/YearlyReportPage";
 
 function RequireAdmin({ children }: { children: ReactNode }) {
   if (!isLoggedIn()) {
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/admin" element={<RequireAdmin><AdminPage /></RequireAdmin>} />
         <Route path="/work-formula" element={<RequireAdmin><WorkFormulaPage /></RequireAdmin>} />
         <Route path="/box-info" element={<BoxInfoPage />} />
+        <Route path="/yearly" element={<YearlyReportPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
