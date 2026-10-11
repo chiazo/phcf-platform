@@ -13,6 +13,7 @@ import RegisterPage from "./pages/RegisterPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import WorkFormulaPage from "./pages/WorkFormulaPage";
 import YearlyReportPage from "./pages/YearlyReportPage";
+import { config } from "./lib/config";
 
 function RequireAdmin({ children }: { children: ReactNode }) {
   if (!isLoggedIn()) {
@@ -24,6 +25,11 @@ function RequireAdmin({ children }: { children: ReactNode }) {
   }
 
   return children;
+}
+
+function RedirectToDatabase() {
+  window.location.replace(`${config.pbUrl}/_/`);
+  return null;
 }
 
 export default function App() {
@@ -38,6 +44,10 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route
+          path="/member-database"
+          element={<RedirectToDatabase />}
+        />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/snapshot/:id" element={<MemberSnapshotPage />} />
         <Route path="/legacy-snapshots" element={<RequireAdmin><LegacySnapshotPage /></RequireAdmin>} />
