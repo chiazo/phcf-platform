@@ -213,7 +213,7 @@ function fakeMemberSnapshotPayload(userId, firstName, lastName, email) {
           min: 0,
           max: 200,
         }),
-        dueState: faker.helpers.arrayElement(["PAID", "UNPAID", "PARTIAL"]),
+        dueState: faker.helpers.arrayElement(["COMPLETE", "UNPAID", "PARTIAL"]),
         paymentType: faker.helpers.arrayElement(["CASH", "CARD", "CHECK"]),
         duesPaidAt: Math.floor(
           faker.date.recent({ days: 90 }).getTime() / 1000,
@@ -492,7 +492,7 @@ function fakeLegacySnapshotPayload(memberIdsPool) {
         "INACTIVE",
       ]),
       memberType: faker.helpers.arrayElement(["GENERAL"]),
-      memberState: faker.helpers.arrayElement(["PENDING", "APPROVED"]),
+      memberState: faker.helpers.arrayElement(["ACTIVE", "INACTIVE", "PENDING",]),
       orientationDate: Math.floor(
         faker.date.past({ years: 2 }).getTime() / 1000,
       ),

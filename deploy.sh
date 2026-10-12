@@ -16,6 +16,18 @@ LAST_GCP_VM_FILE=".last-gcp-vm"
 
 echo "🚀 Deploy mode: $TARGET (backend: $BACKEND_PROVIDER)"
 
+# TROUBLE SHOOTING:
+# ---------------------------------------
+# (1) permission denied while trying to connect to the docker API at unix:///var/run/docker.sock
+
+# gcloud compute ssh pocketbase-vm \
+#  --zone=us-east1-b \
+#  --command='sudo usermod -aG docker "$USER"'
+#
+# gcloud compute ssh pocketbase-vm \
+#  --zone=us-east1-b \
+#  --command='docker ps'
+
 # ---------------------------------------
 # Helpers
 # ---------------------------------------
@@ -46,10 +58,13 @@ get_backend_url () {
   if [ "$BACKEND_PROVIDER" = "fly" ]; then
     echo "https://${FLY_APP}.fly.dev"
   elif [ "$BACKEND_PROVIDER" = "gcp" ]; then
-    local IP
-    IP=$(gcloud compute addresses describe pocketbase-ip --region=us-east1 --format="value(address)")
-    echo "https://${IP}.nip.io"
-  fi
+  local IP
+  IP=$(gcloud compute addresses describe pocketbase-ip \
+    --project="$(gcloud config get-value project)" \
+    --region=us-east1 \
+    --format="value(address)")
+  echo "https://${IP}.nip.io"
+fi
 }
 
 # ---------------------------------------
@@ -202,28 +217,90 @@ deploy_backend_gcp () {
 
   echo "📦 Deploying PocketBase to GCP VM..."
 
-  PROJECT_ID=$(gcloud config get-value project)
-  REPO="phcf-scratch-pad"
-  IMAGE="us-docker.pkg.dev/$PROJECT_ID/$REPO/pocketbase"
+  local PROJECT_ID
+  PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
+
+  if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "(unset)" ]; then
+    echo "❌ No active GCP project. Run gcloud config set project PROJECT_ID."
+    exit 1
+  fi
+
+  local REPO="phcf-scratch-pad"
+  local IMAGE="us-docker.pkg.dev/${PROJECT_ID}/${REPO}/pocketbase:latest"
+  local EXPECTED_IDENTITY="pocketbase-vm@${PROJECT_ID}.iam.gserviceaccount.com"
 
   echo "🐳 Building and pushing image..."
-  gcloud builds submit ./server --tag "$IMAGE"
+  gcloud builds submit ./server \
+    --project="$PROJECT_ID" \
+    --tag="$IMAGE"
 
   echo "☁️ Deploying to $GCP_VM_NAME..."
-  gcloud compute ssh "$GCP_VM_NAME" --zone="$GCP_ZONE" --command="
-    set -e
-    docker pull $IMAGE
-    docker stop pocketbase || true
-    docker rm pocketbase || true
-    docker run -d \
-      --name pocketbase \
-      -p 8080:8080 \
-      -v \$HOME/pb_data:/app/pb_data \
-      --restart unless-stopped \
-      $IMAGE
-    sleep 2
-    docker logs --tail 20 pocketbase
-  "
+
+  gcloud compute ssh "$GCP_VM_NAME" \
+    --project="$PROJECT_ID" \
+    --zone="$GCP_ZONE" \
+    --command="sudo bash -s -- '$IMAGE' '$EXPECTED_IDENTITY'" <<'REMOTE_SCRIPT'
+set -Eeuo pipefail
+
+IMAGE="$1"
+EXPECTED_IDENTITY="$2"
+REGISTRY="us-docker.pkg.dev"
+
+# Verify the VM's actual attached service account.
+IDENTITY=$(curl -fsS \
+  -H 'Metadata-Flavor: Google' \
+  'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email')
+
+if [ "$IDENTITY" != "$EXPECTED_IDENTITY" ]; then
+  echo "ERROR: Unexpected VM service account: $IDENTITY"
+  echo "Expected: $EXPECTED_IDENTITY"
+  exit 1
+fi
+
+echo "Verified VM identity: $IDENTITY"
+
+# Authenticate Docker using a short-lived access token from VM metadata.
+TOKEN=$(curl -fsS \
+  -H 'Metadata-Flavor: Google' \
+  'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+
+trap 'docker logout "$REGISTRY" >/dev/null 2>&1 || true; unset TOKEN' EXIT
+
+printf '%s' "$TOKEN" | docker login \
+  -u oauth2accesstoken \
+  --password-stdin "https://$REGISTRY"
+
+unset TOKEN
+
+# Pull BEFORE stopping the running service.
+# If authentication or pulling fails, the current container stays up.
+docker pull "$IMAGE"
+
+# Ensure the persistent data directory exists.
+mkdir -p "$HOME/pb_data"
+
+# Replace the container only after the image pull succeeds.
+docker stop pocketbase || true
+docker rm pocketbase || true
+
+docker run -d \
+  --name pocketbase \
+  -p 127.0.0.1:8080:8080 \
+  -v "$HOME/pb_data:/app/pb_data" \
+  --restart unless-stopped \
+  "$IMAGE"
+
+sleep 2
+
+if [ "$(docker inspect -f '{{.State.Running}}' pocketbase)" != "true" ]; then
+  echo "ERROR: PocketBase container failed to start."
+  docker logs --tail 100 pocketbase || true
+  exit 1
+fi
+
+docker logs --tail 20 pocketbase
+REMOTE_SCRIPT
 }
 
 # ---------------------------------------

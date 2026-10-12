@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+VM_DATA_DIR=/root/pb_data
+
 # ---------------------------------------
 # Config — edit to match your project
 # ---------------------------------------
@@ -18,8 +20,8 @@ REPO="phcf-scratch-pad"
 IMAGE="us-docker.pkg.dev/$PROJECT_ID/$REPO/pocketbase"
 STATIC_IP_NAME="pocketbase-ip"
 
-SUPERUSER_EMAIL_DEFAULT=${SUPERUSER_EMAIL:-admin@gmail.com}
-SUPERUSER_PASSWORD_DEFAULT=${SUPERUSER_PASSWORD:-admin-password}
+SUPERUSER_EMAIL_DEFAULT=${SUPERUSER_EMAIL:-}
+SUPERUSER_PASSWORD_DEFAULT=${SUPERUSER_PASSWORD:-}
 
 CMD=${1:-help}
 
@@ -27,11 +29,17 @@ CMD=${1:-help}
 # Helpers
 # ---------------------------------------
 remote_run () {
-  gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="$1"
+  gcloud compute ssh "$VM_NAME" \
+    --project="$PROJECT_ID" \
+    --zone="$ZONE" \
+    --command="$1"
 }
 
 get_static_ip () {
-  gcloud compute addresses describe "$STATIC_IP_NAME" --region="$REGION" --format="value(address)"
+  gcloud compute addresses describe "$STATIC_IP_NAME" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --format="value(address)"
 }
 
 get_backend_url () {
@@ -63,8 +71,8 @@ deploy () {
     docker rm pocketbase || true
     docker run -d \
       --name pocketbase \
-      -p 8080:8080 \
-      -v \$HOME/pb_data:/app/pb_data \
+      -p 127.0.0.1:8080:8080 \
+      -v "$VM_DATA_DIR:/app/pb_data" \
       --restart unless-stopped \
       $IMAGE
     sleep 2
@@ -95,12 +103,12 @@ reset () {
     set -e
     docker stop pocketbase || true
     docker rm pocketbase || true
-    sudo rm -rf \$HOME/pb_data
+    sudo rm -rf /root/pb_data
     docker pull $IMAGE
     docker run -d \
       --name pocketbase \
-      -p 8080:8080 \
-      -v \$HOME/pb_data:/app/pb_data \
+      -p 127.0.0.1:8080:8080 \
+      -v /root/pb_data:/app/pb_data \
       --restart unless-stopped \
       $IMAGE
     sleep 2
@@ -122,18 +130,44 @@ superuser () {
   local EMAIL=${1:-$SUPERUSER_EMAIL_DEFAULT}
   local PASS=${2:-$SUPERUSER_PASSWORD_DEFAULT}
 
+  if [ -z "$EMAIL" ] || [ -z "$PASS" ]; then
+    echo "❌ Superuser email and password are required."
+    exit 1
+  fi
+
   echo "🔑 Upserting superuser $EMAIL..."
+
+  # Quote values safely for the remote Bash shell.
+  printf -v Q_EMAIL '%q' "$EMAIL"
+  printf -v Q_PASS '%q' "$PASS"
+  printf -v Q_IMAGE '%q' "$IMAGE"
+
   remote_run "
-    set -e
-    docker stop pocketbase || true
+    set -Eeuo pipefail
+
+    DATA_DIR=/root/pb_data
+    CONTAINER=pocketbase
+    WAS_RUNNING=0
+
+    if docker inspect -f '{{.State.Running}}' \"\$CONTAINER\" 2>/dev/null | grep -qx true; then
+      WAS_RUNNING=1
+      docker stop \"\$CONTAINER\"
+    fi
+
+    cleanup() {
+      if [ \"\$WAS_RUNNING\" = 1 ]; then
+        docker start \"\$CONTAINER\" >/dev/null || \
+          echo 'ERROR: Could not restart PocketBase.' >&2
+      fi
+    }
+    trap cleanup EXIT
+
     docker run --rm \
-      -v \$HOME/pb_data:/app/pb_data \
-      $IMAGE \
-      /app/app superuser upsert '$EMAIL' '$PASS'
-    docker start pocketbase
-    echo '✅ Superuser upserted. Recent logs:'
-    sleep 2
-    docker logs --tail 20 pocketbase
+      -v \"\$DATA_DIR:/app/pb_data\" \
+      $Q_IMAGE \
+      /app/app superuser upsert $Q_EMAIL $Q_PASS
+
+    echo '✅ Superuser upsert succeeded.'
   "
 }
 

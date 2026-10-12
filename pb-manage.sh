@@ -43,7 +43,7 @@ deploy () {
     docker rm pocketbase || true
     docker run -d \
       --name pocketbase \
-      -p 8080:8080 \
+      -p 127.0.0.1:8080:8080 \
       -v $VOLUME_PATH:/app/pb_data \
       --restart unless-stopped \
       $IMAGE
