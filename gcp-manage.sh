@@ -104,6 +104,21 @@ reset () {
     docker stop pocketbase || true
     docker rm pocketbase || true
     sudo rm -rf /root/pb_data
+	
+	PROJECT_ID="${GCP_PROJECT_ID:-$(gcloud config get-value project)}"
+    IMAGE="us-docker.pkg.dev/${PROJECT_ID}/phcf-scratch-pad/pocketbase:latest"
+
+    TOKEN=\$(curl -fsS \
+      -H 'Metadata-Flavor: Google' \
+      'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' \
+      | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"access_token\"])')
+
+    printf '%s' \"\$TOKEN\" | docker login \
+      -u oauth2accesstoken \
+      --password-stdin https://us-docker.pkg.dev
+
+    unset TOKEN
+
     docker pull $IMAGE
     docker run -d \
       --name pocketbase \

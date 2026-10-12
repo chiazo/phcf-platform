@@ -180,6 +180,8 @@ function fakeMemberSnapshotPayload(userId, firstName, lastName, email) {
     // member_id is intentionally omitted here — member doesn't exist yet.
     // It gets patched in after the member record is created, in
     // seedUsersWithProfiles below.
+    created_at: new Date(),
+    modified_at: new Date(),
     updated_by: "pb-seed script",
     notes: faker.datatype.boolean() ? faker.lorem.sentence() : "",
 
@@ -204,7 +206,7 @@ function fakeMemberSnapshotPayload(userId, firstName, lastName, email) {
     member_info: {
       role: faker.helpers.arrayElement(["ROLE_INVALID", "BOARD", "VOLUNTEER"]),
       memberType: faker.helpers.arrayElement(["GENERAL"]),
-      memberState: faker.helpers.arrayElement(["APPROVED"]),
+      memberState: faker.helpers.arrayElement(["ACTIVE"]),
       orientationDate: Math.floor(
         faker.date.past({ years: 2 }).getTime() / 1000,
       ),

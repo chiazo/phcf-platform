@@ -16,7 +16,8 @@ export const MemberType = {
 export type MemberType = (typeof MemberType)[keyof typeof MemberType];
 
 export const MemberRole = {
-  INVALID: "ROLE_INVALID",,
+  INVALID: "ROLE_INVALID",
+  SECRETARY: "SECRETARY",
   TREASURER: "TREASURER",
   GENERAL_COORDINATOR: "GENERAL_COORDINATOR",
   COMMUNICATION_COORDINATOR: "COMMUNICATION_COORDINATOR",
