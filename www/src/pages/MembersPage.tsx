@@ -1,4 +1,6 @@
 import type { FormEvent } from "react";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { config } from "../lib/config";
@@ -916,6 +918,8 @@ export default function MembersPage() {
   const navigate = useNavigate();
   // with the other useState calls in MembersPage
   const [importKind, setImportKind] = useState<ImportKind | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
+
 
   //holds all of the members fetched from the server
   const [allMembers, setAllMembers] = useState<Array<Record<string, any>>>([]);
@@ -996,10 +1000,10 @@ export default function MembersPage() {
   function refreshAllMembers() {
     return listMemberSnapshots()
       .then(async (res) => {
-        const activeMembers = res.items.filter(r => r.member_info.memberState == "ACTIVE");
-        setAllMembers(activeMembers);
+        // const activeMembers = res.items.filter(r => r.member_info.memberState == "ACTIVE");
+        setAllMembers(res.items);
 
-        await memberWorkFormulas(activeMembers);
+        await memberWorkFormulas(res.items);
       })
       .catch((err) => {
         console.error("member fetch error:", err);
@@ -1073,14 +1077,18 @@ export default function MembersPage() {
   //updates immediately without waiting on a network request
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return allMembers;
 
     return allMembers.filter((record) => {
+      if (!showInactive && record.member_info?.memberState === "INACTIVE") {
+        return false;
+      }
+      if (!q) return true;
+
       const firstName = record.personal_info?.firstName?.toLowerCase() ?? "";
       const lastName = record.personal_info?.lastName?.toLowerCase() ?? "";
       return firstName.includes(q) || lastName.includes(q);
     });
-  }, [allMembers, query]);
+  }, [allMembers, query, showInactive]);
 
   const membersWithHours = useMemo(() => {
     const formulaByMember = new Map<string, Record<string, any> | null>(
@@ -1231,7 +1239,17 @@ export default function MembersPage() {
                     onChange={(e) => setQuery(e.target.value)}
                   />
                 </FormControl>
-
+                <FormControlLabel
+                  sx={{ flexShrink: 0, m: 0 }}
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={showInactive}
+                      onChange={(e) => setShowInactive(e.target.checked)}
+                    />
+                  }
+                  label="Show Inactive Members"
+                />
                 <Box sx={{ flexShrink: 0 }}>
                   <ActionMenu
                     label="Manage Data"

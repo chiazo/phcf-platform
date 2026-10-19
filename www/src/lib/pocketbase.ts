@@ -310,30 +310,68 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
   pb.autoCancellation(false);
 
   const name = `${input.firstName} ${input.lastName}`.trim();
+  const email = input.email.trim().toLowerCase();
 
-  const user = await pb.collection("users").create({
-    email: input.email,
-    emailVisibility: true,
-    password: input.password,
-    passwordConfirm: input.password,
-    name,
-  });
-
-  await login(input.email, input.password);
-
-  const nowInSeconds = Math.floor(Date.now() / 1000);
+  // Validate before creating anything, so a bad value can't leave a half-made account
   const orientationDateMs = new Date(
     `${input.orientationDate}T00:00:00`,
   ).getTime();
-
   if (Number.isNaN(orientationDateMs)) {
     throw new Error("Invalid orientation date");
   }
-
   const orientationDateInSeconds = Math.floor(orientationDateMs / 1000);
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+
+  // 1. The login account (or the one left from a registration that failed halfway)
+  let user: Record<string, any>;
+  try {
+    user = await pb.collection("users").create({
+      email,
+      emailVisibility: true,
+      password: input.password,
+      passwordConfirm: input.password,
+      name,
+    });
+    await login(email, input.password);
+  } catch (err: any) {
+    if (!err?.response?.data?.email) throw err;
+
+    try {
+      await login(email, input.password);
+    } catch {
+      throw new Error("EMAIL_TAKEN");
+    }
+    if (currentUser()?.collectionName !== "users") {
+      throw new Error("EMAIL_TAKEN");
+    }
+    user = currentUser() as Record<string, any>;
+  }
+
+  // 2. Already registered? Finish any step an earlier attempt didn't reach.
+  const existingMember = await pb
+    .collection("member")
+    .getFirstListItem(pb.filter("user_id = {:id}", { id: user.id }))
+    .catch((err: any) => (err?.status === 404 ? null : Promise.reject(err)));
+
+  if (existingMember) {
+    const current = await pb
+      .collection("member_snapshot")
+      .getOne(existingMember.member_snapshot_id)
+      .catch(() => null);
+
+    if (current && !current.member_id) {
+      await pb
+        .collection("member_snapshot")
+        .update(current.id, { member_id: existingMember.id });
+    }
+
+    return { user, snapshot: current };
+  }
+
+  // 3. Snapshot, always from the details just submitted
   const snapshot = await pb.collection("member_snapshot").create({
     user_id: user.id,
-    updated_by: name || input.email,
+    updated_by: name || email,
     notes: "Created from member registration.",
     personal_info: {
       firstName: input.firstName,
@@ -345,7 +383,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
         zipCode: input.zipCode ?? "",
       },
       emailInfo: {
-        primaryEmail: input.email,
+        primaryEmail: email,
         onMailingList: input.onMailingList,
       },
       phoneInfo: {
@@ -374,13 +412,15 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
     box_info: {
       boxState: "UNASSIGNED",
       boxId: "",
-      changeRequester: name || input.email,
+      changeRequester: name || email,
       waitlistInfo: {
         joinedWaitlistAt: nowInSeconds,
         waitlistNumber: 0,
       },
     },
   });
+
+  // 4. Member record, then link the snapshot back to it
   const now = new Date().toISOString();
   const member = await pb.collection("member").create({
     user_id: user.id,
@@ -391,9 +431,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
 
   const updatedSnapshot = await pb
     .collection("member_snapshot")
-    .update(snapshot.id, {
-      member_id: member.id,
-    });
+    .update(snapshot.id, { member_id: member.id });
 
   return { user, snapshot: updatedSnapshot };
 }
@@ -942,7 +980,9 @@ async function updateWorkFormulaHours(memberId: string, hoursToAdd: number) {
   try {
     const workFormula = await pb
       .collection("work_formula")
-      .getFirstListItem(`member_id = "${memberId}"`);
+      .getFirstListItem(pb.filter("member_id = {:id}", { id: memberId }), {
+        sort: "-created_at",
+      });
 
     await pb.collection("work_formula").update(workFormula.id, {
       work_hours_completed:
@@ -950,11 +990,19 @@ async function updateWorkFormulaHours(memberId: string, hoursToAdd: number) {
       modified_at: new Date().toISOString(),
     });
   } catch (err: any) {
-    if (err?.status === 404) {
-      return;
-    }
+    if (err?.status !== 404) throw err;
 
-    throw err;
+    // New members have no row yet, so create one instead of dropping the hours
+    const now = new Date().toISOString();
+    await pb.collection("work_formula").create({
+      member_id: memberId,
+      work_hours_required: 0,
+      work_hours_completed: hoursToAdd,
+      open_hours_required: 0,
+      open_hours_completed: 0,
+      created_at: now,
+      modified_at: now,
+    });
   }
 }
 
