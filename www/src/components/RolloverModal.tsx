@@ -81,7 +81,7 @@ export default function RolloverModal({
   return (
     <div className="modal modal-open" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h2>Year Rollover</h2>
+        <h2>Restart Year</h2>
 
         <label>
           Year to archive

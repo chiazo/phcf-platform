@@ -187,7 +187,7 @@ export default function YearlyReportPage() {
 
             {!loading && !error && summaries.length === 0 && (
                 <p className="muted">
-                    No archived years yet. Use Year rollover to archive the current year.
+                    No archived years yet. Use the button to archive the current year.
                 </p>
             )}
 
