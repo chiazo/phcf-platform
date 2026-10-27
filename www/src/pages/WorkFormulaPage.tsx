@@ -7,6 +7,7 @@ import {
   currentUser,
   isAdmin,
   isLoggedIn,
+
   listMemberSnapshots,
   listWorkFormulas,
   logout,
@@ -49,6 +50,7 @@ const ADMIN_VIEWS: Array<{ id: AdminView; label: string }> = [
 ];
 
 export default function WorkFormulaPage() {
+  
   const [allFormulas, setAllFormulas] = useState<Array<Record<string, any>>>(
     [],
   );
@@ -64,30 +66,57 @@ export default function WorkFormulaPage() {
       return;
     }
 
-    listWorkFormulas()
-      .then((res) => {
-        setAllFormulas(res.items);
-        setLoadError(null);
-      })
-      .catch((err) => {
-        console.error("WF fetch error:", err);
-        console.error("WF error data:", err?.data);
-        setLoadError("Could not load formulas.");
-        setAllFormulas([]);
-      });
+    fetchFormulasWithMemberNames().catch((err) => {
+      console.error("WF fetch error:", err);
+      console.error("WF error data:", err?.data);
+      setLoadError("Could not load formulas.");
+      setAllFormulas([]);
+    });
   }, [isAuthenticated]);
 
-  function refetchFormulas() {
-    listWorkFormulas()
-      .then((res) => {
-        setAllFormulas(res.items);
-        setLoadError(null);
-      })
-      .catch((err) => {
-        console.error("WF refetch error:", err);
-        setLoadError("Could not load formulas.");
-      });
-  }
+  const refetchFormulas = async () => {
+    try {
+      await fetchFormulasWithMemberNames();
+    } catch (err: any) {
+      console.error("WF fetch error:", err);
+      console.error("WF error data:", err?.data);
+      setLoadError("Could not load formulas.");
+    }
+  };
+  
+  const fetchFormulasWithMemberNames = async () => {
+    const [membersRes, formulasRes] = await Promise.all([
+      listMemberSnapshots(),
+      listWorkFormulas(),
+    ]);
+
+    const formulasByMemberId = new Map(
+      formulasRes.items.map((formula) => [formula.member_id, formula]),
+    );
+
+    const merged = membersRes.items.map((member) => {
+      const formula = formulasByMemberId.get(member.member_id);
+
+      const firstName = member.personal_info?.firstName ?? "";
+      const lastName = member.personal_info?.lastName ?? "";
+      const fullName = [firstName, lastName].filter(Boolean).join(" ");
+
+      return {
+        ...(formula ?? {
+          id: `missing-${member.member_id}`,
+          work_hours_completed: 0,
+          open_hours_completed: 0,
+          work_hours_required: 0,
+          open_hours_required: 0,
+        }),
+        member_id: member.member_id,
+        fullName: fullName || member.member_id,
+      };
+    });
+
+    setAllFormulas(merged);
+    setLoadError(null);
+  };
 
   function handleLogout() {
     logout();

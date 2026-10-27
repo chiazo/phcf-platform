@@ -31,6 +31,8 @@ const (
 
 	statusBoard        = "Board"
 	statusGoodStanding = "Good Standing"
+	statusEmeritus     = "Emeritus"
+	statusSenior       = "Senior"
 	statusNotMet       = "-"
 
 	temporaryPasswordLength = 24
@@ -665,14 +667,13 @@ func validateImportRows(rows []memberImportRow) error {
 			add(row.RowNumber, "Last Name is required")
 		}
 
-		switch {
-		case row.Email == "":
-			add(row.RowNumber, "Email Address is required")
-
-		case !strings.Contains(row.Email, "@"):
+		if row.Email == "" {
+			if row.Status != statusEmeritus {
+				add(row.RowNumber, "Email Address is required")
+			}
+		} else if !strings.Contains(row.Email, "@") {
 			add(row.RowNumber, "invalid email address %q", row.Email)
-
-		default:
+		} else {
 			if previousRow, exists := seenEmails[row.Email]; exists {
 				add(
 					row.RowNumber,
@@ -686,13 +687,15 @@ func validateImportRows(rows []memberImportRow) error {
 		}
 
 		switch row.Status {
-		case statusBoard, statusGoodStanding, statusNotMet, "":
+		case statusBoard, statusGoodStanding, statusEmeritus, statusSenior, statusNotMet, "":
 		default:
 			add(
 				row.RowNumber,
-				"unsupported status %q (expected %q, %q, or %q)",
+				"unsupported status %q (expected %q, %q, %q, %q, or %q; empty is also allowed)",
 				row.Status,
 				statusGoodStanding,
+				statusEmeritus,
+				statusSenior,
 				statusBoard,
 				statusNotMet,
 			)
@@ -712,30 +715,10 @@ func validateImportRows(rows []memberImportRow) error {
 			add(row.RowNumber, "Member Type is required")
 		}
 
-		// A waitlisted member does not need a box of their own. They are
-		// usually on the waitlist precisely because they don't have one.
-		if row.BoxWaitingList {
-			position, err := strconv.Atoi(row.WaitlistPosition)
-			if err != nil || position <= 0 {
-				add(
-					row.RowNumber,
-					"invalid Box Waiting List Number %q",
-					row.WaitlistPosition,
-				)
-			}
-
-			if row.WaitlistJoinDate == 0 {
-				add(
-					row.RowNumber,
-					"a waitlisted member needs a Waitlist Join Date",
-				)
-			}
-		}
-
 		if row.BoxNumber != "" {
 			if _, err := strconv.Atoi(row.BoxNumber); err != nil {
 				add(row.RowNumber, "invalid Box Number %q", row.BoxNumber)
-			} else {
+			} else if !row.BoxWaitingList {
 				boxRows[row.BoxNumber] = append(
 					boxRows[row.BoxNumber],
 					row.RowNumber,
@@ -757,7 +740,15 @@ func validateImportRows(rows []memberImportRow) error {
 	}
 
 	if len(problems) > 0 {
-		sort.Strings(problems)
+		sort.SliceStable(problems, func(i, j int) bool {
+			rowNumber := func(problem string) int {
+				var n int
+				_, _ = fmt.Sscanf(problem, "row %d:", &n)
+				return n
+			}
+
+			return rowNumber(problems[i]) < rowNumber(problems[j])
+		})
 		return errors.New("\n  " + strings.Join(problems, "\n  "))
 	}
 
@@ -855,6 +846,57 @@ func parseNullableInt(
 	}
 
 	return &result, nil
+}
+
+func sortWaitlistRows(rows []memberImportRow) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		a, b := rows[i], rows[j]
+
+		aPosition, aErr := strconv.Atoi(
+			strings.TrimSpace(a.WaitlistPosition),
+		)
+		bPosition, bErr := strconv.Atoi(
+			strings.TrimSpace(b.WaitlistPosition),
+		)
+
+		aHasPosition := aErr == nil && aPosition > 0
+		bHasPosition := bErr == nil && bPosition > 0
+
+		if aHasPosition != bHasPosition {
+			return aHasPosition
+		}
+
+		if aHasPosition && aPosition != bPosition {
+			return aPosition < bPosition
+		}
+
+		aHasDate := a.WaitlistJoinDate > 0
+		bHasDate := b.WaitlistJoinDate > 0
+
+		if aHasDate != bHasDate {
+			return aHasDate
+		}
+
+		if aHasDate && a.WaitlistJoinDate != b.WaitlistJoinDate {
+			return a.WaitlistJoinDate < b.WaitlistJoinDate
+		}
+
+		aLast := strings.ToLower(strings.TrimSpace(a.LastName))
+		bLast := strings.ToLower(strings.TrimSpace(b.LastName))
+
+		if aLast != bLast {
+			return aLast < bLast
+		}
+
+		aFirst := strings.ToLower(strings.TrimSpace(a.FirstName))
+		bFirst := strings.ToLower(strings.TrimSpace(b.FirstName))
+
+		if aFirst != bFirst {
+			return aFirst < bFirst
+		}
+
+		return strings.ToLower(a.Email) < strings.ToLower(b.Email)
+	})
 }
 
 func buildImportPlan(
@@ -1017,7 +1059,7 @@ func buildImportPlan(
 	boxesByNumber := make(map[string]*boxImportPlan)
 
 	for _, row := range rows {
-		if row.BoxNumber == "" {
+		if row.BoxWaitingList || row.BoxNumber == "" {
 			continue
 		}
 
@@ -1027,7 +1069,6 @@ func buildImportPlan(
 				boxNumber: row.BoxNumber,
 				existing:  existingBoxes[row.BoxNumber],
 			}
-
 			boxesByNumber[row.BoxNumber] = boxPlan
 		}
 
@@ -1035,13 +1076,6 @@ func buildImportPlan(
 			boxPlan.memberEmails,
 			row.Email,
 		)
-
-		if row.BoxWaitingList {
-			boxPlan.waitlistRows = append(
-				boxPlan.waitlistRows,
-				row,
-			)
-		}
 	}
 
 	for _, boxPlan := range boxesByNumber {
@@ -1296,19 +1330,20 @@ func executeImportPlan(
 		//
 		// Note: this appends. Run the import once, on a fresh load, rather
 		// than repeatedly.
+		// Collect every imported waitlisted member. Box Number does not make
+		// them an assigned member when Box Waiting List is true.
+		var waitlistedRows []memberImportRow
+
 		for _, person := range plan.people {
-			if !person.row.BoxWaitingList || person.row.BoxNumber != "" {
-				continue
+			if person.row.BoxWaitingList &&
+				person.row.BoxNumber == "" {
+				waitlistedRows = append(waitlistedRows, person.row)
 			}
+		}
 
-			position, err := strconv.Atoi(person.row.WaitlistPosition)
-			if err != nil {
-				return fmt.Errorf(
-					"%s: invalid waitlist position",
-					person.row.Email,
-				)
-			}
+		sortWaitlistRows(waitlistedRows)
 
+		if len(waitlistedRows) > 0 {
 			boxes := []*core.Record{}
 			if err := txApp.RecordQuery("boxes").All(&boxes); err != nil {
 				return fmt.Errorf("load boxes for waitlist: %w", err)
@@ -1316,36 +1351,109 @@ func executeImportPlan(
 
 			if len(boxes) == 0 {
 				return fmt.Errorf(
-					"%s is on the waitlist but no boxes exist yet; add a box first",
-					person.row.Email,
+					"%d members are waitlisted but no boxes exist yet; add a box first",
+					len(waitlistedRows),
 				)
 			}
 
-			target := boxes[0]
-			for _, box := range boxes[1:] {
-				if waitlistLength(box) < waitlistLength(target) {
-					target = box
+			// Resolve imported waitlisted member IDs.
+			importedWaitlistIDs := make(map[string]bool)
+
+			for _, person := range plan.people {
+				if person.row.BoxWaitingList && person.member != nil {
+					importedWaitlistIDs[person.member.Id] = true
 				}
 			}
 
-			var entries []WaitlistEntry
-			_ = target.UnmarshalJSONField("waitlist", &entries)
+			// Remove these members from existing queues before adding them again,
+			// so re-running the import doesn't duplicate their entries.
+			for _, box := range boxes {
+				var entries []WaitlistEntry
+				if err := box.UnmarshalJSONField("waitlist", &entries); err != nil {
+					return fmt.Errorf(
+						"box %s: read waitlist: %w",
+						box.Id,
+						err,
+					)
+				}
 
-			entries = append(entries, WaitlistEntry{
-				MemberID: person.member.Id,
-				JoinDate: person.row.WaitlistJoinDate,
-				Position: position,
-			})
+				kept := make([]WaitlistEntry, 0, len(entries))
+				for _, entry := range entries {
+					if !importedWaitlistIDs[entry.MemberID] {
+						kept = append(kept, entry)
+					}
+				}
 
-			sortWaitlist(entries)
-			target.Set("waitlist", entries)
+				box.Set("waitlist", kept)
+				if err := txApp.Save(box); err != nil {
+					return fmt.Errorf(
+						"box %s: update waitlist: %w",
+						box.Id,
+						err,
+					)
+				}
+			}
 
-			if err := txApp.Save(target); err != nil {
-				return fmt.Errorf(
-					"%s: could not add to the waitlist: %w",
-					person.row.Email,
-					err,
-				)
+			// Add the imported rows in the chosen order, putting each person
+			// on the currently shortest queue.
+			for _, row := range waitlistedRows {
+				var person *personImportPlan
+				for i := range plan.people {
+					if plan.people[i].row.Email == row.Email {
+						person = &plan.people[i]
+						break
+					}
+				}
+
+				if person == nil || person.member == nil {
+					return fmt.Errorf(
+						"waitlisted member %s was not created",
+						row.Email,
+					)
+				}
+
+				target := boxes[0]
+				for _, box := range boxes[1:] {
+					if waitlistLength(box) < waitlistLength(target) {
+						target = box
+					}
+				}
+
+				var entries []WaitlistEntry
+				if err := target.UnmarshalJSONField("waitlist", &entries); err != nil {
+					return fmt.Errorf(
+						"box %s: read waitlist: %w",
+						target.Id,
+						err,
+					)
+				}
+
+				// Position is assigned from the resulting order. The source
+				// number is used to sort people, not retained as a potentially
+				// duplicate or missing queue position.
+				maxPosition := 0
+				for _, entry := range entries {
+					if entry.Position > maxPosition {
+						maxPosition = entry.Position
+					}
+				}
+
+				entries = append(entries, WaitlistEntry{
+					MemberID: person.member.Id,
+					JoinDate: row.WaitlistJoinDate,
+					Position: maxPosition + 1,
+				})
+
+				sortWaitlist(entries)
+				target.Set("waitlist", entries)
+
+				if err := txApp.Save(target); err != nil {
+					return fmt.Errorf(
+						"%s: could not add to the waitlist: %w",
+						row.Email,
+						err,
+					)
+				}
 			}
 		}
 
@@ -1590,7 +1698,12 @@ func upsertBox(
 
 	box.Set("box_number", parseBoxNumber(boxNumber))
 	box.Set("box_members", memberIDs)
-	box.Set("waitlist", waitlist)
+
+	// An empty imported waitlist means "no waitlist data to replace",
+	// not "clear the existing waitlist".
+	if len(waitlist) > 0 || existing == nil {
+		box.Set("waitlist", waitlist)
+	}
 
 	if len(memberIDs) > 0 {
 		box.Set("box_state", "ASSIGNED")
@@ -1930,8 +2043,12 @@ func normalizeStatus(value string) string {
 		return statusNotMet
 	case "Board", "board":
 		return statusBoard
+	case "Emeritus", "emeritus":
+		return statusEmeritus
 	case "Good Standing", "good standing":
 		return statusGoodStanding
+	case "Senior", "senior":
+		return statusSenior
 	default:
 		return value
 	}

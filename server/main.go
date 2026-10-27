@@ -56,6 +56,7 @@ type bulkUpdateWorkFormulaForm struct {
 	Criteria          workFormulaCriteria `json:"criteria"`
 	WorkHoursRequired *int                `json:"workHoursRequired"`
 	OpenHoursRequired *int                `json:"openHoursRequired"`
+	Meetings          *int                `json:"meetings"`
 	// Preview=true returns the matching members without writing anything —
 	// lets the admin UI show "this will affect 7 members" before applying.
 	Preview bool `json:"preview"`
@@ -527,8 +528,14 @@ func bulkUpdateWorkFormula(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("Could not read request data.", err)
 		}
 
-		if !form.Preview && (form.WorkHoursRequired == nil || form.OpenHoursRequired == nil) {
-			return e.BadRequestError("workHoursRequired and openHoursRequired are required.", nil)
+		if !form.Preview &&
+			(form.WorkHoursRequired == nil ||
+				form.OpenHoursRequired == nil ||
+				form.Meetings == nil) {
+			return e.BadRequestError(
+				"workHoursRequired, openHoursRequired, and meetings are required.",
+				nil,
+			)
 		}
 
 		// box_id -> member ids in that box, so we can classify each member as
@@ -654,6 +661,53 @@ func bulkUpdateWorkFormula(app core.App) func(e *core.RequestEvent) error {
 			if err := app.Save(wf); err != nil {
 				return e.InternalServerError("Could not save work formula for member "+member.Id+".", err)
 			}
+
+			// Update meetingsRequired in member_snapshot.member_info.requirements.
+			snapshotId := member.GetString("member_snapshot_id")
+			if snapshotId == "" {
+				return e.InternalServerError(
+					"Member "+member.Id+" has no member snapshot.",
+					nil,
+				)
+			}
+
+			snapshot, err := app.FindRecordById("member_snapshot", snapshotId)
+			if err != nil {
+				return e.InternalServerError(
+					"Could not load member snapshot for member "+member.Id+".",
+					err,
+				)
+			}
+
+			var memberInfo map[string]any
+			if err := snapshot.UnmarshalJSONField("member_info", &memberInfo); err != nil {
+				return e.InternalServerError(
+					"Could not read member info for member "+member.Id+".",
+					err,
+				)
+			}
+
+			if memberInfo == nil {
+				memberInfo = map[string]any{}
+			}
+
+			requirements, ok := memberInfo["requirements"].(map[string]any)
+			if !ok || requirements == nil {
+				requirements = map[string]any{}
+			}
+
+			requirements["meetingsRequired"] = *form.Meetings
+			memberInfo["requirements"] = requirements
+
+			snapshot.Set("member_info", memberInfo)
+
+			if err := app.Save(snapshot); err != nil {
+				return e.InternalServerError(
+					"Could not update meeting requirements for member "+member.Id+".",
+					err,
+				)
+			}
+
 			updatedIds = append(updatedIds, member.Id)
 		}
 

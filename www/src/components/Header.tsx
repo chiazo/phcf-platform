@@ -112,6 +112,7 @@ export default function Header({
               + Add Box
             </button>
           )}
+          
 
           {handleToggleMove && isAdmin() && (
             <button className="secondary" onClick={handleToggleMove} type="button">

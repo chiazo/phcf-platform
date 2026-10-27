@@ -116,8 +116,10 @@ export async function applyWorkFormulaBulkUpdate(
   criteria: WorkFormulaCriteria,
   workHoursRequired: number,
   openHoursRequired: number,
+  meetings: number
 ) {
   pb.autoCancellation(false);
+
   return await pb.send<WorkFormulaBulkUpdateResult>(
     "/api/app/admin/work-formula/bulk-update",
     {
@@ -126,6 +128,7 @@ export async function applyWorkFormulaBulkUpdate(
         criteria,
         workHoursRequired,
         openHoursRequired,
+        meetings,
         preview: false,
       },
     },
@@ -436,57 +439,73 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
   return { user, snapshot: updatedSnapshot };
 }
 
+
 export async function listMemberSnapshots() {
   pb.autoCancellation(false);
 
-  //gets the full list of all of the records in the memver collection
-  const member_records = await pb.collection("member").getFullList();
+  // Get all member records.
+  const memberRecords = await pb.collection("member").getFullList();
 
-  //gets all of the snapshotIds of all of the members
-  const snapshotIds = member_records
-    .map((r) => r.member_snapshot_id)
-    .filter(Boolean);
+  // Get unique, non-empty snapshot IDs.
+  const snapshotIds = [
+    ...new Set(
+      memberRecords
+        .map((record) => record.member_snapshot_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    ),
+  ];
 
-  //if there are no ids then return any empty list
   if (snapshotIds.length === 0) {
     return { items: [] as Array<Record<string, any>> };
   }
 
-  //Defines the filter for the members in the list
-  const filter = snapshotIds.map((id) => `id = "${id}"`).join(" || ");
+  // Fetch snapshots in batches to avoid excessively long filters.
+  const batchSize = 50;
+  const snapshots: Array<Record<string, any>> = [];
 
-  //looks for any members with ids defined in the filter variable
-  //gives back at least 1 member and at most 50 members
-  return await pb.collection("member_snapshot").getList(1, 5000, { filter });
+  for (let i = 0; i < snapshotIds.length; i += batchSize) {
+    const batch = snapshotIds.slice(i, i + batchSize);
+
+    const filter = batch
+      .map((id) => `id = "${id}"`)
+      .join(" || ");
+
+    try {
+      const result = await pb
+        .collection("member_snapshot")
+        .getList(1, batchSize, { filter });
+
+      snapshots.push(...result.items);
+    } catch (error: any) {
+      console.error("Snapshot batch fetch failed:", {
+        batchStart: i,
+        batchSize: batch.length,
+        status: error?.status,
+        response: error?.response,
+        message: error?.message,
+      });
+
+      throw error;
+    }
+  }
+
+  return { items: snapshots };
 }
+
 
 export async function correspondingWorkFormulas(
   allMembers: Array<Record<string, any>>,
 ) {
   pb.autoCancellation(false);
 
-  //gets all of the member_ids of all of the members
-  const memberIds = allMembers.map((m) => m.member_id).filter(Boolean);
-
-  //if there are no ids then every member has no work formula
-  if (memberIds.length === 0) {
-    return {
-      items: allMembers.map(() => null) as Array<Record<string, any> | null>,
-    };
-  }
-
-  //Defines the filter for the work formulas in the list
-  const filter = memberIds.map((id) => `member_id = "${id}"`).join(" || ");
-
-  //looks for the work formulas belonging to the members defined in the filter variable
   const workFormulas = await pb
     .collection("work_formula")
-    .getFullList({ filter });
+    .getFullList();
+
   const workFormulaByMemberId = new Map(
     workFormulas.map((formula) => [formula.member_id, formula]),
   );
 
-  //corresponds each member (by position) to its work formula, or null if it has none
   return {
     items: allMembers.map(
       (member) => workFormulaByMemberId.get(member.member_id) ?? null,
@@ -861,7 +880,6 @@ export async function approveRequirementUpdateRequest(
   pb.autoCancellation(false);
 
   const quantity = toNumber(request.quantity);
-  console.log("approving", request.id, request.request_type, request.quantity);
   if (quantity <= 0) {
     throw new Error("Request quantity must be greater than zero.");
   }
@@ -1560,6 +1578,28 @@ export async function deleteBox(boxId: string) {
 
   return { movedWaitlist };
 }
+
+
+export async function updateBoxName(
+  boxId: string,
+  boxName: string,
+) {
+  pb.autoCancellation(false);
+
+  const name = boxName.trim();
+
+  if (!name) {
+    throw new Error("Enter a box name.");
+  }
+
+  return await pb.collection("boxes").update(boxId, {
+    box_name: name,
+    updated_by:
+      currentUser()?.name || currentUser()?.email || "admin",
+    modified_at: new Date().toISOString(),
+  });
+}
+
 
 export async function deleteRequest(currentSnapshot: Record<string, any>) {
   pb.autoCancellation(false);

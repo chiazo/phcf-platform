@@ -61,6 +61,44 @@ interface IFormInput {
   volunteerInterestOtherSelected?: boolean;
 }
 
+export function normalizePaymentType(
+  value: unknown
+): PaymentType | undefined {
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.trim().toLowerCase();
+
+  return Object.values(PaymentType).find(
+    (type) => type.toLowerCase() === normalized
+  );
+}
+
+
+export function normalizeMemberType(
+  value: unknown
+): (typeof MemberType)[keyof typeof MemberType] | undefined {
+  if (typeof value !== "string") return undefined;
+
+  const aliases: Record<string, string> = {
+    GM: MemberType.GM,
+    WL: MemberType.WL,
+    BH: MemberType.BH,
+    SBH: MemberType.SBH,
+    SWL: MemberType.SWL,
+  };
+
+  const normalized = value.trim().toUpperCase();
+
+  if (aliases[normalized]) {
+    return aliases[normalized] as (typeof MemberType)[keyof typeof MemberType];
+  }
+
+  return Object.values(MemberType).find(
+    (type) => type.toUpperCase() === normalized
+  );
+}
+
+
 function getPath(obj: any, path: string) {
   return path.split(".").reduce((o, key) => o?.[key], obj);
 }
@@ -217,15 +255,18 @@ export default function MemberSnapshotPage() {
     const { primaryEmail } = emailInfo;
     const { primaryPhoneNumber } = phoneInfo;
 
-    const { memberRole, memberType, memberState, dues, requirements } =
+    const { memberRole, memberState, dues, requirements } =
       memberInfo;
+    
+    const memberType = normalizeMemberType(memberInfo.memberType);
 
     const {
       amountPaid = 0,
       dueState = "",
-      paymentType = "",
       duesPaidAt,
     } = dues;
+
+    const paymentType = normalizePaymentType(dues.paymentType);
 
     const { volunteerInterests = [], meetingsCompleted = 0 } = requirements;
 
@@ -255,7 +296,7 @@ export default function MemberSnapshotPage() {
       memberState,
       memberRole,
       amountPaid,
-      paymentType,
+      paymentType: normalizePaymentType(paymentType),
       duesPaidAt: toDateInputValue(duesPaidAt),
       meetingsCompleted,
       dueState,
@@ -284,8 +325,10 @@ export default function MemberSnapshotPage() {
     !!base &&
     getPath(base, path) !== getPath(memberInfo, path);
   const pendingClass = (path: string) => (isPending(path) ? "pending-field" : "");
-  const { orientationDate } = memberInfo;
-
+  const orientationDate =
+    memberInfo.orientationDate && memberInfo.orientationDate !== 0
+      ? new Date(memberInfo.orientationDate).toLocaleDateString()
+      : "";
   
 
   const { firstName, lastName, pronouns, address, emailInfo, phoneInfo } =
@@ -295,10 +338,17 @@ export default function MemberSnapshotPage() {
   const { onMailingList, primaryEmail } = emailInfo;
   const { primaryPhoneNumber } = phoneInfo;
 
+
   const { dues, memberState, memberRole, memberType, requirements } =
     memberInfo;
 
-  const { amountPaid = 0, dueState = "", paymentType = "", duesPaidAt } = dues;
+  const {
+    amountPaid = 0,
+    dueState = "",
+    duesPaidAt,
+  } = dues;
+
+  const paymentType = normalizePaymentType(dues.paymentType);
 
   const {
     serviceRequirements = [],
@@ -484,7 +534,12 @@ export default function MemberSnapshotPage() {
               options={Object.values(MemberRole).filter(
                 (r) => r !== MemberRole.PENDING && r !== MemberRole.INVALID,
               )}
-              current={memberRole}
+              current={
+                memberRole === MemberRole.INVALID ||
+                  memberRole === "ROLE INVALID"
+                  ? "—"
+                  : memberRole
+              }
               pending={isPending("memberRole")}
               disabled={!editMode}
             />
@@ -493,7 +548,9 @@ export default function MemberSnapshotPage() {
               label="Member Type"
               registration={register("memberType")}
               options={Object.values(MemberType).filter(
-                (t) => t !== MemberType.PENDING,
+                (t) =>
+                  t !== MemberType.PENDING &&
+                  !["GM", "WL", "BH", "SBH", "SWL"].includes(t)
               )}
               current={memberType}
               pending={isPending("memberType")}
@@ -558,10 +615,10 @@ export default function MemberSnapshotPage() {
               <strong>Street</strong>
               <input {...register("line1")} disabled={!editMode} />
             </p>
-            <p>
+            {/* <p>
               <strong>City</strong>
               <input {...register("city")} disabled={!editMode} />
-            </p>
+            </p> */}
             <p>
               <strong>Zip Code</strong>
               <input {...register("zipCode")} disabled={!editMode} />
@@ -620,11 +677,13 @@ export default function MemberSnapshotPage() {
 
             <p>
               <strong>Orientation</strong>
-              {new Date(orientationDate * 1000).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
+              {Number(orientationDate)
+                ? new Date(Number(orientationDate) * 1000).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })
+                : "—"}
             </p>
             <p>
               <strong>Meetings Completed</strong>

@@ -34,9 +34,18 @@ export default function MemberInfo({
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
+
   function formatDateFromSeconds(value: unknown) {
     const seconds = toNumber(value);
-    if (!seconds) return "—";
+
+    if (
+      value == null ||
+      value === "" ||
+      seconds === 0 ||
+      !Number.isFinite(seconds)
+    ) {
+      return "—";
+    }
 
     return new Date(seconds * 1000).toLocaleDateString("en-US", {
       year: "numeric",
@@ -45,12 +54,17 @@ export default function MemberInfo({
     });
   }
 
+
   const personalInfo = member.personal_info ?? {};
   const memberInfo = member.member_info ?? {};
   const requirements = memberInfo.requirements ?? {};
   const address = personalInfo.address ?? {};
   const emailInfo = personalInfo.emailInfo ?? {};
   const phoneInfo = personalInfo.phoneInfo ?? {};
+  const orientationDate = 
+    memberInfo.orientationDate && memberInfo.orientationDate !== 0
+      ? new Date(memberInfo.orientationDate).toLocaleDateString()
+      : "";
   const fullName =
     `${personalInfo.firstName ?? ""} ${personalInfo.lastName ?? ""}`.trim() ||
     "—";
@@ -104,7 +118,7 @@ export default function MemberInfo({
                 </tr>
                 <tr>
                   <th>Orientation</th>
-                  <td>{formatDateFromSeconds(memberInfo.orientationDate)}</td>
+                  <td>{formatDateFromSeconds(orientationDate)}</td>
                 </tr>
                 <tr>
                   <th>Volunteer Interests</th>

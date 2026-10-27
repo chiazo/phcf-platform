@@ -7,10 +7,15 @@ export const MemberState = {
 export type MemberState = (typeof MemberState)[keyof typeof MemberState];
 
 export const MemberType = {
-  GENERAL: "GENERAL",
-  ASSOCIATE: "ASSOCIATE",
-  ALUMNI: "ALUMNI",
+  GENERAL: "General",
+  ASSOCIATE: "Associate",
+  ALUMNI: "Alumni",
   PENDING: "PENDING",
+    GM: "Garden Member",
+  WL: "Waitlist",
+  BH: "Box Holder",
+  SBH: "Shared Box Holder",
+  SWL: "Sharing Waitlist",
 } as const;
 
 export type MemberType = (typeof MemberType)[keyof typeof MemberType];

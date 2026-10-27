@@ -14,7 +14,7 @@ import {
   countEntries,
   moveMemberToBox,
   swapMembers,
-  logout, createBox, deleteBox
+  logout, createBox, deleteBox, updateBoxName
 } from "../lib/pocketbase";
 import Header from "../components/Header";
 
@@ -262,6 +262,8 @@ export default function BoxInfoPage() {
   const [requestingMemberId, setRequestingMemberId] = useState<string | null>(
     null,
   );
+  const [editingBox, setEditingBox] = useState<any | null>(null);
+  const isEditingBox = editingBox !== null;
 
   function openAddBox() {
     const nextNumber =
@@ -272,14 +274,23 @@ export default function BoxInfoPage() {
     setAddBoxOpen(true);
   }
 
-  async function handleAddBox() {
+
+  async function handleSaveBox() {
     if (!isAdmin()) return;
 
     const name = newBoxName.trim();
     const number = Number(newBoxNumber);
 
-    if (!name || !Number.isInteger(number) || number <= 0) {
-      setAddBoxError("Enter a box name and a positive whole number.");
+    if (!name) {
+      setAddBoxError("Enter a box name.");
+      return;
+    }
+
+    if (
+      !isEditingBox &&
+      (!Number.isInteger(number) || number <= 0)
+    ) {
+      setAddBoxError("Enter a positive whole box number.");
       return;
     }
 
@@ -289,17 +300,41 @@ export default function BoxInfoPage() {
     setActionNotice(null);
 
     try {
-      await createBox(name, number);
-      setActionNotice(`${name} (Box ${number}) was added.`);
+      if (editingBox) {
+        await updateBoxName(editingBox.id, name);
+
+        setActionNotice(
+          `Box ${editingBox.box_number} was renamed to ${name}.`,
+        );
+      } else {
+        await createBox(name, number);
+
+        setActionNotice(`${name} (Box ${number}) was added.`);
+      }
+
       setAddBoxOpen(false);
+      setEditingBox(null);
+      setNewBoxName("");
+      setNewBoxNumber("");
     } catch (err) {
-      console.error("add box error:", err);
-      setAddBoxError(err instanceof Error ? err.message : "Could not add box.");
+      console.error("save box error:", err);
+
+      setAddBoxError(
+        err instanceof Error ? err.message : "Could not save box.",
+      );
     } finally {
       await refreshBoxes();
       setSavingBox(false);
     }
   }
+
+  const handleRenameBox = (box: any) => {
+    setEditingBox(box);
+    setNewBoxName(box.box_name);
+    setNewBoxNumber(String(box.box_number));
+    setAddBoxError("");
+    setAddBoxOpen(true);
+  };
 
   async function handleDecommissionBox(box: Record<string, any>) {
     if (!isAdmin()) return;
@@ -486,7 +521,12 @@ export default function BoxInfoPage() {
         handleLogout={handleLogout}
         handleRequestBox={handleRequestBox}
         handleToggleMove={() => setShowMoveButtons((v) => !v)}
-        handleAddBox={openAddBox}
+        handleAddBox={() => {
+          setEditingBox(null);
+          setNewBoxName("");
+          setNewBoxNumber("");
+          setAddBoxOpen(true);
+        }}
         moveMode={showMoveButtons}
       />
       
@@ -502,7 +542,8 @@ export default function BoxInfoPage() {
           <table>
             <thead>
               <tr>
-                <th>Box Name</th>
+                  <th>Box Name</th>
+                  <th>Edit Name</th>
                 <th>Box Number</th>
                 <th>Status</th>
                 <th>Members</th>
@@ -527,6 +568,14 @@ export default function BoxInfoPage() {
                     className={isCurrentUserBox ? "current-user-box" : ""}
                   >
                     <td>{box.box_name || "—"}</td>
+
+                    <td><button
+                      type="button"
+                      className="box-action-rename-button"
+                      onClick={() => handleRenameBox(box)}
+                    >
+                      Rename
+                    </button></td>
 
                     <td>{box.box_number}</td>
 
@@ -589,6 +638,7 @@ export default function BoxInfoPage() {
                               </Fragment>
                             );
                           })}
+                          
                           {boxMembers.length === 0 && (
                             <button
                               type="button"
@@ -771,13 +821,14 @@ export default function BoxInfoPage() {
         </div>
       )}
 
+
       {/* =========================================================
-          Admin: Add New Box Modal
-          ========================================================= */}
+    Admin: Add / Rename Box Modal
+    ========================================================= */}
       {addBoxOpen && (
         <div className="modal modal-open" onClick={() => setAddBoxOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Add a Box</h2>
+            <h2>{isEditingBox ? "Rename Box" : "Add a Box"}</h2>
 
             {addBoxError && <p className="error">{addBoxError}</p>}
 
@@ -787,19 +838,23 @@ export default function BoxInfoPage() {
                 type="text"
                 value={newBoxName}
                 onChange={(e) => setNewBoxName(e.target.value)}
+                disabled={savingBox}
               />
             </label>
 
-            <label>
-              Box Number
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={newBoxNumber}
-                onChange={(e) => setNewBoxNumber(e.target.value)}
-              />
-            </label>
+            {!isEditingBox && (
+              <label>
+                Box Number
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={newBoxNumber}
+                  onChange={(e) => setNewBoxNumber(e.target.value)}
+                  disabled={savingBox}
+                />
+              </label>
+            )}
 
             <div className="button-row">
               <button
@@ -811,13 +866,24 @@ export default function BoxInfoPage() {
                 Cancel
               </button>
 
-              <button type="button" onClick={handleAddBox} disabled={savingBox}>
-                {savingBox ? "Adding..." : "Add Box"}
+              <button
+                type="button"
+                onClick={handleSaveBox}
+                disabled={savingBox}
+              >
+                {savingBox
+                  ? isEditingBox
+                    ? "Saving..."
+                    : "Adding..."
+                  : isEditingBox
+                    ? "Save Changes"
+                    : "Add Box"}
               </button>
             </div>
           </div>
         </div>
       )}
+
 
       {/* =========================================================
           Admin: Move Boxes Modal

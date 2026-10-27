@@ -19,6 +19,7 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
   const [memberId, setMemberId] = useState<string>("");
 
   const [workHoursRequired, setWorkHoursRequired] = useState("");
+  const [meetingsRequired, setMeetingsRequired] = useState("");
   const [openHoursRequired, setOpenHoursRequired] = useState("");
 
   const [matchedCount, setMatchedCount] = useState<number | null>(null);
@@ -56,9 +57,10 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
   async function handleApply() {
     const workHours = Number(workHoursRequired);
     const openHours = Number(openHoursRequired);
+    const meetings = Number(meetingsRequired);
 
-    if (!Number.isFinite(workHours) || !Number.isFinite(openHours)) {
-      setError("Enter valid numbers for both hour fields.");
+    if (!Number.isFinite(workHours) || !Number.isFinite(openHours) || !Number.isFinite(meetings)) {
+      setError("Enter valid numbers for the number fields.");
       return;
     }
 
@@ -70,6 +72,7 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
         buildCriteria(),
         workHours,
         openHours,
+        meetings
       );
       setSuccessMsg(`Updated ${res.updatedCount} member(s).`);
       setMatchedCount(null);
@@ -154,10 +157,7 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
             <option value="">— None —</option>
             {members.map((wf) => (
               <option key={wf.id} value={wf.member_id}>
-                {wf.expand?.member_id?.expand?.user_id?.name ||
-                  wf.expand?.member_id?.expand?.user_id?.email ||
-                  wf.member_id ||
-                  "—"}
+                {wf.fullName || wf.member_id || "—"}
               </option>
             ))}
           </select>
@@ -182,6 +182,16 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
             min="0"
             value={openHoursRequired}
             onChange={(e) => setOpenHoursRequired(e.target.value)}
+          />
+        </label>
+
+        <label>
+          Meetings Required
+          <input
+            type="number"
+            min="0"
+            value={meetingsRequired}
+            onChange={(e) => setMeetingsRequired(e.target.value)}
           />
         </label>
       </div>

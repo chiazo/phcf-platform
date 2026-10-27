@@ -66,9 +66,18 @@ function requirementIcon(value: boolean) {
   return value ? "✅" : "⚠️";
 }
 
+
 function formatDateFromSeconds(value: unknown) {
   const seconds = toNumber(value);
-  if (!seconds) return "—";
+
+  if (
+    value == null ||
+    value === "" ||
+    seconds === 0 ||
+    !Number.isFinite(seconds)
+  ) {
+    return "—";
+  }
 
   return new Date(seconds * 1000).toLocaleDateString("en-US", {
     year: "numeric",
@@ -76,6 +85,7 @@ function formatDateFromSeconds(value: unknown) {
     day: "numeric",
   });
 }
+
 
 function formatList(values: unknown) {
   return Array.isArray(values) && values.length ? values.join(", ") : "—";
@@ -127,6 +137,10 @@ function MemberPersonalView({
   const phoneInfo = personalInfo.phoneInfo ?? {};
   const dueStatus = dues.dueState ?? "—";
   const duesPaid = dueStatus === DueState.COMPLETE;
+  const orientationDate =
+    memberInfo.orientationDate && memberInfo.orientationDate !== 0
+      ? new Date(memberInfo.orientationDate).toLocaleDateString()
+      : "";
   const meetingsRequired = toNumber(requirements.meetingsRequired);
   const meetingsCompleted = toNumber(requirements.meetingsCompleted);
   const meetingsMet = meetingsCompleted >= meetingsRequired;
@@ -457,7 +471,7 @@ function MemberPersonalView({
             </tr>
             <tr>
               <th>Orientation</th>
-              <td>{formatDateFromSeconds(memberInfo.orientationDate)}</td>
+              <td>{formatDateFromSeconds(orientationDate)}</td>
             </tr>
             <tr>
               <th>Volunteer Interests</th>
@@ -965,13 +979,16 @@ export default function MembersPage() {
     }
   }
 
-  async function memberWorkFormulas(members: Array<Record<string, any>>) {
+  async function memberWorkFormulas(
+    members: Array<Record<string, any>>,
+  ) {
     try {
       const res = await correspondingWorkFormulas(members);
-      return setAllFormulas(res.items);
-    } catch (err) {
-      console.error("work formula fetch error:", err);
-      setAllFormulas([]);
+      return res.items;
+    } catch (err: any) {
+      console.error("Work formula fetch error:", err);
+      console.error("PocketBase error data:", err?.data);
+      throw err;
     }
   }
 
