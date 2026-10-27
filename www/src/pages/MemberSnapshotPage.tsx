@@ -68,9 +68,25 @@ export function normalizePaymentType(
 
   const normalized = value.trim().toLowerCase();
 
-  return Object.values(PaymentType).find(
-    (type) => type.toLowerCase() === normalized
-  );
+  const aliases: Record<string, PaymentType> = {
+    cash: PaymentType.CASH,
+    card: PaymentType.CARD,
+    credit: PaymentType.CARD,
+    "credit card": PaymentType.CARD,
+    "credit card online": PaymentType.CARD,
+    square: PaymentType.CARD,
+    check: PaymentType.CHECK,
+    venmo: PaymentType.VENMO,
+    paypal: PaymentType.PAYPAL,
+    other: PaymentType.OTHER,
+    "online payment": PaymentType.OTHER,
+    "qr code": PaymentType.OTHER,
+  };
+
+  return aliases[normalized] ??
+    Object.values(PaymentType).find(
+      (type) => type.toLowerCase() === normalized
+    );
 }
 
 

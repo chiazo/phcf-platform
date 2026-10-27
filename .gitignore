@@ -53,3 +53,5 @@ Thumbs.db
 /server/.gocache
 .last-deploy-sha
 .last-gcp-vm
+masked-output.py
+dry-run.log

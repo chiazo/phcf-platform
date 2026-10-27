@@ -715,10 +715,21 @@ func validateImportRows(rows []memberImportRow) error {
 			add(row.RowNumber, "Member Type is required")
 		}
 
+		if position := strings.TrimSpace(row.WaitlistPosition); position != "" {
+			n, err := strconv.Atoi(position)
+			if err != nil || n < 1 {
+				add(
+					row.RowNumber,
+					"invalid Box Waiting List Number %q; expected a positive integer or blank",
+					position,
+				)
+			}
+		}
+
 		if row.BoxNumber != "" {
 			if _, err := strconv.Atoi(row.BoxNumber); err != nil {
 				add(row.RowNumber, "invalid Box Number %q", row.BoxNumber)
-			} else if !row.BoxWaitingList {
+			} else {
 				boxRows[row.BoxNumber] = append(
 					boxRows[row.BoxNumber],
 					row.RowNumber,
@@ -1046,7 +1057,7 @@ func buildImportPlan(
 			describePersonChange(row, user, member, snapshot),
 		)
 
-		if row.BoxWaitingList && row.BoxNumber == "" {
+		if row.BoxNumber == "" && row.BoxWaitingList {
 			plan.changes = append(plan.changes, fmt.Sprintf(
 				"WAITLIST row %d: %s has no box and joins the shortest waitlist",
 				row.RowNumber,
@@ -1059,7 +1070,8 @@ func buildImportPlan(
 	boxesByNumber := make(map[string]*boxImportPlan)
 
 	for _, row := range rows {
-		if row.BoxWaitingList || row.BoxNumber == "" {
+		// Anyone with a box belongs to that box, regardless of the waitlist flag.
+		if row.BoxNumber == "" {
 			continue
 		}
 
@@ -1083,6 +1095,12 @@ func buildImportPlan(
 			plan.summary.BoxesCreated++
 		} else {
 			plan.summary.BoxesUpdated++
+		}
+
+		for _, row := range rows {
+			if row.BoxNumber == "" && row.BoxWaitingList {
+				boxPlan.waitlistRows = append(boxPlan.waitlistRows, row)
+			}
 		}
 
 		plan.boxes = append(plan.boxes, *boxPlan)
@@ -1282,28 +1300,6 @@ func executeImportPlan(
 					memberIDs,
 					person.member.Id,
 				)
-
-				if person.row.BoxWaitingList {
-					position, err := strconv.Atoi(
-						person.row.WaitlistPosition,
-					)
-					if err != nil {
-						return fmt.Errorf(
-							"box %s: invalid waitlist position for %s",
-							boxNumber,
-							person.row.Email,
-						)
-					}
-
-					waitlist = append(
-						waitlist,
-						WaitlistEntry{
-							MemberID: person.member.Id,
-							JoinDate: person.row.WaitlistJoinDate,
-							Position: position,
-						},
-					)
-				}
 			}
 
 			// Sort by position so the JSON is deterministic.
@@ -1360,7 +1356,9 @@ func executeImportPlan(
 			importedWaitlistIDs := make(map[string]bool)
 
 			for _, person := range plan.people {
-				if person.row.BoxWaitingList && person.member != nil {
+				if person.row.BoxWaitingList &&
+					person.row.BoxNumber == "" &&
+					person.member != nil {
 					importedWaitlistIDs[person.member.Id] = true
 				}
 			}
@@ -2021,17 +2019,15 @@ func describePersonChange(
 
 func describeBoxChange(box boxImportPlan) string {
 	action := "CREATE"
-
 	if box.existing != nil {
 		action = "UPDATE"
 	}
 
 	return fmt.Sprintf(
-		"%s box #%s: %d member(s), %d waitlisted",
+		"%s box #%s: %d assigned member(s)",
 		action,
 		box.boxNumber,
 		len(box.memberEmails),
-		len(box.waitlistRows),
 	)
 }
 

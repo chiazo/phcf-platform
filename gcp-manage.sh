@@ -186,6 +186,168 @@ superuser () {
   "
 }
 
+
+# ---------------------------------------
+# import: safely import a CSV into production
+#
+# Usage:
+#   ./gcp-manage.sh import ./members.csv
+#   ./gcp-manage.sh import ./members.csv --dry-run
+#
+# Real imports always dry-run first and require confirmation.
+# ---------------------------------------
+import_csv () {
+  local CSV_PATH="${1:-}"
+  local MODE="${2:-}"
+
+  if [ -z "$CSV_PATH" ] || [ ! -f "$CSV_PATH" ]; then
+    echo "❌ Provide a valid local CSV file."
+    echo "Usage: $0 import <file.csv> [--dry-run]"
+    return 1
+  fi
+
+  if [ -n "$MODE" ] && [ "$MODE" != "--dry-run" ]; then
+    echo "❌ Unknown option: $MODE"
+    return 1
+  fi
+
+  if [ "$#" -gt 2 ]; then
+    echo "❌ Too many arguments."
+    return 1
+  fi
+
+  local DRY_ONLY=0
+  [ "$MODE" = "--dry-run" ] && DRY_ONLY=1
+
+  # Verify the production container and data directory exist.
+  echo "🔍 Checking production VM and database..."
+
+  remote_run '
+  set -e
+
+  echo "Checking production container..."
+  docker inspect pocketbase >/dev/null
+
+  echo "Checking database mount..."
+  docker inspect pocketbase \
+    --format "{{range .Mounts}}{{if eq .Destination \"/app/pb_data\"}}{{.Source}}{{end}}{{end}}" \
+    | grep -qx "/root/pb_data"
+
+  echo "Checking database files..."
+  sudo test -f /root/pb_data/data.db
+  sudo test -f /root/pb_data/auxiliary.db
+
+  echo "Production container and database verified."
+' || {
+  echo "❌ Production container or database verification failed."
+  return 1
+}
+
+  # Upload CSV to a temporary location on the VM.
+  local REMOTE_CSV="/tmp/pb-import-$(date +%s)-$$.csv"
+  local Q_IMAGE Q_CSV
+  printf -v Q_IMAGE '%q' "$IMAGE"
+  printf -v Q_CSV '%q' "$REMOTE_CSV"
+
+  echo "📤 Copying CSV to production VM..."
+
+  gcloud compute scp "$CSV_PATH" \
+    "$VM_NAME:$REMOTE_CSV" \
+    --project="$PROJECT_ID" \
+    --zone="$ZONE" || {
+      echo "❌ CSV upload failed."
+      return 1
+    }
+
+  # Run the importer against the SAME persistent database.
+  # Stop the live container to avoid concurrent SQLite access.
+  # Always restart it, even if the import fails.
+  
+ 
+  run_remote_import () {
+    local IMPORT_MODE="$1"
+    local Q_MODE=""
+
+    # Only add an argument when a mode was explicitly provided.
+    if [ -n "$IMPORT_MODE" ]; then
+      printf -v Q_MODE '%q' "$IMPORT_MODE"
+    fi
+
+    remote_run "
+      set -Eeuo pipefail
+
+      CONTAINER=pocketbase
+      WAS_RUNNING=0
+
+      if docker inspect -f '{{.State.Running}}' \"\$CONTAINER\" 2>/dev/null | grep -qx true; then
+        WAS_RUNNING=1
+        docker stop \"\$CONTAINER\" >/dev/null
+      fi
+
+      cleanup() {
+        local STATUS=\$?
+        trap - EXIT
+
+        if [ \"\$WAS_RUNNING\" = 1 ]; then
+          docker start \"\$CONTAINER\" >/dev/null || {
+            echo '❌ WARNING: PocketBase did not restart.' >&2
+            STATUS=1
+          }
+        fi
+
+        exit \"\$STATUS\"
+      }
+      trap cleanup EXIT
+
+      test -f $Q_CSV
+
+      docker run --rm \\
+        -v /root/pb_data:/app/pb_data \\
+        -v $Q_CSV:/tmp/import.csv:ro \\
+        $Q_IMAGE \\
+        /app/app --import /tmp/import.csv $Q_MODE
+    "
+  }
+
+
+
+  echo
+  echo "🧪 Running production dry run..."
+  if ! run_remote_import "--dry-run"; then
+    remote_run "rm -f $Q_CSV" || true
+    echo "❌ Dry run failed. No import was attempted."
+    return 1
+  fi
+
+  if [ "$DRY_ONLY" = 1 ]; then
+    remote_run "rm -f $Q_CSV" || true
+    echo "✅ Dry run complete. No import was attempted."
+    return 0
+  fi
+
+  echo
+  echo "⚠️  The dry run completed. Review its output above."
+  echo "This will now write changes to the PRODUCTION database."
+  read -r -p "Type IMPORT to proceed: " CONFIRM
+
+  if [ "$CONFIRM" != "IMPORT" ]; then
+    remote_run "rm -f $Q_CSV" || true
+    echo "Aborted. No real import was attempted."
+    return 1
+  fi
+
+  echo "📥 Importing CSV into production..."
+  if run_remote_import ""; then
+    remote_run "rm -f $Q_CSV" || true
+    echo "✅ Production import completed."
+  else
+    remote_run "rm -f $Q_CSV" || true
+    echo "❌ Import failed. Check production logs and database state."
+    return 1
+  fi
+}
+
+
 # ---------------------------------------
 # logs: tail live logs
 # ---------------------------------------
@@ -249,6 +411,7 @@ case "$CMD" in
   build-and-deploy)    build_and_deploy ;;
   reset)               reset ;;
   superuser)           superuser "$2" "$3" ;;
+  import)              shift; import_csv "$@" ;;
   logs)                logs ;;
   status)              status ;;
   restart)             restart ;;
@@ -268,6 +431,7 @@ Commands:
   reset                    ⚠️  WIPE pb_data on the VM, redeploy clean, recreate superuser
                            (use this when you see "Field type cannot be changed" crash loops)
   superuser [EMAIL] [PASS] Safely create/update a superuser (defaults from .env)
+  import <CSV> [--dry-run] Import a CSV into production; dry-run first and confirm before writing
   logs                     Tail live container logs
   status                   Show container status, static IP, and health checks (local + HTTPS)
   restart                  Restart the running container (no image change, no data loss)

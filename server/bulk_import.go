@@ -750,7 +750,7 @@ func normalizePaymentType(value string) string {
 	switch strings.ToUpper(strings.TrimSpace(value)) {
 	case "CASH":
 		return "Cash"
-	case "CARD":
+	case "CARD", "CREDIT", "CREDIT CARD", "CREDIT CARD ONLINE", "SQUARE":
 		return "Card"
 	case "CHECK":
 		return "Check"
@@ -758,7 +758,7 @@ func normalizePaymentType(value string) string {
 		return "Venmo"
 	case "PAYPAL":
 		return "Paypal"
-	case "OTHER":
+	case "OTHER", "ONLINE PAYMENT", "QR CODE":
 		return "Other"
 	default:
 		return ""
