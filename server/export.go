@@ -62,6 +62,7 @@ type PersonalInfo struct {
 type MemberInfo struct {
 	OrientationDate int64  `json:"orientationDate"`
 	MemberType      string `json:"memberType"`
+	Role            string `json:"role"`
 
 	Dues struct {
 		DuesPaidAt  int64   `json:"duesPaidAt"`

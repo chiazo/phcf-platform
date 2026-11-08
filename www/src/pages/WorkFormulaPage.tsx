@@ -41,12 +41,14 @@ function getMemberLabel(workFormula: Record<string, any>) {
   return name || workFormula.member_id || "—";
 }
 
-type AdminView = "matrix" | "rates" | "table";
+type AdminView = "matrix" | "rates" 
+// | "table"
+;
 
 const ADMIN_VIEWS: Array<{ id: AdminView; label: string }> = [
   { id: "matrix", label: "Update Requirements" },
   { id: "rates", label: "Service Hour Rates" },
-  { id: "table", label: "All Existing Work" },
+  // { id: "table", label: "All Existing Work" },
 ];
 
 export default function WorkFormulaPage() {
