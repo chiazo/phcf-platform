@@ -12,7 +12,7 @@
 //   member           — user_id (relation, required),
 //                       member_snapshot_id (relation, required)
 //   boxes            — box_state (number), updated_by (text),
-//                       box_members (json), waitlist (json), notes (text)
+//                       box_members (json), notes (text)
 //   work_formula     — member_id (TEXT, not a relation), work_hours_required,
 //                       work_hours_completed, open_hours_required,
 //                       open_hours_completed (all int numbers)
@@ -163,9 +163,8 @@ function promptHidden(question) {
 
 function describeError(err) {
   if (err instanceof ClientResponseError) {
-    return `(${err.status}) ${err.message}${
-      err.data?.data ? ` — ${JSON.stringify(err.data.data)}` : ""
-    }`;
+    return `(${err.status}) ${err.message}${err.data?.data ? ` — ${JSON.stringify(err.data.data)}` : ""
+      }`;
   }
   return err.message ?? String(err);
 }
@@ -196,7 +195,7 @@ function fakeMemberSnapshotPayload(userId, firstName, lastName, email) {
       },
       emailInfo: {
         primaryEmail: email,
-        onMailingList: faker.datatype.boolean(),
+        onMailingList: true,
       },
       phoneInfo: {
         primaryPhoneNumber: fakePhoneNumber(),
@@ -239,22 +238,28 @@ function fakeMemberSnapshotPayload(userId, firstName, lastName, email) {
   };
 }
 
-function fakeBoxPayload(boxMembers, waitlistIds, boxNumber) {
+function fakeBoxPayload(boxMembers, boxNumber) {
   const adjective = faker.food.adjective();
 
   return {
     box_state: boxMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED",
     box_name: `${adjective.charAt(0).toUpperCase()}${adjective.slice(1)} Box`,
     box_number: boxNumber,
+    capacity: 2,
     updated_by: "pb-seed script",
     box_members: boxMembers,
-    waitlist: waitlistIds.map((memberId, index) => ({
-      member_id: memberId,
-      join_date: Math.floor(faker.date.past({ years: 1 }).getTime() / 1000),
-      position: index + 1,
-    })),
     notes: faker.datatype.boolean() ? faker.lorem.sentence() : "",
     [SEED_MARKER_FIELD]: true,
+  };
+}
+
+function fakeWaitlistPayload(memberId, queue) {
+  return {
+    member_id: memberId,
+    queue,
+    join_date: Math.floor(faker.date.past({ years: 1 }).getTime() / 1000),
+    wants: "HALF",
+    notes: "",
   };
 }
 
@@ -405,7 +410,6 @@ async function seedBoxes(pb, count, memberIdsPool) {
   console.log(`\n📦 Seeding ${count} fake boxes record(s)...`);
   const created = [];
 
-  // Each member is placed exactly once: in one box, or on one waitlist.
   const CAPACITY = 2;
   const shuffled = faker.helpers.shuffle([...memberIdsPool]);
   const seated = shuffled.slice(0, count * CAPACITY);
@@ -414,37 +418,65 @@ async function seedBoxes(pb, count, memberIdsPool) {
   const membersByBox = Array.from({ length: count }, () => []);
   seated.forEach((id, i) => membersByBox[i % count].push(id));
 
-  const waitlistByBox = Array.from({ length: count }, () => []);
-  waiting.forEach((id, i) => waitlistByBox[i % count].push(id));
-
   for (let i = 0; i < count; i++) {
     const boxNumber = i + 1;
-    const payload = fakeBoxPayload(
-      membersByBox[i],
-      waitlistByBox[i],
-      boxNumber,
-    );
+    const payload = fakeBoxPayload(membersByBox[i], boxNumber);
 
     if (DRY_RUN) {
-      console.log(
-        `  [${i + 1}/${count}] would create:`,
-        JSON.stringify(payload),
-      );
+      console.log(`  [${i + 1}/${count}] would create:`, JSON.stringify(payload));
       continue;
     }
 
     try {
       const box = await pb.collection("boxes").create(payload);
-      console.log(
-        `  [${i + 1}/${count}] created box #${boxNumber} id=${box.id}`,
-      );
+      console.log(`  [${i + 1}/${count}] created box #${boxNumber} id=${box.id}`);
       created.push(box);
     } catch (err) {
       console.error(`  [${i + 1}/${count}] FAILED: ${describeError(err)}`);
     }
   }
 
+  await seedBoxWaitlist(pb, waiting, seated);
   return created;
+}
+
+async function seedBoxWaitlist(pb, waitingIds, seatedIds) {
+  // Up to 3 sharers who want a whole box also join the queue
+  const sharersWantingWhole = faker.helpers.arrayElements(
+    seatedIds,
+    Math.min(3, seatedIds.length),
+  );
+
+  const entries = [
+    ...waitingIds.map((id) => ({ id, wants: "HALF" })),
+    ...sharersWantingWhole.map((id) => ({ id, wants: "WHOLE" })),
+  ];
+
+  console.log(`\n⏳ Seeding ${entries.length} box_waitlist record(s)...`);
+
+  // Earliest join date gets the lowest queue number
+  const dates = entries
+    .map(() => Math.floor(faker.date.past({ years: 1 }).getTime() / 1000))
+    .sort((a, b) => a - b);
+
+  for (let i = 0; i < entries.length; i++) {
+    const payload = {
+      ...fakeWaitlistPayload(entries[i].id, i + 1),
+      join_date: dates[i],
+      wants: entries[i].wants,
+    };
+
+    if (DRY_RUN) {
+      console.log(`  [${i + 1}/${entries.length}] would create:`, JSON.stringify(payload));
+      continue;
+    }
+
+    try {
+      await pb.collection("box_waitlist").create(payload);
+    } catch (err) {
+      console.error(`  [${i + 1}/${entries.length}] FAILED: ${describeError(err)}`);
+    }
+  }
 }
 
 function fakeLegacySnapshotPayload(memberIdsPool) {
@@ -478,7 +510,7 @@ function fakeLegacySnapshotPayload(memberIdsPool) {
           .email({ firstName, lastName })
           .toLowerCase(),
         secondaryEmail: "",
-        onMailingList: faker.datatype.boolean(),
+        onMailingList: true,
       },
       phoneInfo: {
         primaryPhoneNumber: fakePhoneNumber(),
@@ -589,6 +621,14 @@ async function wipeSeededData(pb, collectionNames) {
   console.log(
     `\n🧹 Wiping previously seeded data (marker: ${SEED_MARKER_FIELD}=true)...`,
   );
+
+  try {
+    const entries = await pb.collection("box_waitlist").getFullList();
+    if (!DRY_RUN) for (const e of entries) await pb.collection("box_waitlist").delete(e.id);
+    console.log(`  "box_waitlist": deleted ${entries.length} record(s).`);
+  } catch (err) {
+    console.error(`  "box_waitlist": wipe failed — ${describeError(err)}`);
+  }
 
   for (const name of collectionNames) {
     try {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, Fragment } from "react";
+import { useEffect, useState, Fragment } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -7,10 +7,14 @@ import {
   isLoggedIn,
   listBoxes,
   listMembersForBoxRequest,
+  setBoxCapacity,
   addToBoxWaitlist,
   removeMemberFromBox,
   removeMemberFromWaitlist,
   assignWaitlistedMemberToBox,
+  listBoxWaitlist,
+  hasRoom,
+  boxCapacity,
   countEntries,
   moveMemberToBox,
   swapMembers,
@@ -20,8 +24,8 @@ import Header from "../components/Header";
 
 export default function BoxInfoPage() {
   const [allBoxes, setAllBoxes] = useState<Array<Record<string, any>>>([]);
+  const [waitlist, setWaitlist] = useState<Array<Record<string, any>>>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
-  const [loadError, setLoadError] = useState<string | null>(null);
   const currUser = currentUser();
 
   // Admin request modal
@@ -39,18 +43,11 @@ export default function BoxInfoPage() {
     name: string;
     fromBoxId: string;
   } | null>(null);
+  const [requestWants, setRequestWants] = useState<"HALF" | "WHOLE">("HALF");
   const [swapWith, setSwapWith] = useState("");
   const [moveToBoxId, setMoveToBoxId] = useState("");
   const [moving, setMoving] = useState(false);
   const [showMoveButtons, setShowMoveButtons] = useState(false);
-
-  type WaitlistRow = {
-    member_id: string;
-    join_date?: number;
-    position: number;
-    name: string;
-    box_ids: string[];
-  };
 
   const formatName = (fullName: string) => {
     const parts = fullName.trim().split(" ");
@@ -72,51 +69,38 @@ export default function BoxInfoPage() {
   };
 
   const hasEmptyBox = allBoxes.some(
-    (b: any) => countEntries(b.box_members) < 2,
+    hasRoom
   );
 
-  const unavailableMemberIds = new Set<string>(
-    allBoxes.flatMap((box: any) => [
-      ...(box.box_members ?? []),
-      ...(box.waitlist ?? []).map((e: any) => e.member_id),
-    ]),
+  const hasFullyEmptyBox = allBoxes.some(
+    (b: any) => countEntries(b.box_members) === 0,
   );
 
-  const waitlist: WaitlistRow[] = useMemo(() => {
-    // Everyone who currently holds a box
-    const boxHolders = new Set<string>(
-      (allBoxes ?? []).flatMap((box: any) =>
-        Array.isArray(box.box_members) ? box.box_members : [],
-      ),
-    );
+  const unavailableMemberIds = new Set<string>([
+    ...(requestWants === "WHOLE"
+      ? []
+      : allBoxes.flatMap((box: any) => box.box_members ?? [])),
+    ...waitlist.map((e: any) => e.member_id),
+  ]);
 
-    const rows = (allBoxes ?? [])
-      .flatMap((box: any) =>
-        (box.waitlist ?? []).map((entry: any, index: number) => ({
-          ...entry,
-          box_id: box.id,
-          name: box.waitlist_names?.[index]?.name || entry.member_id,
-        })),
-      )
-      // Skip anyone who already has a box
-      .filter((row: any) => !boxHolders.has(row.member_id))
-      .sort(
-        (a: any, b: any) =>
-          (a.join_date ?? Infinity) - (b.join_date ?? Infinity),
+
+  async function handleToggleCapacity(box: Record<string, any>) {
+    if (!isAdmin()) return;
+
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      await setBoxCapacity(box.id, boxCapacity(box) === 2 ? 1 : 2);
+      setActionNotice(`Box ${box.box_number} capacity updated.`);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Could not change capacity.",
       );
-
-    const byMember = new Map<string, WaitlistRow>();
-    for (const row of rows) {
-      const existing = byMember.get(row.member_id);
-      if (existing) {
-        existing.box_ids.push(row.box_id);
-      } else {
-        byMember.set(row.member_id, { ...row, box_ids: [row.box_id] });
-      }
+    } finally {
+      await refreshSafely();
     }
-
-    return Array.from(byMember.values());
-  }, [allBoxes]);
+  }
 
   async function refreshSafely() {
     try {
@@ -130,9 +114,13 @@ export default function BoxInfoPage() {
   }
 
   async function refreshBoxes() {
-    const res = await listBoxes();
+    const [res, waitlistRes] = await Promise.all([
+      listBoxes(),
+      listBoxWaitlist(),
+    ]);
     const currUserName = currUser?.name || "no-name";
 
+    setWaitlist(waitlistRes);
     setAllBoxes(
       [...res.items].sort((a, b) => {
         const aHasUser = a.box_members_names.includes(currUserName);
@@ -148,13 +136,15 @@ export default function BoxInfoPage() {
 
     if (!isAuthenticated) {
       setAllBoxes([]);
+      setWaitlist([]);
       return;
     }
 
     refreshBoxes().catch((err) => {
       console.error("box fetch error:", err);
-      setLoadError("Could not load boxes.");
+      setActionError("Could not load boxes.");
       setAllBoxes([]);
+      setWaitlist([]);
     });
   }, [isAuthenticated]);
 
@@ -177,7 +167,7 @@ export default function BoxInfoPage() {
         const otherBox = allBoxes.find((b: any) => b.id === otherBoxId);
         const otherName =
           otherBox?.box_members_names?.[
-            (otherBox.box_members ?? []).indexOf(otherMemberId)
+          (otherBox.box_members ?? []).indexOf(otherMemberId)
           ] || "another member";
 
         await swapMembers(
@@ -209,13 +199,13 @@ export default function BoxInfoPage() {
         err instanceof Error ? err.message : "Could not move member.",
       );
     } finally {
-      await refreshBoxes();
+      await refreshSafely();
       setMoving(false);
     }
   }
 
   async function handleRequestBox() {
-    setLoadError(null);
+    setActionError(null);
 
     // --------------------------------------------------
     // Regular member: request a box for themselves
@@ -226,7 +216,7 @@ export default function BoxInfoPage() {
         await refreshBoxes();
       } catch (err) {
         console.error("request box error:", err);
-        setLoadError(
+        setActionError(
           err instanceof Error ? err.message : "Could not request a box.",
         );
       }
@@ -245,7 +235,7 @@ export default function BoxInfoPage() {
       setRequestModalOpen(true);
     } catch (err) {
       console.error("member fetch error:", err);
-      setLoadError("Could not load members.");
+      setActionError("Could not load members.");
     }
   }
 
@@ -264,16 +254,6 @@ export default function BoxInfoPage() {
   );
   const [editingBox, setEditingBox] = useState<any | null>(null);
   const isEditingBox = editingBox !== null;
-
-  function openAddBox() {
-    const nextNumber =
-      Math.max(0, ...allBoxes.map((b: any) => Number(b.box_number) || 0)) + 1;
-    setNewBoxName("");
-    setNewBoxNumber(String(nextNumber));
-    setAddBoxError(null);
-    setAddBoxOpen(true);
-  }
-
 
   async function handleSaveBox() {
     if (!isAdmin()) return;
@@ -323,7 +303,7 @@ export default function BoxInfoPage() {
         err instanceof Error ? err.message : "Could not save box.",
       );
     } finally {
-      await refreshBoxes();
+      await refreshSafely();
       setSavingBox(false);
     }
   }
@@ -343,7 +323,7 @@ export default function BoxInfoPage() {
     if (
       !window.confirm(
         `Permanently remove ${label}? This deletes the box and can't be undone.`,
-      )    )
+      ))
       return;
 
     setDecommissioningBoxId(box.id);
@@ -353,7 +333,7 @@ export default function BoxInfoPage() {
     try {
       await deleteBox(box.id);
       setActionNotice(
-         `${label} was permanently removed.`,
+        `${label} was permanently removed.`,
       );
     } catch (err) {
       console.error("decommission box error:", err);
@@ -361,7 +341,7 @@ export default function BoxInfoPage() {
         err instanceof Error ? err.message : "Could not decommission box.",
       );
     } finally {
-      await refreshBoxes();
+      await refreshSafely();
       setDecommissioningBoxId(null);
     }
   }
@@ -397,7 +377,7 @@ export default function BoxInfoPage() {
         err instanceof Error ? err.message : "Could not assign a box.",
       );
     } finally {
-      await refreshBoxes();
+      await refreshSafely();
       setRequestingMemberId(null);
     }
   }
@@ -413,32 +393,35 @@ export default function BoxInfoPage() {
     setActionNotice(null);
 
     try {
-      const box = await addToBoxWaitlist(allBoxes, selectedMemberId);
+      // CHANGED: pass the half/whole choice
+      const box = await addToBoxWaitlist(allBoxes, selectedMemberId, requestWants);
       const selectedMember = members.find((m) => m.id === selectedMemberId);
       const selectedName =
         selectedMember?.expand?.user_id?.name ||
         selectedMember?.expand?.user_id?.email ||
         selectedMemberId;
-      const openBox = allBoxes.find(
-        (b: any) => countEntries(b.box_members) < 2,
-      );
+      const openBox = allBoxes.find((b: any) => hasRoom(b));
       setActionNotice(
         box.box_members?.includes(selectedMemberId)
           ? `${selectedName} was assigned to ${box.box_name} (Box ${box.box_number}).`
-          : openBox
-            ? `${openBox.box_name} (Box ${openBox.box_number}) is open, but others are already waiting. ${selectedName} was added to the end of the waitlist.`
-            : `No empty box available. ${selectedName} was added to the end of the waitlist.`,
+          : requestWants === "WHOLE"
+            ? // CHANGED: whole requests always join the queue
+            `${selectedName} was added to the end of the waitlist for a whole box.`
+            : openBox
+              ? `${openBox.box_name} (Box ${openBox.box_number}) is open, but others are already waiting. ${selectedName} was added to the end of the waitlist.`
+              : `No empty box available. ${selectedName} was added to the end of the waitlist.`,
       );
 
       setRequestModalOpen(false);
       setSelectedMemberId("");
+      setRequestWants("HALF"); // CHANGED: reset the selector
     } catch (err) {
       console.error("admin request box error:", err);
       setActionError(
         err instanceof Error ? err.message : "Could not request a box.",
       );
     } finally {
-      await refreshBoxes();
+      await refreshSafely();
       setRequestingBox(false);
     }
   }
@@ -453,17 +436,17 @@ export default function BoxInfoPage() {
     if (!confirmed) return;
 
     setRemovingMemberId(memberId);
-    setLoadError(null);
+    setActionError(null);
 
     try {
       await removeMemberFromBox(memberId, boxId);
-      await refreshBoxes();
     } catch (err) {
       console.error("remove from box error:", err);
-      setLoadError(
+      setActionError(
         err instanceof Error ? err.message : "Could not remove member.",
       );
     } finally {
+      await refreshSafely();
       setRemovingMemberId(null);
     }
   }
@@ -471,7 +454,7 @@ export default function BoxInfoPage() {
   async function handleRemoveFromWaitlist(memberId: string) {
     if (!isAdmin()) return;
 
-    if (!window.confirm("Remove this member from the box waitlist?")) return;
+    if (!window.confirm("Remove this member from the waitlist?")) return;
 
     setRemovingMemberId(memberId);
     setActionError(null);
@@ -529,23 +512,21 @@ export default function BoxInfoPage() {
         }}
         moveMode={showMoveButtons}
       />
-      
 
-      {loadError && <p className="error">{loadError}</p>}
+
       {actionError && <p className="error">{actionError}</p>}
       {actionNotice && <p className="muted">{actionNotice}</p>}
 
-      {allBoxes.length === 0 && !loadError ? (
+      {allBoxes.length === 0 && !actionError ? (
         <p className="muted">No boxes found.</p>
       ) : (
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                  <th>Box Name</th>
-                  <th>Edit Name</th>
-                <th>Box Number</th>
-                <th>Status</th>
+                <th>Box Name</th>
+                {isAdmin() && <th>Edit Name</th>}                <th>Box Number</th>
+                <th>Capacity</th>
                 <th>Members</th>
                 <th>Updated By</th>
                 {/* <th>Notes</th> */}
@@ -569,20 +550,23 @@ export default function BoxInfoPage() {
                   >
                     <td>{box.box_name || "—"}</td>
 
-                    <td><button
-                      type="button"
-                      className="box-action-rename-button"
-                      onClick={() => handleRenameBox(box)}
-                    >
-                      Rename
-                    </button></td>
+                    {isAdmin() && (
+                      <td>
+                        <button
+                          type="button"
+                          className="box-action-rename-button"
+                          onClick={() => handleRenameBox(box)}
+                        >
+                          Rename
+                        </button>
+                      </td>
+                    )}
 
                     <td>{box.box_number}</td>
 
                     <td>
                       <span className="badge">
-                        {boxMembers.length}/2
-                        {/* {boxMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED"} */}
+                        {boxMembers.length}/{boxCapacity(box)}
                       </span>
                     </td>
 
@@ -634,11 +618,19 @@ export default function BoxInfoPage() {
                                     ? "Removing..."
                                     : `Remove ${memberName.split(" ")[0]} ${memberName.split(" ").at(-1)?.[0] ?? ""}.`}
                                 </button>
-                                
+
                               </Fragment>
                             );
                           })}
-                          
+
+                          <button
+                            type="button"
+                            className="box-action-button"
+                            onClick={() => handleToggleCapacity(box)}
+                          >
+                            {boxCapacity(box) === 2 ? "Reduce Capacity to 1" : "Allow Sharing"}
+                          </button>
+
                           {boxMembers.length === 0 && (
                             <button
                               type="button"
@@ -664,21 +656,30 @@ export default function BoxInfoPage() {
         <p className="muted">No one is on the waitlist currently!</p>
       ) : (
         <div className="table-wrapper">
-          <table className="waitlist-table">
+          <table>
             <thead>
               <tr>
                 <th>Waitlist Rank</th>
                 <th>Member</th>
+                <th>Wants</th>
+                <th>Current Box</th>
                 <th>Join Date</th>
                 {isAdmin() && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
               {waitlist.map((entry, index) => {
+                const wantsWhole = entry.wants === "WHOLE";
+                const currentBox = allBoxes.find((b: any) =>
+                  (b.box_members ?? []).includes(entry.member_id),
+                );
+
                 return (
-                  <tr key={`waitlist-${entry.member_id}`}>
+                  <tr key={entry.id}>
                     <td>{index + 1}</td>
                     <td>{formatName(entry.name)}</td>
+                    <td>{wantsWhole ? "Whole box" : "Half box"}</td>
+                    <td>{currentBox ? `Box ${currentBox.box_number}` : "—"}</td>
                     <td>{formatJoinDate(entry.join_date)}</td>
 
                     {isAdmin() && (
@@ -687,9 +688,7 @@ export default function BoxInfoPage() {
                           type="button"
                           className="box-action-button"
                           disabled={removingMemberId === entry.member_id}
-                          onClick={() =>
-                            handleRemoveFromWaitlist(entry.member_id)
-                          }
+                          onClick={() => handleRemoveFromWaitlist(entry.member_id)}
                         >
                           {removingMemberId === entry.member_id
                             ? "Removing..."
@@ -700,14 +699,16 @@ export default function BoxInfoPage() {
                           type="button"
                           className="box-action-button"
                           disabled={
-                            !hasEmptyBox ||
+                            (wantsWhole ? !hasFullyEmptyBox : !hasEmptyBox) ||
                             requestingMemberId !== null ||
                             removingMemberId === entry.member_id
                           }
                           title={
-                            !hasEmptyBox
-                              ? "No empty boxes available"
-                              : undefined
+                            wantsWhole && !hasFullyEmptyBox
+                              ? "No completely empty box available"
+                              : !wantsWhole && !hasEmptyBox
+                                ? "No empty boxes available"
+                                : undefined
                           }
                           onClick={() =>
                             handleAssignBoxFromTable(
@@ -731,39 +732,6 @@ export default function BoxInfoPage() {
         </div>
       )}
 
-      {/* {waitlist.map(
-                            (
-                              entry: {
-                                member_id: string;
-                                join_date?: number;
-                                position: number;
-                              },
-                              index: number,
-                            ) => {
-                              const isRemoving =
-                                removingMemberId === entry.member_id;
-                              const memberName =
-                                box.waitlist_names?.[index]?.name ||
-                                entry.member_id;
-
-                              return (
-                                <button
-                                  key={`remove-waitlist-${entry.member_id}`}
-                                  type="button"
-                                  className="box-action-button"
-                                  disabled={isRemoving}
-                                  onClick={() =>
-                                    handleRemoveFromWaitlist(entry.member_id)
-                                  }
-                                >
-                                  {isRemoving
-                                    ? "Removing..."
-                                    : `Remove ${memberName.split(" ")[0]} ${memberName.split(" ").at(-1)?.[0] ?? ""}.`}
-                                </button>
-                              );
-                            },
-                          )} */}
-
       {/* =========================================================
           Admin: Request Box Modal
           ========================================================= */}
@@ -775,7 +743,18 @@ export default function BoxInfoPage() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Request a Box</h2>
 
-            <p>Select the member who should be added to the waitlist.</p>
+            <select
+              value={requestWants}
+              onChange={(e) => {
+                setRequestWants(e.target.value as "HALF" | "WHOLE");
+                setSelectedMemberId("");
+              }}
+            >
+              <option value="HALF">Half Box (Share)</option>
+              <option value="WHOLE">Whole box</option>
+            </select>
+
+            <p>Select the member. If no box is open or others are waiting, they’ll be added to the end of the waitlist.</p>
 
             <select
               value={selectedMemberId}
@@ -803,6 +782,7 @@ export default function BoxInfoPage() {
                 onClick={() => {
                   setRequestModalOpen(false);
                   setSelectedMemberId("");
+                  setRequestWants("HALF");
                 }}
                 disabled={requestingBox}
               >
@@ -911,12 +891,12 @@ export default function BoxInfoPage() {
                 .filter(
                   (b: any) =>
                     b.id !== moveTarget.fromBoxId &&
-                    countEntries(b.box_members) < 2,
+                    hasRoom(b),
                 )
                 .map((b: any) => (
                   <option key={b.id} value={b.id}>
                     {b.box_name} (Box {b.box_number}) ·{" "}
-                    {countEntries(b.box_members)}/2
+                    {countEntries(b.box_members)}/{boxCapacity(b)}
                   </option>
                 ))}
             </select>

@@ -150,51 +150,51 @@ export interface RegisterFarmMemberInput {
   volunteerInterests?: string[];
 }
 
-   export type RolloverAction = "archive" | "reset";
+export type RolloverAction = "archive" | "reset";
 
-   export interface RolloverRow {
-     memberId: string;
-     name: string;
-     email: string;
-     standing: string;
-     reasons?: string[];
-   }
+export interface RolloverRow {
+  memberId: string;
+  name: string;
+  email: string;
+  standing: string;
+  reasons?: string[];
+}
 
-   export interface RolloverResult {
-     preview: boolean;
-     action: RolloverAction;
-     year: number;
-     total: number;
-     carryOver: RolloverRow[];
-     inactive: RolloverRow[];
-     alreadyInactive: number;
-     legacyRows: number;
-     requestsRemoved: number;
-     snapshotsRemoved: number;
-     warnings: string[];
-     failures: string[];
-     backup?: string;
-   }
+export interface RolloverResult {
+  preview: boolean;
+  action: RolloverAction;
+  year: number;
+  total: number;
+  carryOver: RolloverRow[];
+  inactive: RolloverRow[];
+  alreadyInactive: number;
+  legacyRows: number;
+  requestsRemoved: number;
+  snapshotsRemoved: number;
+  warnings: string[];
+  failures: string[];
+  backup?: string;
+}
 
-   export async function runRollover(
-     action: RolloverAction,
-     year: number,
-     preview: boolean,
-     keepActive: string[] = [],
-   ) {
-     pb.autoCancellation(false);
-     return await pb.send<RolloverResult>("/api/app/admin/rollover", {
-       method: "POST",
-       body: { action, year, preview, keepActive },
-     });
-   }
+export async function runRollover(
+  action: RolloverAction,
+  year: number,
+  preview: boolean,
+  keepActive: string[] = [],
+) {
+  pb.autoCancellation(false);
+  return await pb.send<RolloverResult>("/api/app/admin/rollover", {
+    method: "POST",
+    body: { action, year, preview, keepActive },
+  });
+}
 
-   export async function listLegacyYearRows() {
-     pb.autoCancellation(false);
-     return await pb
-       .collection("legacy_snapshots")
-       .getFullList({ filter: "is_final = true || year = 0", sort: "-year" });
-   }
+export async function listLegacyYearRows() {
+  pb.autoCancellation(false);
+  return await pb
+    .collection("legacy_snapshots")
+    .getFullList({ filter: "is_final = true || year = 0", sort: "-year" });
+}
 
 export function currentUser() {
   return pb.authStore.record;
@@ -534,6 +534,20 @@ export async function getCurrentUserMemberSnapshot() {
   return await getMemberSnapshotForUserId(appUser.id);
 }
 
+export async function listBoxWaitlist() {
+  pb.autoCancellation(false);
+
+  const items = await pb.collection("box_waitlist").getFullList({
+    sort: "queue,join_date",
+    expand: "member_id.user_id",
+  });
+
+  return items.map((e: any) => ({
+    ...e,
+    name: e.expand?.member_id?.expand?.user_id?.name ?? " — ",
+  }));
+}
+
 export async function getOrCreateCurrentUserMemberSnapshot() {
   pb.autoCancellation(false);
 
@@ -571,7 +585,7 @@ export async function getOrCreateCurrentUserMemberSnapshot() {
       },
       emailInfo: {
         primaryEmail: appUser.email || currentUser()?.email || "",
-        onMailingList: false,
+        onMailingList: true,
       },
       phoneInfo: {
         primaryPhoneNumber: "",
@@ -754,7 +768,7 @@ export async function newFormUpdate(
       modified_at: now,
     });
 
-    return snapshot;
+  return snapshot;
 }
 
 export async function getLastApprovedSnapshot(memberId: string, excludeId: string) {
@@ -1028,138 +1042,41 @@ function formatRequirementRequestType(type: string) {
   return type.toLowerCase().replace(/_/g, " ");
 }
 
-//gets the full list of boxes from the boxes collection
-type WaitlistName = {
-  member_id: string;
-  position: number;
-  name: string;
-};
-
 type BoxWithNames = Record<string, any> & {
   box_members_names: string[];
-  waitlist_names: WaitlistName[];
 };
 
 export async function listBoxes(): Promise<{ items: BoxWithNames[] }> {
   pb.autoCancellation(false);
 
-  const res = await pb.collection("boxes").getList(1, 50, {
+  const boxes = await pb.collection("boxes").getFullList({
     expand: "box_members.user_id",
+    sort: "box_number",
   });
 
-  // waitlist is JSON containing:
-  // {
-  //   member_id: string,
-  //   join_date: number,
-  //   position: number
-  // }
-  const allWaitlistIds = Array.from(
-    new Set(
-      res.items.flatMap((box) =>
-        Array.isArray(box.waitlist)
-          ? box.waitlist.map((entry: any) => entry.member_id)
-          : [],
-      ),
-    ),
-  );
+  const items: BoxWithNames[] = boxes.map((box) => ({
+    ...box,
+    box_members_names: (
+      (box.expand?.box_members ?? []) as Array<Record<string, any>>
+    ).map((member) => member.expand?.user_id?.name ?? "(unknown member)"),
+  }));
 
-  const waitlistMembersById: Record<string, any> = {};
-
-  if (allWaitlistIds.length > 0) {
-    const filter = allWaitlistIds.map((id) => `id = "${id}"`).join(" || ");
-
-    const waitlistMembers = await pb.collection("member").getFullList({
-      filter,
-      expand: "user_id",
-    });
-
-    for (const member of waitlistMembers) {
-      waitlistMembersById[member.id] = member;
-    }
-  }
-
-  const items: BoxWithNames[] = res.items.map((box) => {
-    const expandedMembers = (box.expand?.box_members ?? []) as Array<
-      Record<string, any>
-    >;
-
-    const box_members_names = expandedMembers.map(
-      (member) => member.expand?.user_id?.name ?? "(unknown member)",
-    );
-
-    const waitlist_names = (
-      Array.isArray(box.waitlist) ? box.waitlist : []
-    ).map((entry: any) => ({
-      member_id: entry.member_id,
-      position: entry.position,
-      name:
-        waitlistMembersById[entry.member_id]?.expand?.user_id?.name ?? " — ",
-    }));
-
-    return {
-      ...box,
-      box_members_names,
-      waitlist_names,
-    };
-  });
-
-  return { ...res, items };
+  return { items };
 }
-
-const isMember = (entry: any, memberId: string) =>
-  typeof entry === "string"
-    ? entry === memberId
-    : entry?.member_id === memberId;
 
 export async function removeMemberFromWaitlist(memberId: string) {
   pb.autoCancellation(false);
 
-  if (!memberId) {
-    throw new Error("Member ID is required.");
-  }
+  if (!memberId) throw new Error("Member ID is required.");
 
-  // pb.filter safely escapes the value (no string interpolation into the filter)
-  const candidates = await pb.collection("boxes").getFullList({
-    filter: pb.filter("waitlist ~ {:memberId}", { memberId }),
-  });
+  const entry = await pb
+    .collection("box_waitlist")
+    .getFirstListItem(pb.filter("member_id = {:memberId}", { memberId }))
+    .catch(() => null);
 
-  // "~" is a substring match on the JSON text, so confirm the member is
-  // really an entry in each box's waitlist before touching it.
-  const boxes = candidates.filter(
-    (box: any) =>
-      Array.isArray(box.waitlist) &&
-      box.waitlist.some((entry: any) => isMember(entry, memberId)),
-  );
+  if (!entry) throw new Error("Member is not on the waitlist.");
 
-  if (boxes.length === 0) {
-    throw new Error("Member is not on a box waitlist.");
-  }
-
-  const results = await Promise.allSettled(
-    boxes.map((box: any) => {
-      const updatedWaitlist = box.waitlist
-        .filter((entry: any) => !isMember(entry, memberId))
-        // Re-number remaining entries so positions stay contiguous.
-        .map((entry: any, index: number) =>
-          typeof entry === "string" ? entry : { ...entry, position: index + 1 },
-        );
-
-      return pb.collection("boxes").update(box.id, {
-        waitlist: updatedWaitlist,
-        notes: "Member removed from box waitlist.",
-      });
-    }),
-  );
-
-  const failed = results.filter((r) => r.status === "rejected");
-  if (failed.length > 0) {
-    throw new Error(
-      `Removed from ${boxes.length - failed.length} of ${boxes.length} boxes. ` +
-        `Please try again.`,
-    );
-  }
-
-  return results.map((r) => (r as PromiseFulfilledResult<any>).value);
+  await pb.collection("box_waitlist").delete(entry.id);
 }
 
 export async function removeMemberFromBox(memberId: string, boxId?: string) {
@@ -1167,38 +1084,22 @@ export async function removeMemberFromBox(memberId: string, boxId?: string) {
 
   const boxes = await pb.collection("boxes").getFullList();
 
-  const box = boxes.find((box) => {
-    if (boxId && box.id !== boxId) return false; // <- new line
+  const box = boxes.find(
+    (b: any) =>
+      (!boxId || b.id === boxId) &&
+      Array.isArray(b.box_members) &&
+      b.box_members.includes(memberId),
+  );
 
-    const members = Array.isArray(box.box_members) ? box.box_members : [];
-    const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
+  if (!box) throw new Error("Member is not assigned to a box.");
 
-    return (
-      members.includes(memberId) ||
-      waitlist.some((entry: any) => entry.member_id === memberId)
-    );
-  });
-
-  if (!box) {
-    throw new Error("Member is not assigned to or waiting for a box.");
-  }
-
-  const members = Array.isArray(box.box_members) ? box.box_members : [];
-
-  const waitlist = Array.isArray(box.waitlist) ? box.waitlist : [];
-
-  const updatedMembers = members.filter((id: string) => id !== memberId);
-
-  const updatedWaitlist = waitlist
-    .filter((entry: any) => entry.member_id !== memberId)
-    .map((entry: any, index: number) => ({
-      ...entry,
-      position: index + 1,
-    }));
+  const updatedMembers = box.box_members.filter(
+    (id: string) => id !== memberId,
+  );
 
   return await pb.collection("boxes").update(box.id, {
     box_members: updatedMembers,
-    waitlist: updatedWaitlist,
+    ...(updatedMembers.length === 0 ? { capacity: 2 } : {}),
     box_state: updatedMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED",
     updated_by: "admin",
   });
@@ -1208,12 +1109,12 @@ export async function removeMemberFromBox(memberId: string, boxId?: string) {
 // the box in this priority order:
 //   1. any box with zero members (box_members is empty)
 //   2. any box with an empty waitlist (waitlist is empty)
-//   3. the box with the shortest waitlist
 // The chosen box's notes are flagged for admin review and the change is
 // persisted back to the boxes collection.
 export async function addToBoxWaitlist(
   allBoxes: Record<string, any>[],
   memberId?: string,
+  wants: "HALF" | "WHOLE" = "HALF",
 ) {
   pb.autoCancellation(false);
 
@@ -1242,39 +1143,30 @@ export async function addToBoxWaitlist(
     memberId = member.id;
   }
 
-  // Don't add someone who already has a box.
+  // Holders may only join the waitlist if they want a whole box
   const existingBox = allBoxes.find(
     (box) =>
       Array.isArray(box.box_members) && box.box_members.includes(memberId),
   );
 
-  if (existingBox) {
+  if (existingBox && wants !== "WHOLE") {
     throw new Error("Member already has a box.");
   }
 
-  // Don't add someone who is already on a waitlist.
-  const existingWaitlistBox = allBoxes.find(
-    (box) =>
-      Array.isArray(box.waitlist) &&
-      box.waitlist.some((entry: any) => entry.member_id === memberId),
-  );
+  const existingEntry = await pb
+    .collection("box_waitlist")
+    .getFirstListItem(pb.filter("member_id = {:memberId}", { memberId }))
+    .catch(() => null);
 
-  if (existingWaitlistBox) {
-    throw new Error("Member is already on a box waitlist.");
+  if (existingEntry) {
+    throw new Error("Member is already on the waitlist.");
   }
 
-  /*
-   * NO SPECIFIC BOX SELECTED
-   *
-   * This is the regular member flow:
-   * - find an empty box -> assign directly
-   * - otherwise -> shortest waitlist
-   */
+  const emptyBox = allBoxes.find(hasRoom);
+  const waiting = await pb.collection("box_waitlist").getList(1, 1);
 
-  const emptyBox = allBoxes.find((box) => countEntries(box.box_members) < 2);
-
-  // Empty box exists and nobody is on a waitlist → assign directly.
-  if (emptyBox && !allBoxes.some((box) => countEntries(box.waitlist) > 0)) {
+  // Half requests only, with room and nobody waiting → assign directly.
+  if (wants === "HALF" && emptyBox && waiting.totalItems === 0) {
     return await pb.collection("boxes").update(emptyBox.id, {
       box_members: [...(emptyBox.box_members ?? []), memberId],
       notes: "Member assigned to box.",
@@ -1283,76 +1175,89 @@ export async function addToBoxWaitlist(
     });
   }
 
-  // No empty boxes → find the shortest waitlist.
-  const targetBox = allBoxes.reduce((shortest, box) =>
-    countEntries(box.waitlist) < countEntries(shortest.waitlist)
-      ? box
-      : shortest,
-  );
+  // Otherwise join the end of the global queue. For non-admins the server
+  // hook overwrites queue and join_date anyway.
+  const last = await pb
+    .collection("box_waitlist")
+    .getList(1, 1, { sort: "-queue" });
 
-  if (!targetBox) {
-    throw new Error("No suitable box found.");
-  }
-
-  const currentWaitlist = Array.isArray(targetBox.waitlist)
-    ? targetBox.waitlist
-    : [];
-
-  const updatedWaitlist = [
-    ...currentWaitlist,
-    {
-      member_id: memberId,
-      join_date: Math.floor(Date.now() / 1000),
-      position: currentWaitlist.length + 1,
-    },
-  ];
-
-  return await pb.collection("boxes").update(targetBox.id, {
-    waitlist: updatedWaitlist,
-    notes: "Member added to box waitlist.",
+  return await pb.collection("box_waitlist").create({
+    member_id: memberId,
+    queue: (last.items[0]?.queue ?? 0) + 1,
+    join_date: Math.floor(Date.now() / 1000),
+    wants,
   });
 }
 
 export async function assignWaitlistedMemberToBox(memberId: string) {
   pb.autoCancellation(false);
 
-  // 1. Get fresh data from the database, not the possibly stale React state
+  if (!memberId) throw new Error("Member ID is required.");
+
+  const entry = await pb
+    .collection("box_waitlist")
+    .getFirstListItem(pb.filter("member_id = {:memberId}", { memberId }))
+    .catch(() => null);
+
+  if (!entry) throw new Error("Member is not on the waitlist.");
+
+  const wantsWhole = entry.wants === "WHOLE";
   const boxes = await pb.collection("boxes").getFullList();
 
-  // 2. Safety check: stop if they already have a box
-  if (boxes.some((b) => b.box_members?.includes(memberId))) {
+  const currentBox = boxes.find(
+    (b: any) =>
+      Array.isArray(b.box_members) && b.box_members.includes(memberId),
+  );
+
+  if (currentBox && !wantsWhole) {
     throw new Error("Member already has a box.");
   }
 
-  // 3. Find the box whose waitlist they're currently on (if any)
-  const waitlistedBox = boxes.find((b) =>
-    b.waitlist?.some((e: any) => e?.member_id === memberId),
-  );
+  // Whole seekers need a box with nobody in it
+  const openBoxes = wantsWhole
+    ? boxes.filter((b: any) => countEntries(b.box_members) === 0)
+    : boxes.filter(hasRoom);
 
-  // 4. Find boxes with no members
-  const emptyBoxes = boxes.filter((b: any) => countEntries(b.box_members) < 2);
-  if (emptyBoxes.length === 0) {
-    throw new Error("No empty boxes are available right now.");
+  if (openBoxes.length === 0) {
+    throw new Error(
+      wantsWhole
+        ? "No completely empty box is available right now."
+        : "No empty boxes are available right now.",
+    );
   }
 
-  // 5. Pick one: their own waitlisted box if it's empty, otherwise any empty box
-  const target =
-    emptyBoxes.find((b) => b.id === waitlistedBox?.id) ?? emptyBoxes[0];
+  const target = openBoxes[0];
 
-  // 6. Give them the box
   const assignedBox = await pb.collection("boxes").update(target.id, {
-    box_members: [...(target.box_members ?? []), memberId],
+    box_members: wantsWhole
+      ? [memberId]
+      : [...(target.box_members ?? []), memberId],
+    ...(wantsWhole ? { capacity: 1 } : {}),
     notes: "Member assigned to box.",
-    box_state:
-      [...(target.box_members ?? []), memberId].length === 0
-        ? "UNASSIGNED"
-        : "ASSIGNED",
+    box_state: "ASSIGNED",
     updated_by: "admin",
   });
 
-  // 7. Remove them from the waitlist
-  if (waitlistedBox) {
-    await removeMemberFromWaitlist(memberId);
+  // Whole seeker leaves the box they were sharing
+  if (currentBox) {
+    const remaining = currentBox.box_members.filter(
+      (id: string) => id !== memberId,
+    );
+    await pb.collection("boxes").update(currentBox.id, {
+      box_members: remaining,
+      ...(remaining.length === 0 ? { capacity: 2 } : {}),
+      box_state: remaining.length === 0 ? "UNASSIGNED" : "ASSIGNED",
+      notes: "Member moved to a whole box.",
+      updated_by: "admin",
+    });
+  }
+
+  try {
+    await pb.collection("box_waitlist").delete(entry.id);
+  } catch {
+    throw new Error(
+      "Box assigned, but the waitlist entry could not be removed. Remove it manually.",
+    );
   }
 
   return assignedBox;
@@ -1370,6 +1275,10 @@ export async function moveMemberToBox(
   // Fresh reads, not the React state
   const from = await pb.collection("boxes").getOne(fromBoxId);
   const to = await pb.collection("boxes").getOne(toBoxId);
+
+  if (!hasRoom(to)) {
+    throw new Error("That box is full.");
+  }
 
   if (!(from.box_members ?? []).includes(memberId)) {
     throw new Error("Member is not in that box.");
@@ -1393,6 +1302,7 @@ export async function moveMemberToBox(
   try {
     await pb.collection("boxes").update(from.id, {
       box_members: remaining,
+      ...(remaining.length === 0 ? { capacity: 2 } : {}),
       notes: "Member moved to another box.",
       box_state: remaining.length === 0 ? "UNASSIGNED" : "ASSIGNED",
       updated_by: "admin",
@@ -1488,6 +1398,45 @@ export async function listWorkFormulas() {
   });
 }
 
+export const HOURS_REQUIRED = { NONE: 10, HALF: 15, WHOLE: 20 };
+
+export const boxCapacity = (box: Record<string, any>) =>
+  Number(box.capacity) || 2;
+
+export const hasRoom = (box: Record<string, any>) =>
+  countEntries(box.box_members) < boxCapacity(box);
+
+export function hoursRequiredFor(
+  memberId: string,
+  boxes: Record<string, any>[],
+  waitlist: Record<string, any>[],
+) {
+  const box = boxes.find((b) => (b.box_members ?? []).includes(memberId));
+  if (!box) return HOURS_REQUIRED.NONE;
+  if (boxCapacity(box) === 1) return HOURS_REQUIRED.WHOLE;
+  if (countEntries(box.box_members) >= 2) return HOURS_REQUIRED.HALF;
+
+  // Alone in a shareable box: stays at half while anyone else is waiting
+  return waitlist.some((e) => e.member_id !== memberId)
+    ? HOURS_REQUIRED.HALF
+    : HOURS_REQUIRED.WHOLE;
+}
+
+export async function setBoxCapacity(boxId: string, capacity: 1 | 2) {
+  pb.autoCancellation(false);
+
+  const box = await pb.collection("boxes").getOne(boxId);
+  if (capacity < countEntries(box.box_members)) {
+    throw new Error("This box has more members than that capacity.");
+  }
+
+  return await pb.collection("boxes").update(boxId, {
+    capacity,
+    notes: "Box capacity changed.",
+    updated_by: "admin",
+  });
+}
+
 export async function createBox(boxName: string, boxNumber: number) {
   pb.autoCancellation(false);
 
@@ -1507,8 +1456,8 @@ export async function createBox(boxName: string, boxNumber: number) {
     box_name: boxName,
     box_number: boxNumber,
     box_state: "UNASSIGNED",
+    capacity: 2,
     box_members: [],
-    waitlist: [],
     notes: "Box added by an admin.",
     updated_by: currentUser()?.name || currentUser()?.email || "admin",
     created_at: now,
@@ -1519,7 +1468,6 @@ export async function createBox(boxName: string, boxNumber: number) {
 export async function deleteBox(boxId: string) {
   pb.autoCancellation(false);
 
-  // Fresh read, not React state
   const box = await pb.collection("boxes").getOne(boxId);
 
   if (countEntries(box.box_members) > 0) {
@@ -1528,55 +1476,9 @@ export async function deleteBox(boxId: string) {
     );
   }
 
-  const waitlist: any[] = Array.isArray(box.waitlist) ? box.waitlist : [];
-  let movedWaitlist = 0;
-  let rollback: (() => Promise<unknown>) | null = null;
+  await pb.collection("boxes").delete(boxId);
 
-  // Waitlist entries live on a single box, so hand them to another box first
-  if (waitlist.length > 0) {
-    const others = (await pb.collection("boxes").getFullList()).filter(
-      (b: any) => b.id !== boxId,
-    );
-
-    if (others.length === 0) {
-      throw new Error(
-        "This box holds waitlist entries and there is no other box to move them to. Add another box first.",
-      );
-    }
-
-    const target = others.reduce((shortest: any, b: any) =>
-      countEntries(b.waitlist) < countEntries(shortest.waitlist) ? b : shortest,
-    );
-    const targetWaitlist: any[] = Array.isArray(target.waitlist)
-      ? target.waitlist
-      : [];
-
-    const incoming = waitlist.filter(
-      (e: any) => !targetWaitlist.some((t: any) => t.member_id === e.member_id),
-    );
-    const merged = [...targetWaitlist, ...incoming].map((e: any, i: number) => ({
-      ...e,
-      position: i + 1,
-    }));
-
-    await pb.collection("boxes").update(target.id, {
-      waitlist: merged,
-      notes: "Waitlist entries moved from a decommissioned box.",
-    });
-
-    movedWaitlist = incoming.length;
-    rollback = () =>
-      pb.collection("boxes").update(target.id, { waitlist: targetWaitlist });
-  }
-
-  try {
-    await pb.collection("boxes").delete(boxId);
-  } catch (err) {
-    if (rollback) await rollback().catch(() => {}); // undo the waitlist move
-    throw err;
-  }
-
-  return { movedWaitlist };
+  return { movedWaitlist: 0 };
 }
 
 
@@ -1681,7 +1583,7 @@ export async function updateAcceptRequest(request: Record<string, any>) {
   await pb.collection("requirement_update_request").update(request.id, {
     status: "APPROVED",
     reviewed_by: currentUser()?.name ?? "",
-    reviewed_at: Math.floor(Date.now() / 1000),
+    reviewed_at: new Date().toISOString()
   });
 }
 

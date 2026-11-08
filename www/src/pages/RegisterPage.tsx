@@ -205,7 +205,7 @@ export default function RegisterPage() {
         </label>
 
         <label className="checkbox-row full-width">
-          <input name="onMailingList" required type="checkbox" />
+          <input name="onMailingList" defaultChecked type="checkbox" />
           Join the mailing list
         </label>
         <p className="mailing-list-note full-width">

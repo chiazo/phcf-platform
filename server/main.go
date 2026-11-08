@@ -105,6 +105,22 @@ func main() {
 		return e.Next()
 	})
 
+	app.OnRecordCreateRequest("box_waitlist").BindFunc(func(e *core.RecordRequestEvent) error {
+		if e.Auth == nil || !e.Auth.GetBool("is_admin") {
+			var last struct {
+				Queue int `db:"queue"`
+			}
+			if err := e.App.DB().
+				NewQuery("SELECT COALESCE(MAX(queue), 0) AS queue FROM box_waitlist").
+				One(&last); err != nil {
+				return err
+			}
+			e.Record.Set("queue", last.Queue+1)
+			e.Record.Set("join_date", time.Now().Unix())
+		}
+		return e.Next()
+	})
+
 	app.OnRecordUpdateRequest("work_formula").BindFunc(func(e *core.RecordRequestEvent) error {
 		if e.Auth != nil && (e.Auth.IsSuperuser() ||
 			(e.Auth.Collection().Name == "users" && e.Auth.GetBool("is_admin"))) {
@@ -216,7 +232,11 @@ func ensureAppCollections(app core.App) error {
 		return err
 	}
 
-	if _, err := ensureBoxesCollection(app, memberCollection.Id); err != nil {
+	if _, err := ensureBoxCollection(app, memberCollection.Id); err != nil {
+		return err
+	}
+
+	if _, err := ensureBoxWaitlistCollection(app, memberCollection.Id); err != nil {
 		return err
 	}
 
@@ -925,14 +945,14 @@ func configureMemberCollection(app core.App, collection *core.Collection, usersC
 	return nil
 }
 
-// ensureBoxesCollection ports the schema originally captured by the
+// ensureBoxCollection ports the schema originally captured by the
 // auto-generated 1784314870_created_boxes.go / 1784315056_updated_boxes.go
 // migrations into the same idempotent find-or-create pattern used above.
-func ensureBoxesCollection(app core.App, memberCollectionId string) (*core.Collection, error) {
-	log.Println("ensureBoxesCollection running")
+func ensureBoxCollection(app core.App, memberCollectionId string) (*core.Collection, error) {
+	log.Println("ensureBoxCollection running")
 
 	if existing, err := app.FindCollectionByNameOrId("boxes"); err == nil {
-		if err := configureBoxesCollection(app, existing, memberCollectionId); err != nil {
+		if err := configureBoxCollection(app, existing, memberCollectionId); err != nil {
 			return nil, err
 		}
 		if err := app.Save(existing); err != nil {
@@ -943,7 +963,7 @@ func ensureBoxesCollection(app core.App, memberCollectionId string) (*core.Colle
 	}
 
 	collection := core.NewBaseCollection("boxes")
-	if err := configureBoxesCollection(app, collection, memberCollectionId); err != nil {
+	if err := configureBoxCollection(app, collection, memberCollectionId); err != nil {
 		return nil, err
 	}
 
@@ -954,7 +974,7 @@ func ensureBoxesCollection(app core.App, memberCollectionId string) (*core.Colle
 	return collection, nil
 }
 
-func configureBoxesCollection(app core.App, collection *core.Collection, memberCollectionId string) error {
+func configureBoxCollection(app core.App, collection *core.Collection, memberCollectionId string) error {
 	authenticatedRule := "@request.auth.id != ''"
 
 	collection.ListRule = types.Pointer(authenticatedRule)
@@ -971,13 +991,92 @@ func configureBoxesCollection(app core.App, collection *core.Collection, memberC
 	addFieldIfMissing(collection, &core.NumberField{Name: "box_number"})
 	addFieldIfMissing(collection, &core.TextField{Name: "box_name"})
 	addFieldIfMissing(collection, &core.TextField{Name: "updated_by"})
+	addFieldIfMissing(collection, &core.NumberField{
+		Name:     "capacity",
+		Required: true,
+		Min:      floatPtr(1),
+		Max:      floatPtr(2),
+		OnlyInt:  true,
+	})
 	addFieldIfMissing(collection, &core.RelationField{
 		Name:         "box_members",
 		CollectionId: memberCollectionId,
 		MaxSelect:    5,
 	})
-	addFieldIfMissing(collection, &core.JSONField{Name: "waitlist"})
 	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
+
+	return nil
+}
+
+func ensureBoxWaitlistCollection(app core.App, memberCollectionId string) (*core.Collection, error) {
+	log.Println("ensureBoxWaitlistCollection running")
+
+	if existing, err := app.FindCollectionByNameOrId("box_waitlist"); err == nil {
+		if err := configureBoxWaitlistCollection(app, existing, memberCollectionId); err != nil {
+			return nil, err
+		}
+		if err := app.Save(existing); err != nil {
+			return nil, err
+		}
+
+		return existing, nil
+	}
+
+	collection := core.NewBaseCollection("box_waitlist")
+	if err := configureBoxWaitlistCollection(app, collection, memberCollectionId); err != nil {
+		return nil, err
+	}
+
+	if err := app.Save(collection); err != nil {
+		return nil, err
+	}
+
+	return collection, nil
+}
+
+func configureBoxWaitlistCollection(app core.App, collection *core.Collection, memberCollectionId string) error {
+	addFieldIfMissing(collection, &core.RelationField{
+		Name:          "member_id",
+		Required:      true,
+		CollectionId:  memberCollectionId,
+		MaxSelect:     1,
+		CascadeDelete: true, // deleting a member removes their entry
+	})
+	addFieldIfMissing(collection, &core.NumberField{
+		Name:     "queue",
+		Required: true,
+		Min:      floatPtr(1),
+		OnlyInt:  true,
+	})
+	addFieldIfMissing(collection, &core.NumberField{
+		Name:     "join_date", // Unix seconds
+		Required: true,
+		OnlyInt:  true,
+	})
+	addFieldIfMissing(collection, &core.SelectField{
+		Name:      "wants",
+		Required:  true,
+		Values:    []string{"HALF", "WHOLE"},
+		MaxSelect: 1,
+	})
+	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
+
+	if err := addTimeAttributeFields(app, collection); err != nil {
+		return err
+	}
+
+	collection.AddIndex("idx_box_waitlist_member", true, "member_id", "")
+	collection.AddIndex("idx_box_waitlist_queue", false, "queue", "")
+
+	signedIn := "@request.auth.id != ''"
+	adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
+	selfOrAdmin := "@request.auth.id != '' && (@request.body.member_id.user_id = @request.auth.id || @request.auth.is_admin = true)"
+
+	collection.ListRule = types.Pointer(signedIn)
+	collection.ViewRule = types.Pointer(signedIn)
+	collection.CreateRule = types.Pointer(selfOrAdmin)
+	collection.UpdateRule = types.Pointer(adminRule)
+	collection.DeleteRule = types.Pointer(adminRule)
 
 	return nil
 }
@@ -1009,6 +1108,8 @@ func ensureWorkFormulaCollection(app core.App, memberCollectionId string) (*core
 
 	return collection, nil
 }
+
+func floatPtr(v float64) *float64 { return &v }
 
 func configureWorkFormulaCollection(app core.App, collection *core.Collection, memberCollectionId string) error {
 
