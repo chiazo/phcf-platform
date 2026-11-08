@@ -6,6 +6,7 @@ import {
   isAdmin,
   isLoggedIn,
   listBoxes,
+  memberDisplayName,
   listMembersForBoxRequest,
   setBoxCapacity,
   addToBoxWaitlist,
@@ -27,6 +28,11 @@ export default function BoxInfoPage() {
   const [waitlist, setWaitlist] = useState<Array<Record<string, any>>>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const currUser = currentUser();
+
+  // User box request settings
+  const [memberRequestOpen, setMemberRequestOpen] = useState(false);
+  const [memberWants, setMemberWants] = useState<"HALF" | "WHOLE">("HALF");
+  const [memberRequesting, setMemberRequesting] = useState(false);
 
   // Admin request modal
   const [requestModalOpen, setRequestModalOpen] = useState(false);
@@ -78,7 +84,9 @@ export default function BoxInfoPage() {
 
   const unavailableMemberIds = new Set<string>([
     ...(requestWants === "WHOLE"
-      ? []
+      ? allBoxes
+        .filter((box: any) => boxCapacity(box) === 1)
+        .flatMap((box: any) => box.box_members ?? [])
       : allBoxes.flatMap((box: any) => box.box_members ?? [])),
     ...waitlist.map((e: any) => e.member_id),
   ]);
@@ -211,16 +219,8 @@ export default function BoxInfoPage() {
     // Regular member: request a box for themselves
     // --------------------------------------------------
     if (!isAdmin()) {
-      try {
-        await addToBoxWaitlist(allBoxes);
-        await refreshBoxes();
-      } catch (err) {
-        console.error("request box error:", err);
-        setActionError(
-          err instanceof Error ? err.message : "Could not request a box.",
-        );
-      }
-
+      setMemberWants("HALF");
+      setMemberRequestOpen(true);
       return;
     }
 
@@ -382,6 +382,36 @@ export default function BoxInfoPage() {
     }
   }
 
+  async function handleMemberRequestBox() {
+    setMemberRequesting(true);
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      // memberId omitted: the function resolves the logged-in member itself
+      const result = await addToBoxWaitlist(allBoxes, undefined, memberWants);
+
+      // A box record has box_members; a waitlist record does not
+      setActionNotice(
+        result.box_members
+          ? `You were assigned to ${result.box_name} (Box ${result.box_number}).`
+          : memberWants === "WHOLE"
+            ? "You were added to the waitlist for a whole box."
+            : "You were added to the end of the waitlist.",
+      );
+      setMemberRequestOpen(false);
+    } catch (err) {
+      console.error("member request box error:", err);
+      setActionError(
+        err instanceof Error ? err.message : "Could not request a box.",
+      );
+      setMemberRequestOpen(false);
+    } finally {
+      await refreshSafely();
+      setMemberRequesting(false);
+    }
+  }
+
   async function handleAdminRequestBox() {
     if (!selectedMemberId) {
       setActionError("Please select a member.");
@@ -397,9 +427,7 @@ export default function BoxInfoPage() {
       const box = await addToBoxWaitlist(allBoxes, selectedMemberId, requestWants);
       const selectedMember = members.find((m) => m.id === selectedMemberId);
       const selectedName =
-        selectedMember?.expand?.user_id?.name ||
-        selectedMember?.expand?.user_id?.email ||
-        selectedMemberId;
+        memberDisplayName(selectedMember) || selectedMemberId;
       const openBox = allBoxes.find((b: any) => hasRoom(b));
       setActionNotice(
         box.box_members?.includes(selectedMemberId)
@@ -525,7 +553,8 @@ export default function BoxInfoPage() {
             <thead>
               <tr>
                 <th>Box Name</th>
-                {isAdmin() && <th>Edit Name</th>}                <th>Box Number</th>
+                {isAdmin() && <th>Edit Name</th>}
+                <th>Box Number</th>
                 <th>Capacity</th>
                 <th>Members</th>
                 <th>Updated By</th>
@@ -678,7 +707,7 @@ export default function BoxInfoPage() {
                   <tr key={entry.id}>
                     <td>{index + 1}</td>
                     <td>{formatName(entry.name)}</td>
-                    <td>{wantsWhole ? "Whole box" : "Half box"}</td>
+                    <td>{wantsWhole ? "Whole Box" : "Half Box"}</td>
                     <td>{currentBox ? `Box ${currentBox.box_number}` : "—"}</td>
                     <td>{formatJoinDate(entry.join_date)}</td>
 
@@ -733,6 +762,53 @@ export default function BoxInfoPage() {
       )}
 
       {/* =========================================================
+          Normal User: Request Box Modal
+          ========================================================= */}
+      {memberRequestOpen && (
+        <div
+          className="modal modal-open"
+          onClick={() => !memberRequesting && setMemberRequestOpen(false)}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Request a Box</h2>
+
+            <select
+              value={memberWants}
+              onChange={(e) => setMemberWants(e.target.value as "HALF" | "WHOLE")}
+            >
+              <option value="HALF">Half Box (Share)</option>
+              <option value="WHOLE">Whole Box</option>
+            </select>
+
+            <p>
+              {memberWants === "WHOLE"
+                ? "You'll be added to the waitlist for a whole box. If you currently share a box, you keep it until a whole box is assigned to you."
+                : "If a box has an open slot and nobody is waiting, you'll be assigned right away. Otherwise you'll be added to the end of the waitlist."}
+            </p>
+
+            <div className="button-row">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setMemberRequestOpen(false)}
+                disabled={memberRequesting}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleMemberRequestBox}
+                disabled={memberRequesting}
+              >
+                {memberRequesting ? "Requesting..." : "Request Box"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================
           Admin: Request Box Modal
           ========================================================= */}
       {requestModalOpen && (
@@ -751,7 +827,7 @@ export default function BoxInfoPage() {
               }}
             >
               <option value="HALF">Half Box (Share)</option>
-              <option value="WHOLE">Whole box</option>
+              <option value="WHOLE">Whole Box</option>
             </select>
 
             <p>Select the member. If no box is open or others are waiting, they’ll be added to the end of the waitlist.</p>
@@ -765,11 +841,9 @@ export default function BoxInfoPage() {
               {members
                 .filter((member) => !unavailableMemberIds.has(member.id))
                 .map((member) => {
-                  const user = member.expand?.user_id;
-
                   return (
                     <option key={member.id} value={member.id}>
-                      {user?.name || user?.email || member.id}
+                      {memberDisplayName(member) || member.id}
                     </option>
                   );
                 })}

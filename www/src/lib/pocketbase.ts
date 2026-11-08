@@ -309,6 +309,14 @@ function escapePocketBaseString(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+export function memberDisplayName(member?: Record<string, any>) {
+  const user = member?.expand?.user_id;
+  const info = member?.expand?.member_snapshot_id?.personal_info;
+  const snapshotName = `${info?.firstName ?? ""} ${info?.lastName ?? ""}`.trim();
+
+  return user?.name || snapshotName || user?.email || "";
+}
+
 export async function registerFarmMember(input: RegisterFarmMemberInput) {
   pb.autoCancellation(false);
 
@@ -539,12 +547,12 @@ export async function listBoxWaitlist() {
 
   const items = await pb.collection("box_waitlist").getFullList({
     sort: "queue,join_date",
-    expand: "member_id.user_id",
+    expand: "member_id.user_id,member_id.member_snapshot_id",
   });
 
   return items.map((e: any) => ({
     ...e,
-    name: e.expand?.member_id?.expand?.user_id?.name ?? " — ",
+    name: memberDisplayName(e.expand?.member_id) || e.member_id || " — ",
   }));
 }
 
@@ -1050,15 +1058,14 @@ export async function listBoxes(): Promise<{ items: BoxWithNames[] }> {
   pb.autoCancellation(false);
 
   const boxes = await pb.collection("boxes").getFullList({
-    expand: "box_members.user_id",
-    sort: "box_number",
+expand: "box_members.user_id,box_members.member_snapshot_id",    sort: "box_number",
   });
 
   const items: BoxWithNames[] = boxes.map((box) => ({
     ...box,
     box_members_names: (
       (box.expand?.box_members ?? []) as Array<Record<string, any>>
-    ).map((member) => member.expand?.user_id?.name ?? "(unknown member)"),
+    ).map((member) => memberDisplayName(member) || "(unknown member)"),
   }));
 
   return { items };
@@ -1380,8 +1387,9 @@ export async function listMembersForBoxRequest() {
 
   return await pb.collection("member").getFullList({
     sort: "created_at",
-    expand: "user_id",
-    fields: "id,user_id,expand.user_id.name,expand.user_id.email",
+    expand: "user_id,member_snapshot_id",
+    fields:
+      "id,user_id,member_snapshot_id,expand.user_id.name,expand.user_id.email,expand.member_snapshot_id.personal_info",
   });
 }
 

@@ -498,9 +498,10 @@ func readMemberCSV(r io.Reader) ([]memberImportRow, error) {
 			continue
 		}
 
-		onMailingList, err := parseYesNo(
+		onMailingList, err := parseYesNoDefault(
 			get(colListserv),
 			fmt.Sprintf("row %d: %s", rowNumber, colListserv),
+			true,
 		)
 		if err != nil {
 			parseErrs = append(parseErrs, err.Error())
@@ -1857,6 +1858,17 @@ func parseInt(
 	}
 
 	return result, nil
+}
+
+func parseYesNoDefault(
+	value string,
+	context string,
+	blank bool,
+) (bool, error) {
+	if strings.TrimSpace(value) == "" {
+		return blank, nil
+	}
+	return parseYesNo(value, context)
 }
 
 func parseYesNo(

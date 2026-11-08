@@ -106,7 +106,7 @@ func main() {
 	})
 
 	app.OnRecordCreateRequest("box_waitlist").BindFunc(func(e *core.RecordRequestEvent) error {
-		if e.Auth == nil || !e.Auth.GetBool("is_admin") {
+		if e.Auth == nil || !(e.Auth.IsSuperuser() || e.Auth.GetBool("is_admin")) {
 			var last struct {
 				Queue int `db:"queue"`
 			}
@@ -142,6 +142,37 @@ func main() {
 		}
 
 		return e.Next()
+	})
+
+	// A snapshot edited in place (e.g. admin direct edit)
+	syncFromSnapshot := func(e *core.RecordEvent) error {
+		if err := e.Next(); err != nil {
+			return err
+		}
+
+		// Only sync if this is the member's CURRENT snapshot, so pending
+		// profile updates don't rename anyone before approval.
+		member, err := e.App.FindFirstRecordByFilter(
+			"member", "user_id = {:uid}", dbx.Params{"uid": e.Record.GetString("user_id")},
+		)
+		if err == nil && member.GetString("member_snapshot_id") == e.Record.Id {
+			_ = syncUserNameFromSnapshot(e.App, e.Record)
+		}
+		return nil
+	}
+	app.OnRecordAfterUpdateSuccess("member_snapshot").BindFunc(syncFromSnapshot)
+	app.OnRecordAfterCreateSuccess("member_snapshot").BindFunc(syncFromSnapshot)
+
+	// The member pointer moved to a new snapshot (approvals, rollover)
+	app.OnRecordAfterUpdateSuccess("member").BindFunc(func(e *core.RecordEvent) error {
+		if err := e.Next(); err != nil {
+			return err
+		}
+		snapshot, err := e.App.FindRecordById("member_snapshot", e.Record.GetString("member_snapshot_id"))
+		if err == nil {
+			_ = syncUserNameFromSnapshot(e.App, snapshot)
+		}
+		return nil
 	})
 
 	if err := app.Start(); err != nil {
@@ -974,14 +1005,38 @@ func ensureBoxCollection(app core.App, memberCollectionId string) (*core.Collect
 	return collection, nil
 }
 
+func syncUserNameFromSnapshot(app core.App, snapshot *core.Record) error {
+	var info struct {
+		FirstName string `json:"firstName"`
+		LastName  string `json:"lastName"`
+	}
+	if err := snapshot.UnmarshalJSONField("personal_info", &info); err != nil {
+		return nil
+	}
+
+	name := strings.TrimSpace(info.FirstName + " " + info.LastName)
+	if name == "" {
+		return nil
+	}
+
+	user, err := app.FindRecordById("users", snapshot.GetString("user_id"))
+	if err != nil || user.GetString("name") == name {
+		return nil
+	}
+
+	user.Set("name", name)
+	return app.Save(user)
+}
+
 func configureBoxCollection(app core.App, collection *core.Collection, memberCollectionId string) error {
 	authenticatedRule := "@request.auth.id != ''"
+	adminRule := "@request.auth.id != '' && @request.auth.is_admin = true"
 
 	collection.ListRule = types.Pointer(authenticatedRule)
 	collection.ViewRule = types.Pointer(authenticatedRule)
-	collection.CreateRule = types.Pointer(authenticatedRule)
-	collection.UpdateRule = types.Pointer(authenticatedRule)
-	collection.DeleteRule = types.Pointer(authenticatedRule)
+	collection.CreateRule = types.Pointer(adminRule)
+	collection.UpdateRule = types.Pointer(adminRule)
+	collection.DeleteRule = types.Pointer(adminRule)
 
 	if err := addTimeAttributeFields(app, collection); err != nil {
 		return err
@@ -1001,8 +1056,14 @@ func configureBoxCollection(app core.App, collection *core.Collection, memberCol
 	addFieldIfMissing(collection, &core.RelationField{
 		Name:         "box_members",
 		CollectionId: memberCollectionId,
-		MaxSelect:    5,
+		MaxSelect:    2,
 	})
+
+	// Update existing fields too. addFieldIfMissing only creates a field
+	// when missing; it does not update existing field properties.
+	if field, ok := collection.Fields.GetByName("box_members").(*core.RelationField); ok {
+		field.MaxSelect = 2
+	}
 	addFieldIfMissing(collection, &core.TextField{Name: "notes"})
 
 	return nil
