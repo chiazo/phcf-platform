@@ -102,6 +102,14 @@ func main() {
 		e.Router.POST("/api/app/admin/rollover", rolloverHandler(app))
 		e.Router.POST("/api/app/admin/import/hours", importOpenHoursCSV(app))
 
+		// Box overview: available to signed-in users.
+		e.Router.GET("/api/app/box-overview", handleBoxOverview).
+			Bind(apis.RequireAuth())
+
+		// Member box request: only regular users, not superuser tokens.
+		e.Router.POST("/api/app/boxes/request", handleBoxRequest).
+			Bind(apis.RequireAuth("users"))
+
 		return e.Next()
 	})
 
@@ -139,6 +147,23 @@ func main() {
 			if e.Record.GetFloat(field) != original.GetFloat(field) {
 				return e.ForbiddenError("Only admins can change "+field+".", nil)
 			}
+		}
+
+		return e.Next()
+	})
+
+	app.OnRecordUpdateRequest("users").BindFunc(func(e *core.RecordRequestEvent) error {
+		// Superusers and admins can update privileged fields.
+		if e.Auth != nil && (e.Auth.IsSuperuser() || e.Auth.GetBool("is_admin")) {
+			return e.Next()
+		}
+
+		// Regular users cannot change their own admin status.
+		if e.Record.GetBool("is_admin") != e.Record.Original().GetBool("is_admin") {
+			return apis.NewForbiddenError(
+				"You cannot change your admin status.",
+				nil,
+			)
 		}
 
 		return e.Next()

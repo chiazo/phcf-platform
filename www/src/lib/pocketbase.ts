@@ -36,6 +36,50 @@ export interface ImportResult {
   rows: ImportRowResult[];
 }
 
+type BoxWithNames = Record<string, any> & {
+  box_members_names: string[];
+};
+
+type WaitlistWithNames = Record<string, any> & {
+  name: string;
+};
+
+interface BoxOverview {
+  boxes: BoxWithNames[];
+  waitlist: WaitlistWithNames[];
+}
+
+export async function getBoxOverview(): Promise<BoxOverview> {
+  pb.autoCancellation(false);
+
+  return await pb.send<BoxOverview>("/api/app/box-overview", {
+    method: "GET",
+  });
+}
+
+export async function listBoxes() {
+  const overview = await getBoxOverview();
+  return { items: overview.boxes };
+}
+
+export async function listBoxWaitlist() {
+  const overview = await getBoxOverview();
+  return overview.waitlist;
+}
+
+export async function addToBoxWaitlist(
+  _allBoxes: Record<string, any>[],
+  _memberId?: string,
+  wants: "HALF" | "WHOLE" = "HALF",
+) {
+  pb.autoCancellation(false);
+
+  return await pb.send("/api/app/boxes/request", {
+    method: "POST",
+    body: { wants },
+  });
+}
+
 export async function importMembersData(
   kind: ImportKind,
   file: File,
@@ -542,20 +586,6 @@ export async function getCurrentUserMemberSnapshot() {
   return await getMemberSnapshotForUserId(appUser.id);
 }
 
-export async function listBoxWaitlist() {
-  pb.autoCancellation(false);
-
-  const items = await pb.collection("box_waitlist").getFullList({
-    sort: "queue,join_date",
-    expand: "member_id.user_id,member_id.member_snapshot_id",
-  });
-
-  return items.map((e: any) => ({
-    ...e,
-    name: memberDisplayName(e.expand?.member_id) || e.member_id || " — ",
-  }));
-}
-
 export async function getOrCreateCurrentUserMemberSnapshot() {
   pb.autoCancellation(false);
 
@@ -1050,26 +1080,6 @@ function formatRequirementRequestType(type: string) {
   return type.toLowerCase().replace(/_/g, " ");
 }
 
-type BoxWithNames = Record<string, any> & {
-  box_members_names: string[];
-};
-
-export async function listBoxes(): Promise<{ items: BoxWithNames[] }> {
-  pb.autoCancellation(false);
-
-  const boxes = await pb.collection("boxes").getFullList({
-expand: "box_members.user_id,box_members.member_snapshot_id",    sort: "box_number",
-  });
-
-  const items: BoxWithNames[] = boxes.map((box) => ({
-    ...box,
-    box_members_names: (
-      (box.expand?.box_members ?? []) as Array<Record<string, any>>
-    ).map((member) => memberDisplayName(member) || "(unknown member)"),
-  }));
-
-  return { items };
-}
 
 export async function removeMemberFromWaitlist(memberId: string) {
   pb.autoCancellation(false);
@@ -1109,90 +1119,6 @@ export async function removeMemberFromBox(memberId: string, boxId?: string) {
     ...(updatedMembers.length === 0 ? { capacity: 2 } : {}),
     box_state: updatedMembers.length === 0 ? "UNASSIGNED" : "ASSIGNED",
     updated_by: "admin",
-  });
-}
-
-// Adds the currently logged-in user's member_id to a box waitlist, choosing
-// the box in this priority order:
-//   1. any box with zero members (box_members is empty)
-//   2. any box with an empty waitlist (waitlist is empty)
-// The chosen box's notes are flagged for admin review and the change is
-// persisted back to the boxes collection.
-export async function addToBoxWaitlist(
-  allBoxes: Record<string, any>[],
-  memberId?: string,
-  wants: "HALF" | "WHOLE" = "HALF",
-) {
-  pb.autoCancellation(false);
-
-  const user = currentUser();
-
-  if (!user) {
-    throw new Error("No logged in user found.");
-  }
-
-  if (!allBoxes || allBoxes.length === 0) {
-    throw new Error("No boxes available to join.");
-  }
-
-  // Resolve the logged-in user's member record if no member was supplied.
-  if (!memberId) {
-    const member = await pb
-      .collection("member")
-      .getFirstListItem(`user_id = "${user.id}"`);
-
-    if (!member) {
-      throw new Error(
-        "Your account does not have an associated member record.",
-      );
-    }
-
-    memberId = member.id;
-  }
-
-  // Holders may only join the waitlist if they want a whole box
-  const existingBox = allBoxes.find(
-    (box) =>
-      Array.isArray(box.box_members) && box.box_members.includes(memberId),
-  );
-
-  if (existingBox && wants !== "WHOLE") {
-    throw new Error("Member already has a box.");
-  }
-
-  const existingEntry = await pb
-    .collection("box_waitlist")
-    .getFirstListItem(pb.filter("member_id = {:memberId}", { memberId }))
-    .catch(() => null);
-
-  if (existingEntry) {
-    throw new Error("Member is already on the waitlist.");
-  }
-
-  const emptyBox = allBoxes.find(hasRoom);
-  const waiting = await pb.collection("box_waitlist").getList(1, 1);
-
-  // Half requests only, with room and nobody waiting → assign directly.
-  if (wants === "HALF" && emptyBox && waiting.totalItems === 0) {
-    return await pb.collection("boxes").update(emptyBox.id, {
-      box_members: [...(emptyBox.box_members ?? []), memberId],
-      notes: "Member assigned to box.",
-      box_state: "ASSIGNED",
-      updated_by: "admin",
-    });
-  }
-
-  // Otherwise join the end of the global queue. For non-admins the server
-  // hook overwrites queue and join_date anyway.
-  const last = await pb
-    .collection("box_waitlist")
-    .getList(1, 1, { sort: "-queue" });
-
-  return await pb.collection("box_waitlist").create({
-    member_id: memberId,
-    queue: (last.items[0]?.queue ?? 0) + 1,
-    join_date: Math.floor(Date.now() / 1000),
-    wants,
   });
 }
 
