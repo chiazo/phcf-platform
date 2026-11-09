@@ -138,6 +138,7 @@ node scripts/pb-seed.mjs \
 ## Seed Real Data in Production
 `./gcp-manage.sh import <path-to-csv>.csv --dry-run`
 `./gcp-manage.sh import <path-to-csv>.csv`
+`./gcp-manage.sh import <path-to>-members.csv <path-to>-requirements.csv`
 
 ## Wipe GCP 
 `./gcp-manage.sh reset`

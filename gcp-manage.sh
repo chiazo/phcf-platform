@@ -196,13 +196,24 @@ superuser () {
 #
 # Real imports always dry-run first and require confirmation.
 # ---------------------------------------
+# ---------------------------------------
+# import: safely import members + requirements CSVs into production
+#
+# Usage:
+#   ./gcp-manage.sh import ./members.csv ./requirements.csv
+#   ./gcp-manage.sh import ./members.csv ./requirements.csv --dry-run
+#
+# Real imports always dry-run first, take a backup, and require confirmation.
+# ---------------------------------------
 import_csv () {
-  local CSV_PATH="${1:-}"
-  local MODE="${2:-}"
+  local MEMBERS_PATH="${1:-}"
+  local REQUIREMENTS_PATH="${2:-}"
+  local MODE="${3:-}"
 
-  if [ -z "$CSV_PATH" ] || [ ! -f "$CSV_PATH" ]; then
-    echo "❌ Provide a valid local CSV file."
-    echo "Usage: $0 import <file.csv> [--dry-run]"
+  if [ -z "$MEMBERS_PATH" ] || [ ! -f "$MEMBERS_PATH" ] ||
+     [ -z "$REQUIREMENTS_PATH" ] || [ ! -f "$REQUIREMENTS_PATH" ]; then
+    echo "❌ Provide valid local members and requirements CSV files."
+    echo "Usage: $0 import <members.csv> <requirements.csv> [--dry-run]"
     return 1
   fi
 
@@ -211,7 +222,7 @@ import_csv () {
     return 1
   fi
 
-  if [ "$#" -gt 2 ]; then
+  if [ "$#" -gt 3 ]; then
     echo "❌ Too many arguments."
     return 1
   fi
@@ -219,56 +230,53 @@ import_csv () {
   local DRY_ONLY=0
   [ "$MODE" = "--dry-run" ] && DRY_ONLY=1
 
-  # Verify the production container and data directory exist.
   echo "🔍 Checking production VM and database..."
 
   remote_run '
   set -e
-
-  echo "Checking production container..."
   docker inspect pocketbase >/dev/null
-
-  echo "Checking database mount..."
   docker inspect pocketbase \
     --format "{{range .Mounts}}{{if eq .Destination \"/app/pb_data\"}}{{.Source}}{{end}}{{end}}" \
     | grep -qx "/root/pb_data"
-
-  echo "Checking database files..."
   sudo test -f /root/pb_data/data.db
   sudo test -f /root/pb_data/auxiliary.db
-
   echo "Production container and database verified."
 ' || {
-  echo "❌ Production container or database verification failed."
-  return 1
-}
+    echo "❌ Production container or database verification failed."
+    return 1
+  }
 
-  # Upload CSV to a temporary location on the VM.
-  local REMOTE_CSV="/tmp/pb-import-$(date +%s)-$$.csv"
-  local Q_IMAGE Q_CSV
+  # Upload both CSVs to temporary locations on the VM.
+  local STAMP="$(date +%s)-$$"
+  local REMOTE_MEMBERS="/tmp/pb-import-members-$STAMP.csv"
+  local REMOTE_REQS="/tmp/pb-import-requirements-$STAMP.csv"
+  local Q_IMAGE Q_MEMBERS Q_REQS
   printf -v Q_IMAGE '%q' "$IMAGE"
-  printf -v Q_CSV '%q' "$REMOTE_CSV"
+  printf -v Q_MEMBERS '%q' "$REMOTE_MEMBERS"
+  printf -v Q_REQS '%q' "$REMOTE_REQS"
 
-  echo "📤 Copying CSV to production VM..."
+  cleanup_remote () {
+    remote_run "rm -f $Q_MEMBERS $Q_REQS" || true
+  }
 
-  gcloud compute scp "$CSV_PATH" \
-    "$VM_NAME:$REMOTE_CSV" \
-    --project="$PROJECT_ID" \
-    --zone="$ZONE" || {
-      echo "❌ CSV upload failed."
+  echo "📤 Copying CSVs to production VM..."
+  gcloud compute scp "$MEMBERS_PATH" "$VM_NAME:$REMOTE_MEMBERS" \
+    --project="$PROJECT_ID" --zone="$ZONE" || {
+      echo "❌ Members CSV upload failed."
+      return 1
+    }
+  gcloud compute scp "$REQUIREMENTS_PATH" "$VM_NAME:$REMOTE_REQS" \
+    --project="$PROJECT_ID" --zone="$ZONE" || {
+      echo "❌ Requirements CSV upload failed."
+      cleanup_remote
       return 1
     }
 
-  # Run the importer against the SAME persistent database.
-  # Stop the live container to avoid concurrent SQLite access.
-  # Always restart it, even if the import fails.
-  
- 
+  # Stop the live container to avoid concurrent SQLite access, and always
+  # restart it, even if the import fails.
   run_remote_import () {
     local IMPORT_MODE="$1"
     local Q_MODE=""
-
-    # Only add an argument when a mode was explicitly provided.
     if [ -n "$IMPORT_MODE" ]; then
       printf -v Q_MODE '%q' "$IMPORT_MODE"
     fi
@@ -287,40 +295,50 @@ import_csv () {
       cleanup() {
         local STATUS=\$?
         trap - EXIT
-
         if [ \"\$WAS_RUNNING\" = 1 ]; then
           docker start \"\$CONTAINER\" >/dev/null || {
             echo '❌ WARNING: PocketBase did not restart.' >&2
             STATUS=1
           }
         fi
-
         exit \"\$STATUS\"
       }
       trap cleanup EXIT
 
-      test -f $Q_CSV
+      test -f $Q_MEMBERS
+      test -f $Q_REQS
 
       docker run --rm \\
         -v /root/pb_data:/app/pb_data \\
-        -v $Q_CSV:/tmp/import.csv:ro \\
+        -v $Q_MEMBERS:/tmp/members.csv:ro \\
+        -v $Q_REQS:/tmp/requirements.csv:ro \\
         $Q_IMAGE \\
-        /app/app --import /tmp/import.csv $Q_MODE
+        /app/app import-members /tmp/members.csv /tmp/requirements.csv $Q_MODE
     "
   }
 
-
+  # Copy pb_data before a real import. The container is stopped while this
+  # runs, so the SQLite files are consistent.
+  backup_remote () {
+    remote_run "
+      set -e
+      docker stop pocketbase >/dev/null 2>&1 || true
+      sudo tar czf /root/pb_data_pre_import_$STAMP.tgz -C /root pb_data
+      docker start pocketbase >/dev/null
+      echo 'Backup: /root/pb_data_pre_import_$STAMP.tgz'
+    "
+  }
 
   echo
   echo "🧪 Running production dry run..."
   if ! run_remote_import "--dry-run"; then
-    remote_run "rm -f $Q_CSV" || true
+    cleanup_remote
     echo "❌ Dry run failed. No import was attempted."
     return 1
   fi
 
   if [ "$DRY_ONLY" = 1 ]; then
-    remote_run "rm -f $Q_CSV" || true
+    cleanup_remote
     echo "✅ Dry run complete. No import was attempted."
     return 0
   fi
@@ -331,22 +349,29 @@ import_csv () {
   read -r -p "Type IMPORT to proceed: " CONFIRM
 
   if [ "$CONFIRM" != "IMPORT" ]; then
-    remote_run "rm -f $Q_CSV" || true
+    cleanup_remote
     echo "Aborted. No real import was attempted."
     return 1
   fi
 
-  echo "📥 Importing CSV into production..."
+  echo "💾 Backing up pb_data..."
+  if ! backup_remote; then
+    cleanup_remote
+    echo "❌ Backup failed. No import was attempted."
+    return 1
+  fi
+
+  echo "📥 Importing CSVs into production..."
   if run_remote_import ""; then
-    remote_run "rm -f $Q_CSV" || true
+    cleanup_remote
     echo "✅ Production import completed."
   else
-    remote_run "rm -f $Q_CSV" || true
+    cleanup_remote
     echo "❌ Import failed. Check production logs and database state."
+    echo "   The pre-import backup is on the VM in /root (pb_data_pre_import_*.tgz)."
     return 1
   fi
 }
-
 
 # ---------------------------------------
 # logs: tail live logs
@@ -411,7 +436,7 @@ case "$CMD" in
   build-and-deploy)    build_and_deploy ;;
   reset)               reset ;;
   superuser)           superuser "$2" "$3" ;;
-  import)              shift; import_csv "$@" ;;
+  import)              import_csv "$2" "$3" "$4" ;;
   logs)                logs ;;
   status)              status ;;
   restart)             restart ;;
@@ -431,7 +456,7 @@ Commands:
   reset                    ⚠️  WIPE pb_data on the VM, redeploy clean, recreate superuser
                            (use this when you see "Field type cannot be changed" crash loops)
   superuser [EMAIL] [PASS] Safely create/update a superuser (defaults from .env)
-  import <CSV> [--dry-run] Import a CSV into production; dry-run first and confirm before writing
+  import <members.csv> <requirements.csv> [--dry-run] Import a CSV into production; dry-run first and confirm before writing
   logs                     Tail live container logs
   status                   Show container status, static IP, and health checks (local + HTTPS)
   restart                  Restart the running container (no image change, no data loss)

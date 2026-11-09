@@ -17,6 +17,7 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
   const [boardStatus, setBoardStatus] = useState<string>("");
   const [boxSharing, setBoxSharing] = useState<string>("");
   const [memberId, setMemberId] = useState<string>("");
+  const [matchedIds, setMatchedIds] = useState<string[]>([]);
 
   const [workHoursRequired, setWorkHoursRequired] = useState("");
   const [meetingsRequired, setMeetingsRequired] = useState("");
@@ -45,10 +46,12 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
     try {
       const res = await previewWorkFormulaBulkUpdate(buildCriteria());
       setMatchedCount(res.matchedCount);
+      setMatchedIds(res.memberIds);
     } catch (err) {
       console.error("Preview error:", err);
       setError("Could not preview matching members.");
       setMatchedCount(null);
+      setMatchedIds([]);
     } finally {
       setBusy(false);
     }
@@ -76,6 +79,7 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
       );
       setSuccessMsg(`Updated ${res.updatedCount} member(s).`);
       setMatchedCount(null);
+      setMatchedIds([]);
       onApplied();
     } catch (err) {
       console.error("Apply error:", err);
@@ -84,6 +88,14 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
       setBusy(false);
     }
   }
+
+  const nameById = new Map<string, string>(
+    members.map((m) => [m.member_id, m.fullName || m.member_id]),
+  );
+
+  const matchedNames = matchedIds
+    .map((id) => nameById.get(id) ?? id)
+    .sort((a, b) => a.localeCompare(b));
 
   return (
     <section className="admin-formula-matrix">
@@ -98,6 +110,7 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
               setMemberType(e.target.value);
               setMemberId("");
               setMatchedCount(null);
+              setMatchedIds([]);
             }}
             disabled={!!memberId}
           >
@@ -118,6 +131,7 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
               setBoardStatus(e.target.value);
               setMemberId("");
               setMatchedCount(null);
+              setMatchedIds([]);
             }}
             disabled={!!memberId}
           >
@@ -135,6 +149,7 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
               setBoxSharing(e.target.value);
               setMemberId("");
               setMatchedCount(null);
+              setMatchedIds([]);
             }}
             disabled={!!memberId}
           >
@@ -152,6 +167,7 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
             onChange={(e) => {
               setMemberId(e.target.value);
               setMatchedCount(null);
+              setMatchedIds([]);
             }}
           >
             <option value="">— None —</option>
@@ -210,6 +226,32 @@ export default function AdminWorkFormulaMatrix({ members, onApplied }: Props) {
             : "Apply"}
         </button>
       </div>
+
+      {matchedCount !== null && (
+        <div className="table-wrapper" style={{ maxHeight: 240, overflowY: "auto" }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Matching members ({matchedNames.length})</th>
+              </tr>
+            </thead>
+            <tbody>
+              {matchedNames.length === 0 ? (
+                <tr>
+                  <td className="muted">No members match these filters.</td>
+                </tr>
+              ) : (
+                matchedNames.map((name, i) => (
+                  <tr key={`${name}-${i}`}>
+                    <td>{name}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    
 
       {error && <p className="error">{error}</p>}
       {successMsg && <p className="muted">{successMsg}</p>}
