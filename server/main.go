@@ -15,6 +15,7 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
+	"github.com/spf13/cobra"
 )
 
 // boardRoles mirrors models/enums.ts MemberRole — every role other than
@@ -69,6 +70,32 @@ type memberInfoSubset struct {
 
 func main() {
 	app := pocketbase.New()
+
+	var dryRun bool
+
+	importCmd := &cobra.Command{
+		Use:   "import-members <members.csv> <requirements.csv>",
+		Short: "Import members and requirements from CSV files",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			importArgs := args
+
+			if dryRun {
+				importArgs = append(importArgs, "--dry-run")
+			}
+
+			return runImportCLI(app, importArgs)
+		},
+	}
+
+	importCmd.Flags().BoolVar(
+		&dryRun,
+		"dry-run",
+		false,
+		"Preview without writing changes",
+	)
+
+	app.RootCmd.AddCommand(importCmd)
 
 	app.OnBootstrap().BindFunc(func(e *core.BootstrapEvent) error {
 		if err := e.Next(); err != nil {
@@ -1221,10 +1248,10 @@ func configureWorkFormulaCollection(app core.App, collection *core.Collection, m
 		return err
 	}
 
-	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_required", OnlyInt: true})
-	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_completed", OnlyInt: true})
-	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_required", OnlyInt: true})
-	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_completed", OnlyInt: true})
+	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_required"})
+	addFieldIfMissing(collection, &core.NumberField{Name: "work_hours_completed"})
+	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_required"})
+	addFieldIfMissing(collection, &core.NumberField{Name: "open_hours_completed"})
 
 	return nil
 }

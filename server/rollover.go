@@ -66,11 +66,15 @@ type rolloverResult struct {
 }
 
 type rolloverInfo struct {
-	MemberState string `json:"memberState"`
-	Dues        struct {
+	MemberState      string `json:"memberState"`
+	GoodStanding     string `json:"goodStanding"`
+	RolloverEligible string `json:"rolloverEligible"`
+
+	Dues struct {
 		AmountPaid float64 `json:"amountPaid"`
 		DueState   string  `json:"dueState"`
 	} `json:"dues"`
+
 	Requirements struct {
 		MeetingsCompleted float64 `json:"meetingsCompleted"`
 		MeetingsRequired  float64 `json:"meetingsRequired"`
@@ -170,11 +174,17 @@ func rolloverHandler(app core.App) func(e *core.RequestEvent) error {
 			}
 
 			switch {
-			case m.standing == standingInactive:
-				result.AlreadyInactive++
-			case m.standing == standingGood || keep[m.member.Id]:
+			case keep[m.member.Id]:
 				carry[m.member.Id] = true
 				result.CarryOver = append(result.CarryOver, row)
+
+			case m.standing == standingInactive:
+				result.AlreadyInactive++
+
+			case m.standing == standingGood:
+				carry[m.member.Id] = true
+				result.CarryOver = append(result.CarryOver, row)
+
 			default:
 				result.Inactive = append(result.Inactive, row)
 				if boxHolders[m.member.Id] {
@@ -385,18 +395,40 @@ func newestWorkFormula(app core.App, memberID string) (*core.Record, error) {
 // "All requirements" column in the members table.
 func classifyRolloverMember(m *rolloverMember) {
 	var info rolloverInfo
+
 	if err := m.snapshot.UnmarshalJSONField("member_info", &info); err != nil {
 		m.standing = standingNotGood
 		m.reasons = []string{"could not read member info"}
 		return
 	}
 
-	if info.MemberState == "INACTIVE" {
+	// An explicitly imported good-standing value is authoritative.
+	// Rollover eligibility is informational and does not override it.
+	if value := strings.TrimSpace(info.GoodStanding); value != "" {
+		switch strings.ToLower(value) {
+		case "yes":
+			m.standing = standingGood
+		case "in progress":
+			m.standing = standingNotGood
+			m.reasons = []string{"good standing: In Progress"}
+		case "no":
+			m.standing = standingNotGood
+			m.reasons = []string{"good standing: No"}
+		default:
+			m.standing = standingNotGood
+			m.reasons = []string{"unrecognized good standing: " + value}
+		}
+		return
+	}
+
+	// Legacy snapshots without an imported assessment retain the
+	// previous classification rules.
+	if strings.EqualFold(strings.TrimSpace(info.MemberState), "INACTIVE") {
 		m.standing = standingInactive
 		return
 	}
 
-	if state := info.Dues.DueState; state != "COMPLETE" && state != "PAID" {
+	if state := strings.ToUpper(strings.TrimSpace(info.Dues.DueState)); state != "COMPLETE" && state != "PAID" {
 		m.reasons = append(m.reasons, "dues not complete")
 	}
 
@@ -408,31 +440,28 @@ func classifyRolloverMember(m *rolloverMember) {
 		))
 	}
 
-	switch {
-	case m.formula == nil:
+	if m.formula == nil {
 		m.reasons = append(m.reasons, "no work formula row")
-	case !rolloverHoursMet(m.formula):
+	} else if !rolloverHoursMet(m.formula) {
 		m.reasons = append(m.reasons, "work/open hours not met")
 	}
 
 	if len(m.reasons) == 0 {
 		m.standing = standingGood
-	} else {
-		m.standing = standingNotGood
+		return
 	}
+
+	m.standing = standingNotGood
 }
 
 // Open hours can cover work hours, but not the other way round.
 func rolloverHoursMet(f *core.Record) bool {
-	workRequired, workDone := f.GetInt("work_hours_required"), f.GetInt("work_hours_completed")
-	openRequired, openDone := f.GetInt("open_hours_required"), f.GetInt("open_hours_completed")
+	workRequired := f.GetInt("work_hours_required")
+	workDone := f.GetInt("work_hours_completed")
+	openRequired := f.GetInt("open_hours_required")
+	openDone := f.GetInt("open_hours_completed")
 
-	spare := openDone - openRequired
-	if spare < 0 {
-		spare = 0
-	}
-
-	return openDone >= openRequired && workDone+spare >= workRequired
+	return workDone >= workRequired && openDone >= openRequired
 }
 
 func rolloverBoxHolders(app core.App) (map[string]bool, error) {
@@ -640,7 +669,12 @@ func resetRolloverMember(
 	}
 	requirements["meetingsCompleted"] = 0
 	requirements["serviceRequirements"] = []any{}
+
 	info["requirements"] = requirements
+
+	// Start the new membership year with a fresh assessment.
+	info["goodStanding"] = "In Progress"
+	info["rolloverEligible"] = "TBD"
 
 	collection, err := app.FindCollectionByNameOrId("member_snapshot")
 	if err != nil {

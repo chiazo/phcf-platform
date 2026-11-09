@@ -118,7 +118,6 @@ switch .env `BACKEND_PROVIDER` between `fly` and `gcp` depending on desired prov
 ```
 
 ## Seed Fake Data Locally
-
 `node scripts/pb-seed.mjs --users 50 --boxes 20 --work-formulas 10
 `
 
@@ -134,6 +133,7 @@ node scripts/pb-seed.mjs \
 ## Seed Real Data Locally
 `server/app --import <path-to-csv>.csv --dry-run`
 `server/app --import <path-to-csv>.csv`
+`go run . import-members <path-to>-members.csv <path-to>-requirements.csv`
 
 ## Seed Real Data in Production
 `./gcp-manage.sh import <path-to-csv>.csv --dry-run`

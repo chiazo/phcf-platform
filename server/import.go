@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -82,6 +83,19 @@ const (
 	// Optional column. It does not currently exist in the export, but the
 	// importer accepts it if it is added to a CSV.
 	colMemberState = "Member State"
+
+	colMeetingsRequired  = "Meetings Required"
+	colMeetingsAttended  = "Total Meetings Attended"
+	colMeetingsRemaining = "Meetings Remaining"
+
+	colTotalServiceHoursRequired  = "Total Service Hours Required"
+	colTotalServiceHoursRemaining = "Total Service Hours Remaining"
+
+	colTotalOpenHoursRequired  = "Total Open Hours Required"
+	colTotalOpenHoursRemaining = "Total Open Hours Remaining"
+
+	colGoodStanding2027     = "Good Standing for 2027? (dues + meetings + hours)"
+	colRolloverEligible2027 = "Eligible for Rollover to 2027, if needed? (see PHCF website for rollover details)"
 )
 
 // -----------------------------------------------------------------------------
@@ -127,10 +141,39 @@ type memberImportRow struct {
 
 	Notes string
 
-	WorkHoursRequired  *int
-	WorkHoursCompleted *int
-	OpenHoursRequired  *int
-	OpenHoursCompleted *int
+	WorkHoursRequired     *float64
+	WorkHoursCompleted    *float64
+	OpenHoursCompleted    *float64
+	OpenHoursRequired     *float64
+	OpenHoursRemaining    *float64
+	ServiceHoursRemaining *float64
+
+	MeetingsRequired     *int
+	MeetingsCompleted    *int
+	ServiceHoursRequired *float64
+
+	GoodStanding        string
+	RolloverEligible    string
+	MemberStateProvided bool
+}
+
+type requirementsImportRow struct {
+	RowNumber int
+
+	FirstName       string
+	LastNameInitial string
+	JoinDate        string
+
+	MeetingsRequired  *int
+	MeetingsCompleted *int
+
+	ServiceHoursRequired  *float64
+	OpenHoursRequired     *float64
+	OpenHoursRemaining    *float64
+	ServiceHoursRemaining *float64
+
+	GoodStanding     string
+	RolloverEligible string
 }
 
 type importBox struct {
@@ -159,54 +202,224 @@ type importSummary struct {
 	Errors []string
 }
 
+func parseNullableFloat(
+	value string,
+	context string,
+) (*float64, error) {
+	value = strings.TrimSpace(value)
+
+	if value == "" || value == "-" || value == "—" {
+		return nil, nil
+	}
+
+	result, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%s: invalid number %q",
+			context,
+			value,
+		)
+	}
+
+	return &result, nil
+}
+
 // -----------------------------------------------------------------------------
 // Route
 // -----------------------------------------------------------------------------
 func runImportCLI(app core.App, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("CSV file is required")
+	if len(args) < 2 {
+		return fmt.Errorf(
+			"usage: import-members <members.csv> <requirements.csv> [--dry-run]",
+		)
 	}
 
+	membersPath := args[0]
+	requirementsPath := args[1]
 	dryRun := false
-	csvPath := ""
 
-	for _, arg := range args {
+	for _, arg := range args[2:] {
 		if arg == "--dry-run" {
 			dryRun = true
-		} else if csvPath == "" {
-			csvPath = arg
 		} else {
 			return fmt.Errorf("unexpected argument: %s", arg)
 		}
 	}
 
-	if csvPath == "" {
-		return fmt.Errorf("CSV file is required")
+	membersFile, err := os.Open(membersPath)
+	if err != nil {
+		return fmt.Errorf("open members CSV: %w", err)
+	}
+	defer membersFile.Close()
+
+	requirementsFile, err := os.Open(requirementsPath)
+	if err != nil {
+		return fmt.Errorf("open requirements CSV: %w", err)
+	}
+	defer requirementsFile.Close()
+
+	rows, err := readAndMergeImportCSVs(membersFile, requirementsFile)
+	if err != nil {
+		return err
 	}
 
-	return importMembersFromCSV(app, csvPath, dryRun)
+	return executeImport(app, rows, dryRun)
 }
 
-func importMembersFromCSV(app core.App, csvPath string, dryRun bool) error {
-	file, err := os.Open(csvPath)
+func readRequirementsCSV(r io.Reader) ([]requirementsImportRow, error) {
+	reader := csv.NewReader(r)
+	reader.FieldsPerRecord = -1
+	reader.TrimLeadingSpace = true
+	reader.ReuseRecord = false
+
+	header, err := reader.Read()
 	if err != nil {
-		return fmt.Errorf("open CSV: %w", err)
-	}
-	defer file.Close()
-
-	rows, err := readMemberCSV(file)
-	if err != nil {
-		return fmt.Errorf("read CSV: %w", err)
+		return nil, err
 	}
 
-	if len(rows) == 0 {
-		return fmt.Errorf("CSV contains no member rows")
+	normalizeCSVHeader(header)
+
+	indexes := make(map[string]int)
+	for i, name := range header {
+		indexes[strings.TrimSpace(name)] = i
 	}
 
-	if err := validateImportRows(rows); err != nil {
-		return fmt.Errorf("CSV validation failed: %w", err)
+	required := []string{
+		colFirstName,
+		colLastNameInitial,
+		colJoinDate,
+		colMeetingsRequired,
+		colMeetingsAttended,
+		colTotalServiceHoursRequired,
+		colTotalOpenHoursRequired,
+		colTotalOpenHoursRemaining,
+		colTotalServiceHoursRemaining,
+		colGoodStanding2027,
+		colRolloverEligible2027,
 	}
 
+	var missing []string
+	for _, name := range required {
+		if _, ok := indexes[name]; !ok {
+			missing = append(missing, fmt.Sprintf("%q", name))
+		}
+	}
+
+	if len(missing) > 0 {
+		return nil, fmt.Errorf(
+			"requirements CSV is missing columns: %s",
+			strings.Join(missing, ", "),
+		)
+	}
+
+	var rows []requirementsImportRow
+	var problems []string
+
+	for rowNumber := 2; ; rowNumber++ {
+		record, err := reader.Read()
+
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("requirements CSV row %d: %w", rowNumber, err)
+		}
+		if isEmptyCSVRow(record) {
+			continue
+		}
+
+		get := func(column string) string {
+			index, ok := indexes[column]
+			if !ok || index >= len(record) {
+				return ""
+			}
+			return strings.TrimSpace(record[index])
+		}
+
+		parse := func(column string) (*int, error) {
+			return parseNullableInt(
+				get(column),
+				fmt.Sprintf("requirements CSV row %d: %s", rowNumber, column),
+			)
+		}
+
+		parseFloat := func(column string) (*float64, error) {
+			return parseNullableFloat(
+				get(column),
+				fmt.Sprintf("requirements CSV row %d: %s", rowNumber, column),
+			)
+		}
+
+		meetingsRequired, err := parse(colMeetingsRequired)
+		if err != nil {
+			problems = append(problems, err.Error())
+			continue
+		}
+
+		meetingsAttended, err := parse(colMeetingsAttended)
+		if err != nil {
+			problems = append(problems, err.Error())
+			continue
+		}
+
+		serviceRequired, err := parseFloat(colTotalServiceHoursRequired)
+		if err != nil {
+			problems = append(problems, err.Error())
+			continue
+		}
+
+		openRequired, err := parseFloat(colTotalOpenHoursRequired)
+		if err != nil {
+			problems = append(problems, err.Error())
+			continue
+		}
+
+		openRemaining, err := parseFloat(colTotalOpenHoursRemaining)
+		if err != nil {
+			problems = append(problems, err.Error())
+			continue
+		}
+
+		serviceRemaining, err := parseFloat(colTotalServiceHoursRemaining)
+		if err != nil {
+			problems = append(problems, err.Error())
+			continue
+		}
+
+		rows = append(rows, requirementsImportRow{
+			RowNumber: rowNumber,
+
+			FirstName:       get(colFirstName),
+			LastNameInitial: get(colLastNameInitial),
+			JoinDate:        get(colJoinDate),
+
+			MeetingsRequired:  meetingsRequired,
+			MeetingsCompleted: meetingsAttended,
+
+			ServiceHoursRequired: serviceRequired,
+
+			OpenHoursRequired:  openRequired,
+			OpenHoursRemaining: openRemaining,
+
+			ServiceHoursRemaining: serviceRemaining,
+
+			GoodStanding:     get(colGoodStanding2027),
+			RolloverEligible: get(colRolloverEligible2027),
+		})
+	}
+
+	if len(problems) > 0 {
+		return nil, errors.New("\n  " + strings.Join(problems, "\n  "))
+	}
+
+	return rows, nil
+}
+
+func executeImport(
+	app core.App,
+	rows []memberImportRow,
+	dryRun bool,
+) error {
 	plan, err := buildImportPlan(app, rows)
 	if err != nil {
 		return fmt.Errorf("could not prepare import: %w", err)
@@ -267,6 +480,254 @@ func importMembersFromCSV(app core.App, csvPath string, dryRun bool) error {
 	return nil
 }
 
+func normalizedName(value string) string {
+	return strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(value)), " "))
+}
+
+func lastNameInitial(value string) string {
+	value = strings.TrimSpace(value)
+	runes := []rune(value)
+	if len(runes) == 0 {
+		return ""
+	}
+	return strings.ToUpper(string(runes[0]))
+}
+
+func normalizedJoinDate(value string) (string, error) {
+	timestamp, err := parseCSVDate(value, "Join Date")
+	if err != nil {
+		return "", err
+	}
+	if timestamp == 0 {
+		return "", fmt.Errorf("Join Date is blank")
+	}
+
+	return time.Unix(timestamp, 0).UTC().Format("2006-01-02"), nil
+}
+
+func memberMatchKey(firstName, lastName, joinDate string) (string, error) {
+	normalizedDate, err := normalizedJoinDate(joinDate)
+	if err != nil {
+		return "", err
+	}
+
+	initial := lastNameInitial(lastName)
+	if initial == "" {
+		return "", fmt.Errorf("last name is blank")
+	}
+
+	return normalizedName(firstName) + "|" + initial + "|" + normalizedDate, nil
+}
+
+func mergeRequirementsRows(
+	members []memberImportRow,
+	requirements []requirementsImportRow,
+) ([]memberImportRow, error) {
+	type memberCandidate struct {
+		index       int
+		dateKey     string
+		hasJoinDate bool
+	}
+
+	// Index members by first name + last-name initial.
+	byName := make(map[string][]memberCandidate)
+
+	for i, member := range members {
+		nameKey := normalizedName(member.FirstName) +
+			"|" + lastNameInitial(member.LastName)
+
+		candidate := memberCandidate{
+			index: i,
+		}
+
+		if strings.TrimSpace(member.JoinDate) != "" {
+			dateKey, err := memberMatchKey(
+				member.FirstName,
+				member.LastName,
+				member.JoinDate,
+			)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"member CSV row %d: %w",
+					member.RowNumber,
+					err,
+				)
+			}
+
+			candidate.dateKey = dateKey
+			candidate.hasJoinDate = true
+		}
+
+		byName[nameKey] = append(byName[nameKey], candidate)
+	}
+
+	matched := make(map[int]bool)
+	var problems []string
+
+	for _, req := range requirements {
+		nameKey := normalizedName(req.FirstName) +
+			"|" + lastNameInitial(req.LastNameInitial)
+
+		candidates := byName[nameKey]
+
+		if len(candidates) == 0 {
+			problems = append(problems, fmt.Sprintf(
+				"requirements CSV row %d: no matching member for %q, %q",
+				req.RowNumber,
+				req.FirstName,
+				req.LastNameInitial,
+			))
+			continue
+		}
+
+		var matches []int
+
+		// If both records have join dates, prioritize an exact match.
+		if strings.TrimSpace(req.JoinDate) != "" {
+			reqDateKey, err := memberMatchKey(
+				req.FirstName,
+				req.LastNameInitial,
+				req.JoinDate,
+			)
+			if err != nil {
+				problems = append(problems, fmt.Sprintf(
+					"requirements CSV row %d: %v",
+					req.RowNumber,
+					err,
+				))
+				continue
+			}
+
+			for _, candidate := range candidates {
+				if candidate.hasJoinDate &&
+					candidate.dateKey == reqDateKey {
+					matches = append(matches, candidate.index)
+				}
+			}
+
+			// Exact date match takes priority.
+			if len(matches) == 0 {
+				// Fall back only to members missing a join date.
+				// Never match against a conflicting join date.
+				for _, candidate := range candidates {
+					if !candidate.hasJoinDate {
+						matches = append(matches, candidate.index)
+					}
+				}
+			}
+		} else {
+			// Requirements row has no join date.
+			// Use name + initial only, but require a unique match.
+			for _, candidate := range candidates {
+				matches = append(matches, candidate.index)
+			}
+		}
+
+		if len(matches) == 0 {
+			problems = append(problems, fmt.Sprintf(
+				"requirements CSV row %d: no matching member for %q, %q, join date %q",
+				req.RowNumber,
+				req.FirstName,
+				req.LastNameInitial,
+				req.JoinDate,
+			))
+			continue
+		}
+
+		if len(matches) > 1 {
+			problems = append(problems, fmt.Sprintf(
+				"requirements CSV row %d: ambiguous match for %q, %q, join date %q (%d matches)",
+				req.RowNumber,
+				req.FirstName,
+				req.LastNameInitial,
+				req.JoinDate,
+				len(matches),
+			))
+			continue
+		}
+
+		index := matches[0]
+
+		if matched[index] {
+			problems = append(problems, fmt.Sprintf(
+				"requirements CSV row %d: duplicate requirements entry for %q",
+				req.RowNumber,
+				req.FirstName,
+			))
+			continue
+		}
+
+		matched[index] = true
+
+		member := &members[index]
+
+		member.MeetingsRequired = req.MeetingsRequired
+		member.MeetingsCompleted = req.MeetingsCompleted
+		member.ServiceHoursRequired = req.ServiceHoursRequired
+		member.OpenHoursRequired = req.OpenHoursRequired
+
+		// Completed = required - remaining.
+		if req.OpenHoursRequired != nil &&
+			req.OpenHoursRemaining != nil {
+			completed := *req.OpenHoursRequired - *req.OpenHoursRemaining
+			member.OpenHoursCompleted = &completed
+		}
+
+		if req.ServiceHoursRequired != nil &&
+			req.ServiceHoursRemaining != nil {
+			required := *req.ServiceHoursRequired
+			remaining := *req.ServiceHoursRemaining
+			completed := required - remaining
+
+			member.WorkHoursRequired = &required
+			member.WorkHoursCompleted = &completed
+		}
+
+		member.GoodStanding = strings.TrimSpace(req.GoodStanding)
+		member.RolloverEligible = strings.TrimSpace(req.RolloverEligible)
+	}
+
+	if len(problems) > 0 {
+		return nil, errors.New("\n  " + strings.Join(problems, "\n  "))
+	}
+
+	return members, nil
+}
+
+func readAndMergeImportCSVs(
+	membersReader io.Reader,
+	requirementsReader io.Reader,
+) ([]memberImportRow, error) {
+	// Read the primary member CSV.
+	members, err := readMemberCSV(membersReader)
+	if err != nil {
+		return nil, fmt.Errorf("read members CSV: %w", err)
+	}
+
+	// Read the requirements CSV.
+	requirements, err := readRequirementsCSV(requirementsReader)
+	if err != nil {
+		return nil, fmt.Errorf("read requirements CSV: %w", err)
+	}
+
+	// Match requirements to members and merge the data.
+	rows, err := mergeRequirementsRows(members, requirements)
+	if err != nil {
+		return nil, fmt.Errorf("merge requirements CSV: %w", err)
+	}
+
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("no member rows found")
+	}
+
+	// Validate the fully merged records.
+	if err := validateImportRows(rows); err != nil {
+		return nil, err
+	}
+
+	return rows, nil
+}
+
 // importMembersCSV handles a multipart/form-data CSV upload.
 //
 // Expected form fields:
@@ -293,34 +754,39 @@ func importMembersCSV(app core.App) func(e *core.RequestEvent) error {
 
 		dryRun := parseBoolQueryOrForm(e.Request, "dry_run")
 
-		file, _, err := e.Request.FormFile("file")
+		// Read the primary member CSV.
+		membersFile, _, err := e.Request.FormFile("members_file")
 		if err != nil {
 			return e.BadRequestError(
-				"Missing CSV file. Upload it using the form field 'file'.",
+				"Missing members CSV. Upload it using the form field 'members_file'.",
 				err,
 			)
 		}
-		defer file.Close()
+		defer membersFile.Close()
 
-		rows, err := readMemberCSV(file)
+		// Read the requirements CSV.
+		requirementsFile, _, err := e.Request.FormFile("requirements_file")
 		if err != nil {
-			return e.BadRequestError("Could not read CSV.", err)
+			return e.BadRequestError(
+				"Missing requirements CSV. Upload it using the form field 'requirements_file'.",
+				err,
+			)
+		}
+		defer requirementsFile.Close()
+
+		// Parse, match, merge, and validate both CSVs before any writes.
+		rows, err := readAndMergeImportCSVs(
+			membersFile,
+			requirementsFile,
+		)
+		if err != nil {
+			return e.BadRequestError(
+				"CSV import validation failed.",
+				err,
+			)
 		}
 
-		if len(rows) == 0 {
-			return e.BadRequestError("CSV contains no member rows.", nil)
-		}
-
-		summary := importSummary{
-			RowsRead: len(rows),
-		}
-
-		// Validate everything before making any writes.
-		if err := validateImportRows(rows); err != nil {
-			return e.BadRequestError("CSV validation failed.", err)
-		}
-
-		// Resolve all existing records and prepare the import plan.
+		// Prepare the import plan.
 		plan, err := buildImportPlan(app, rows)
 		if err != nil {
 			return e.InternalServerError(
@@ -329,13 +795,11 @@ func importMembersCSV(app core.App) func(e *core.RequestEvent) error {
 			)
 		}
 
-		summary = plan.summary
-
 		if dryRun {
 			return e.JSON(http.StatusOK, map[string]any{
 				"dry_run":           true,
 				"meetings_required": meetingsRequired,
-				"summary":           summary,
+				"summary":           plan.summary,
 				"values":            summarizeValues(rows),
 				"changes":           plan.changes,
 			})
@@ -351,7 +815,7 @@ func importMembersCSV(app core.App) func(e *core.RequestEvent) error {
 		return e.JSON(http.StatusOK, map[string]any{
 			"dry_run":           false,
 			"meetings_required": meetingsRequired,
-			"summary":           summary,
+			"summary":           plan.summary,
 		})
 	}
 }
@@ -526,12 +990,7 @@ func readMemberCSV(r io.Reader) ([]memberImportRow, error) {
 			continue
 		}
 
-		memberState := strings.ToUpper(get(colMemberState))
-		if memberState == "" {
-			memberState = defaultMemberState
-		}
-
-		workHoursRequired, err := parseNullableInt(
+		workHoursRequired, err := parseNullableFloat(
 			get(colWorkHoursRequired),
 			fmt.Sprintf("row %d: %s", rowNumber, colWorkHoursRequired),
 		)
@@ -540,7 +999,7 @@ func readMemberCSV(r io.Reader) ([]memberImportRow, error) {
 			continue
 		}
 
-		workHoursCompleted, err := parseNullableInt(
+		workHoursCompleted, err := parseNullableFloat(
 			get(colWorkHoursCompleted),
 			fmt.Sprintf("row %d: %s", rowNumber, colWorkHoursCompleted),
 		)
@@ -549,7 +1008,7 @@ func readMemberCSV(r io.Reader) ([]memberImportRow, error) {
 			continue
 		}
 
-		openHoursRequired, err := parseNullableInt(
+		openHoursRequired, err := parseNullableFloat(
 			get(colOpenHoursRequired),
 			fmt.Sprintf("row %d: %s", rowNumber, colOpenHoursRequired),
 		)
@@ -558,13 +1017,18 @@ func readMemberCSV(r io.Reader) ([]memberImportRow, error) {
 			continue
 		}
 
-		openHoursCompleted, err := parseNullableInt(
+		openHoursCompleted, err := parseNullableFloat(
 			get(colOpenHoursCompleted),
 			fmt.Sprintf("row %d: %s", rowNumber, colOpenHoursCompleted),
 		)
 		if err != nil {
 			parseErrs = append(parseErrs, err.Error())
 			continue
+		}
+
+		memberState := strings.ToUpper(strings.TrimSpace(get(colMemberState)))
+		if memberState == "" {
+			memberState = defaultMemberState
 		}
 
 		rows = append(rows, memberImportRow{
@@ -576,7 +1040,9 @@ func readMemberCSV(r io.Reader) ([]memberImportRow, error) {
 			Email:     strings.ToLower(get(colEmail)),
 			Status:    normalizeStatus(get(colStatus)),
 
-			MeetingExemption: meetingExemption,
+			MeetingExemption:    meetingExemption,
+			MemberState:         memberState,
+			MemberStateProvided: strings.TrimSpace(get(colMemberState)) != "",
 
 			DuesPaidAt: duesPaidAt,
 			AmountPaid: amountPaid,
@@ -599,8 +1065,7 @@ func readMemberCSV(r io.Reader) ([]memberImportRow, error) {
 			JoinDate: get(colJoinDate),
 			JoinYear: get(colJoinYear),
 
-			MemberType:  strings.ToUpper(get(colMemberType)),
-			MemberState: memberState,
+			MemberType: strings.ToUpper(get(colMemberType)),
 
 			BoxWaitingList:   boxWaitingList,
 			WaitlistPosition: get(colBoxWaitingListNumber),
@@ -862,52 +1327,32 @@ func parseNullableInt(
 
 func sortWaitlistRows(rows []memberImportRow) {
 	sort.SliceStable(rows, func(i, j int) bool {
-		a, b := rows[i], rows[j]
+		left, _ := strconv.Atoi(strings.TrimSpace(rows[i].WaitlistPosition))
+		right, _ := strconv.Atoi(strings.TrimSpace(rows[j].WaitlistPosition))
 
-		aPosition, aErr := strconv.Atoi(
-			strings.TrimSpace(a.WaitlistPosition),
-		)
-		bPosition, bErr := strconv.Atoi(
-			strings.TrimSpace(b.WaitlistPosition),
-		)
-
-		aHasPosition := aErr == nil && aPosition > 0
-		bHasPosition := bErr == nil && bPosition > 0
-
-		if aHasPosition != bHasPosition {
-			return aHasPosition
+		if left != right {
+			return left < right
 		}
 
-		if aHasPosition && aPosition != bPosition {
-			return aPosition < bPosition
+		// Tie-break using waitlist join date.
+		if rows[i].WaitlistJoinDate != rows[j].WaitlistJoinDate {
+			if rows[i].WaitlistJoinDate == 0 {
+				return false
+			}
+			if rows[j].WaitlistJoinDate == 0 {
+				return true
+			}
+			return rows[i].WaitlistJoinDate < rows[j].WaitlistJoinDate
 		}
 
-		aHasDate := a.WaitlistJoinDate > 0
-		bHasDate := b.WaitlistJoinDate > 0
-
-		if aHasDate != bHasDate {
-			return aHasDate
+		// Final deterministic tie-breakers.
+		if rows[i].LastName != rows[j].LastName {
+			return strings.ToLower(rows[i].LastName) <
+				strings.ToLower(rows[j].LastName)
 		}
 
-		if aHasDate && a.WaitlistJoinDate != b.WaitlistJoinDate {
-			return a.WaitlistJoinDate < b.WaitlistJoinDate
-		}
-
-		aLast := strings.ToLower(strings.TrimSpace(a.LastName))
-		bLast := strings.ToLower(strings.TrimSpace(b.LastName))
-
-		if aLast != bLast {
-			return aLast < bLast
-		}
-
-		aFirst := strings.ToLower(strings.TrimSpace(a.FirstName))
-		bFirst := strings.ToLower(strings.TrimSpace(b.FirstName))
-
-		if aFirst != bFirst {
-			return aFirst < bFirst
-		}
-
-		return strings.ToLower(a.Email) < strings.ToLower(b.Email)
+		return strings.ToLower(rows[i].FirstName) <
+			strings.ToLower(rows[j].FirstName)
 	})
 }
 
@@ -1012,8 +1457,23 @@ func buildImportPlan(
 				)
 			}
 
-			if snapshot == nil {
-				snapshot = snapshotByMemberID[member.Id]
+			if member != nil {
+				snapshotID := member.GetString("member_snapshot_id")
+
+				if snapshotID != "" {
+					snapshot, err = app.FindRecordById(
+						"member_snapshot",
+						snapshotID,
+					)
+					if err != nil {
+						return nil, fmt.Errorf(
+							"member %s references snapshot %s: %w",
+							member.Id,
+							snapshotID,
+							err,
+						)
+					}
+				}
 			}
 		}
 
@@ -1147,8 +1607,23 @@ func buildSnapshotPayload(row memberImportRow) map[string]any {
 	// MemberRole enum. Everyone else gets the same "no role" value that
 	// registration uses.
 	role := "ROLE_INVALID"
-	if row.Status == statusBoard {
-		role = "BOARD"
+
+	requirements := map[string]any{
+		"meetingsCompleted":    0,
+		"meetingsRequired":     meetingsRequired,
+		"serviceHoursRequired": 0,
+	}
+
+	if row.MeetingsCompleted != nil {
+		requirements["meetingsCompleted"] = *row.MeetingsCompleted
+	}
+
+	if row.MeetingsRequired != nil {
+		requirements["meetingsRequired"] = *row.MeetingsRequired
+	}
+
+	if row.ServiceHoursRequired != nil {
+		requirements["serviceHoursRequired"] = *row.ServiceHoursRequired
 	}
 
 	memberInfo := map[string]any{
@@ -1156,12 +1631,11 @@ func buildSnapshotPayload(row memberImportRow) map[string]any {
 		"memberState": row.MemberState,
 		"role":        role,
 
-		"orientationDate": row.OrientationDate,
+		"orientationDate":  row.OrientationDate,
+		"goodStanding":     row.GoodStanding,
+		"rolloverEligible": row.RolloverEligible,
 
-		"requirements": map[string]any{
-			"meetingsCompleted": 0,
-			"meetingsRequired":  meetingsRequired,
-		},
+		"requirements": requirements,
 
 		"dues": map[string]any{
 			"amountPaid":  row.AmountPaid,
@@ -1258,6 +1732,20 @@ func executeImportPlan(
 			}
 
 			person.member = member
+
+			if err := upsertImportedWorkFormula(
+				txApp,
+				member.Id,
+				person.row,
+			); err != nil {
+				return fmt.Errorf(
+					"row %d (%s): work formula: %w",
+					person.row.RowNumber,
+					person.row.Email,
+					err,
+				)
+			}
+
 			memberIDsByEmail[person.row.Email] = member.Id
 
 			snapshot, err := upsertSnapshot(
@@ -1321,143 +1809,147 @@ func executeImportPlan(
 			}
 		}
 
-		// Waitlisted members with no box of their own. Their entry is parked
-		// on the box with the shortest waitlist, the same way a member
-		// joining the waitlist in the app is placed.
-		//
-		// Note: this appends. Run the import once, on a fresh load, rather
-		// than repeatedly.
-		// Collect every imported waitlisted member. Box Number does not make
-		// them an assigned member when Box Waiting List is true.
-		var waitlistedRows []memberImportRow
+		// Collect all waitlisted members.
+		var waitlistedPeople []*personImportPlan
 
-		for _, person := range plan.people {
-			if person.row.BoxWaitingList &&
-				person.row.BoxNumber == "" {
-				waitlistedRows = append(waitlistedRows, person.row)
+		for i := range plan.people {
+			person := &plan.people[i]
+
+			if isOnBoxWaitlist(person.row) {
+				waitlistedPeople = append(waitlistedPeople, person)
 			}
+		}
+
+		// Sort a copy of their rows using the existing helper.
+		waitlistedRows := make([]memberImportRow, len(waitlistedPeople))
+
+		for i, person := range waitlistedPeople {
+			waitlistedRows[i] = person.row
 		}
 
 		sortWaitlistRows(waitlistedRows)
 
-		if len(waitlistedRows) > 0 {
-			boxes := []*core.Record{}
-			if err := txApp.RecordQuery("boxes").All(&boxes); err != nil {
-				return fmt.Errorf("load boxes for waitlist: %w", err)
-			}
+		// Map sorted rows back to their personImportPlan records.
+		// Use RowNumber rather than email to avoid duplicate-email collisions.
+		peopleByRowNumber := make(map[int]*personImportPlan, len(waitlistedPeople))
 
-			if len(boxes) == 0 {
+		for _, person := range waitlistedPeople {
+			peopleByRowNumber[person.row.RowNumber] = person
+		}
+
+		sortedWaitlistedPeople := make([]*personImportPlan, 0, len(waitlistedRows))
+
+		for _, row := range waitlistedRows {
+			if person, ok := peopleByRowNumber[row.RowNumber]; ok {
+				sortedWaitlistedPeople = append(sortedWaitlistedPeople, person)
+			}
+		}
+
+		waitlistedPeople = sortedWaitlistedPeople
+
+		// Remove existing waitlist entries belonging to imported members.
+		// This makes rerunning the import safe.
+		importedWaitlistIDs := make(map[string]bool)
+
+		for _, person := range waitlistedPeople {
+			if person.member == nil {
 				return fmt.Errorf(
-					"%d members are waitlisted but no boxes exist yet; add a box first",
-					len(waitlistedRows),
+					"waitlisted member %s was not created",
+					person.row.Email,
 				)
 			}
 
-			// Resolve imported waitlisted member IDs.
-			importedWaitlistIDs := make(map[string]bool)
+			importedWaitlistIDs[person.member.Id] = true
+		}
 
-			for _, person := range plan.people {
-				if person.row.BoxWaitingList &&
-					person.row.BoxNumber == "" &&
-					person.member != nil {
-					importedWaitlistIDs[person.member.Id] = true
-				}
-			}
+		waitlistRecords := []*core.Record{}
 
-			// Remove these members from existing queues before adding them again,
-			// so re-running the import doesn't duplicate their entries.
-			for _, box := range boxes {
-				var entries []WaitlistEntry
-				if err := box.UnmarshalJSONField("waitlist", &entries); err != nil {
+		if err := txApp.RecordQuery("box_waitlist").
+			OrderBy("queue").
+			All(&waitlistRecords); err != nil {
+			return fmt.Errorf("load box waitlist: %w", err)
+		}
+
+		for _, entry := range waitlistRecords {
+			if importedWaitlistIDs[entry.GetString("member_id")] {
+				if err := txApp.Delete(entry); err != nil {
 					return fmt.Errorf(
-						"box %s: read waitlist: %w",
-						box.Id,
-						err,
-					)
-				}
-
-				kept := make([]WaitlistEntry, 0, len(entries))
-				for _, entry := range entries {
-					if !importedWaitlistIDs[entry.MemberID] {
-						kept = append(kept, entry)
-					}
-				}
-
-				box.Set("waitlist", kept)
-				if err := txApp.Save(box); err != nil {
-					return fmt.Errorf(
-						"box %s: update waitlist: %w",
-						box.Id,
+						"remove existing waitlist entry %s: %w",
+						entry.Id,
 						err,
 					)
 				}
 			}
+		}
 
-			// Add the imported rows in the chosen order, putting each person
-			// on the currently shortest queue.
-			for _, row := range waitlistedRows {
-				var person *personImportPlan
-				for i := range plan.people {
-					if plan.people[i].row.Email == row.Email {
-						person = &plan.people[i]
-						break
-					}
+		// Find the current highest queue position.
+		maxQueue := 0
+
+		for _, entry := range waitlistRecords {
+			if importedWaitlistIDs[entry.GetString("member_id")] {
+				continue
+			}
+
+			queue := entry.GetInt("queue")
+			if queue > maxQueue {
+				maxQueue = queue
+			}
+		}
+
+		// Append imported members in their CSV waitlist order.
+		collection, err := txApp.FindCollectionByNameOrId("box_waitlist")
+		if err != nil {
+			return fmt.Errorf("find box_waitlist collection: %w", err)
+		}
+
+		for _, person := range waitlistedPeople {
+			row := person.row
+
+			maxQueue++
+
+			wants := "HALF"
+			if strings.TrimSpace(row.BoxNumber) != "" {
+				wants = "WHOLE"
+			}
+
+			joinDate := row.WaitlistJoinDate
+
+			if joinDate == 0 {
+				joinDate, err = parseCSVDate(row.JoinDate, "Join Date")
+				if err != nil || joinDate == 0 {
+
+					// fall back to today
+					joinDate = time.Now().Unix()
+
+					// return fmt.Errorf(
+					// 	"row %d: missing both Waitlist Join Date and Join Date",
+					// 	row.RowNumber,
+					// )
 				}
+			}
 
-				if person == nil || person.member == nil {
-					return fmt.Errorf(
-						"waitlisted member %s was not created",
-						row.Email,
-					)
-				}
+			entry := core.NewRecord(collection)
+			entry.Set("member_id", person.member.Id)
+			entry.Set("queue", maxQueue)
+			entry.Set("join_date", joinDate)
+			entry.Set("wants", wants)
+			entry.Set("notes", row.Notes)
 
-				target := boxes[0]
-				for _, box := range boxes[1:] {
-					if waitlistLength(box) < waitlistLength(target) {
-						target = box
-					}
-				}
-
-				var entries []WaitlistEntry
-				if err := target.UnmarshalJSONField("waitlist", &entries); err != nil {
-					return fmt.Errorf(
-						"box %s: read waitlist: %w",
-						target.Id,
-						err,
-					)
-				}
-
-				// Position is assigned from the resulting order. The source
-				// number is used to sort people, not retained as a potentially
-				// duplicate or missing queue position.
-				maxPosition := 0
-				for _, entry := range entries {
-					if entry.Position > maxPosition {
-						maxPosition = entry.Position
-					}
-				}
-
-				entries = append(entries, WaitlistEntry{
-					MemberID: person.member.Id,
-					JoinDate: row.WaitlistJoinDate,
-					Position: maxPosition + 1,
-				})
-
-				sortWaitlist(entries)
-				target.Set("waitlist", entries)
-
-				if err := txApp.Save(target); err != nil {
-					return fmt.Errorf(
-						"%s: could not add to the waitlist: %w",
-						row.Email,
-						err,
-					)
-				}
+			if err := txApp.Save(entry); err != nil {
+				return fmt.Errorf(
+					"%s: could not create waitlist entry: %w",
+					row.Email,
+					err,
+				)
 			}
 		}
 
 		return nil
 	})
+}
+
+func isOnBoxWaitlist(row memberImportRow) bool {
+	return strings.TrimSpace(row.WaitlistPosition) != ""
 }
 
 func waitlistLength(box *core.Record) int {
@@ -1610,8 +2102,30 @@ func upsertSnapshot(
 	app core.App,
 	person *personImportPlan,
 ) (*core.Record, error) {
-	// Existing snapshot.
+	newInfo, ok := person.snapshotPayload["member_info"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("invalid member_info snapshot payload")
+	}
+
+	// EXISTING snapshot: preserve fields that the CSV does not authoritatively provide.
 	if person.snapshot != nil {
+		var existingInfo map[string]any
+
+		if err := person.snapshot.UnmarshalJSONField("member_info", &existingInfo); err == nil {
+			// Preserve the existing role. The CSV's "Board" status does
+			// not identify a specific application role.
+			if existingRole, ok := existingInfo["role"].(string); ok && existingRole != "" {
+				newInfo["role"] = existingRole
+			}
+
+			// Preserve Member State when the CSV did not provide one.
+			if !person.row.MemberStateProvided {
+				if existingState, ok := existingInfo["memberState"].(string); ok && existingState != "" {
+					newInfo["memberState"] = existingState
+				}
+			}
+		}
+
 		for key, value := range person.snapshotPayload {
 			person.snapshot.Set(key, value)
 		}
@@ -1624,11 +2138,7 @@ func upsertSnapshot(
 			return nil, err
 		}
 
-		// Keep the member relation synchronized.
-		person.member.Set(
-			"member_snapshot_id",
-			person.snapshot.Id,
-		)
+		person.member.Set("member_snapshot_id", person.snapshot.Id)
 
 		if err := app.Save(person.member); err != nil {
 			return nil, err
@@ -1637,10 +2147,8 @@ func upsertSnapshot(
 		return person.snapshot, nil
 	}
 
-	// New snapshot.
-	snapshotCollection, err := app.FindCollectionByNameOrId(
-		"member_snapshot",
-	)
+	// NEW snapshot: there is no existing state or role to preserve.
+	snapshotCollection, err := app.FindCollectionByNameOrId("member_snapshot")
 	if err != nil {
 		return nil, err
 	}
@@ -1671,6 +2179,66 @@ func upsertSnapshot(
 	return snapshot, nil
 }
 
+func upsertImportedWorkFormula(
+	app core.App,
+	memberID string,
+	row memberImportRow,
+) error {
+	if row.WorkHoursRequired == nil &&
+		row.WorkHoursCompleted == nil &&
+		row.OpenHoursRequired == nil &&
+		row.OpenHoursCompleted == nil {
+		return nil
+	}
+
+	formulas, err := app.FindRecordsByFilter(
+		"work_formula",
+		"member_id = {:id}",
+		"-created_at",
+		1,
+		0,
+		dbx.Params{"id": memberID},
+	)
+	if err != nil {
+		return err
+	}
+
+	var formula *core.Record
+
+	if len(formulas) > 0 {
+		formula = formulas[0]
+	} else {
+		collection, err := app.FindCollectionByNameOrId("work_formula")
+		if err != nil {
+			return err
+		}
+
+		formula = core.NewRecord(collection)
+		formula.Set("member_id", memberID)
+		formula.Set("work_hours_required", 0)
+		formula.Set("work_hours_completed", 0)
+		formula.Set("open_hours_required", 0)
+		formula.Set("open_hours_completed", 0)
+	}
+
+	if row.WorkHoursRequired != nil {
+		formula.Set("work_hours_required", *row.WorkHoursRequired)
+	}
+	if row.WorkHoursCompleted != nil {
+		formula.Set("work_hours_completed", *row.WorkHoursCompleted)
+	}
+	if row.OpenHoursRequired != nil {
+		formula.Set("open_hours_required", *row.OpenHoursRequired)
+	}
+	if row.OpenHoursCompleted != nil {
+		formula.Set("open_hours_completed", *row.OpenHoursCompleted)
+	}
+
+	formula.Set("modified_at", time.Now())
+
+	return app.Save(formula)
+}
+
 func upsertBox(
 	app core.App,
 	existing *core.Record,
@@ -1697,6 +2265,12 @@ func upsertBox(
 
 	box.Set("box_number", parseBoxNumber(boxNumber))
 	box.Set("box_members", memberIDs)
+
+	if parseBoxNumber(boxNumber) != 15 {
+		box.Set("capacity", 2)
+	} else {
+		box.Set("capacity", 1)
+	}
 
 	// An empty imported waitlist means "no waitlist data to replace",
 	// not "clear the existing waitlist".
