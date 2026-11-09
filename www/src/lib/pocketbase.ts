@@ -447,7 +447,7 @@ export async function registerFarmMember(input: RegisterFarmMemberInput) {
     },
     member_info: {
       orientationDate: orientationDateInSeconds,
-      memberState: "PENDING",
+      memberState: "ACTIVE",
       role: "ROLE_INVALID",
       memberType: "GENERAL",
       dues: {
@@ -1413,6 +1413,87 @@ export async function deleteBox(boxId: string) {
   await pb.collection("boxes").delete(boxId);
 
   return { movedWaitlist: 0 };
+}
+
+export async function deleteMember(
+  memberId: string,
+  { deleteUser = false }: { deleteUser?: boolean } = {},
+) {
+  pb.autoCancellation(false);
+
+  if (!isAdmin()) throw new Error("Admin access is required.");
+  if (!memberId) throw new Error("Member ID is required.");
+
+  // Fresh reads, not React state
+  const member = await pb.collection("member").getOne(memberId);
+  const userId: string = member.user_id;
+
+  if (userId === currentUser()?.id) {
+    throw new Error("You can't delete your own member record.");
+  }
+
+  // 1. Take them out of any box (and reopen a whole box they emptied)
+  const boxes = await pb.collection("boxes").getFullList({
+    filter: pb.filter("box_members ~ {:id}", { id: memberId }),
+  });
+  for (const box of boxes) {
+    const remaining = (box.box_members ?? []).filter(
+      (id: string) => id !== memberId,
+    );
+    await pb.collection("boxes").update(box.id, {
+      box_members: remaining,
+      ...(remaining.length === 0 ? { capacity: 2 } : {}),
+      box_state: remaining.length === 0 ? "UNASSIGNED" : "ASSIGNED",
+      notes: "Member deleted.",
+      updated_by: currentUser()?.name || currentUser()?.email || "admin",
+    });
+  }
+
+  // 2. Waitlist entry (the cascade would also do this; explicit is clearer)
+  const waiting = await pb.collection("box_waitlist").getFullList({
+    filter: pb.filter("member_id = {:id}", { id: memberId }),
+  });
+  for (const entry of waiting) {
+    await pb.collection("box_waitlist").delete(entry.id);
+  }
+
+  // 3. Hours
+  const formulas = await pb.collection("work_formula").getFullList({
+    filter: pb.filter("member_id = {:id}", { id: memberId }),
+  });
+  for (const formula of formulas) {
+    await pb.collection("work_formula").delete(formula.id);
+  }
+
+  // 4. Requests (they point at snapshots, so they go first)
+  const requests = await pb.collection("requirement_update_request").getFullList({
+    filter: pb.filter("member_id = {:id}", { id: memberId }),
+  });
+  for (const request of requests) {
+    await pb.collection("requirement_update_request").delete(request.id);
+  }
+
+  // 5. The member record, which points at its current snapshot
+  await pb.collection("member").delete(memberId);
+
+  // 6. Snapshots: every version, including pending ones
+  const snapshots = await pb.collection("member_snapshot").getFullList({
+    filter: pb.filter("member_id = {:id}", { id: memberId }),
+  });
+  for (const snapshot of snapshots) {
+    await pb.collection("member_snapshot").delete(snapshot.id);
+  }
+
+  // 7. Optionally the login account
+  if (deleteUser) {
+    await pb.collection("users").delete(userId);
+  }
+
+  return {
+    boxes: boxes.length,
+    snapshots: snapshots.length,
+    requests: requests.length,
+  };
 }
 
 

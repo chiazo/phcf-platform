@@ -15,6 +15,7 @@ import {
   getMemberSnapshot,
   getMemberWorkFormula,
   isAdmin,
+  deleteMember,
   newFormUpdate,
   updateMemberSnapshotDirect,
   updatePronouns,
@@ -181,9 +182,9 @@ export default function MemberSnapshotPage() {
   const [baseline, setBaseline] = useState<any>(null);
   const [editMode, setEditMode] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
-  const [workFormula, setWorkFormula] = useState<Record<string, any> | null>(
-    null,
-  );
+
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
   const { interests: volunteerInterestOptions, loading: interestsLoading } =
     useVolunteerInterests();
   const {
@@ -192,6 +193,32 @@ export default function MemberSnapshotPage() {
     reset,
     formState: { errors },
   } = useForm<IFormInput>();
+
+  async function handleDeleteMember(memberId: string, name: string) {
+    if (!isAdmin()) return;
+
+    if (
+      !window.confirm(
+        `Permanently delete ${name}? This removes their box, waitlist spot, hours, requests and all profile history. It can't be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    setActionError(null);
+    setActionNotice(null);
+
+    try {
+      await deleteMember(memberId);
+      navigate("/");
+      setActionNotice(`${name} was deleted.`);
+    } catch (err) {
+      console.error("delete member error:", err);
+      setActionError(
+        err instanceof Error ? err.message : "Could not delete member.",
+      );
+    }
+  }
 
   async function refreshMember() {
     if (!id) return;
@@ -219,14 +246,6 @@ export default function MemberSnapshotPage() {
         }
       }
 
-      getMemberWorkFormula(raw)
-        .then((result) => {
-          setWorkFormula(result);
-        })
-        .catch((err) => {
-          console.error("issues with fetching work formula:", err);
-        });
-
       setIsPendingSnapshot((raw as any).notes === PENDING_NOTE);
       setMember(new MemberSnapshot(raw as any));
     } catch (err) {
@@ -237,7 +256,7 @@ export default function MemberSnapshotPage() {
 
   useEffect(() => {
     refreshMember();
-  }, [id]);
+  }, [id, actionError, actionNotice]);
 
   // Load the last approved snapshot to diff against when viewing a pending one
   useEffect(() => {
@@ -273,7 +292,7 @@ export default function MemberSnapshotPage() {
 
     const { memberRole, memberState, dues, requirements } =
       memberInfo;
-    
+
     const memberType = normalizeMemberType(memberInfo.memberType);
 
     const {
@@ -345,7 +364,7 @@ export default function MemberSnapshotPage() {
     memberInfo.orientationDate && memberInfo.orientationDate !== 0
       ? new Date(memberInfo.orientationDate).toLocaleDateString()
       : "";
-  
+
 
   const { firstName, lastName, pronouns, address, emailInfo, phoneInfo } =
     personalInfo;
@@ -494,6 +513,10 @@ export default function MemberSnapshotPage() {
         </p>
       )}
       <Link to="/">← Back to Home</Link>
+
+      {actionError && <p className="error">{actionError}</p>}
+      {actionNotice && <p className="muted">{actionNotice}</p>}
+
       <form onSubmit={handleSubmit(onSubmit)}>
         <div
           style={{
@@ -670,10 +693,10 @@ export default function MemberSnapshotPage() {
                 className={pendingClass("memberInfo.dues.paymentType")}
                 disabled={!editMode}
               >                {Object.values(PaymentType).map((type) => (
-                  <option key={type} value={type}>
-                    {type.toUpperCase()}
-                  </option>
-                ))}
+                <option key={type} value={type}>
+                  {type.toUpperCase()}
+                </option>
+              ))}
               </select>
             </p>
             <p>
@@ -785,6 +808,9 @@ export default function MemberSnapshotPage() {
           </section>
         </div>
       </form>
+      <button type="button" onClick={() => handleDeleteMember(member.memberId || "", member.fullName)} className="danger-button">
+        Delete Member
+      </button>
     </>
   );
 }
