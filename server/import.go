@@ -130,8 +130,9 @@ type memberImportRow struct {
 	JoinDate string
 	JoinYear string
 
-	MemberType  string
-	MemberState string
+	MemberType             string
+	MemberState            string
+	BoxChangeRequestLetter string
 
 	BoxWaitingList   bool
 	WaitlistPosition string
@@ -677,7 +678,18 @@ func mergeRequirementsRows(
 			req.ServiceHoursRemaining != nil {
 			required := *req.ServiceHoursRequired
 			remaining := *req.ServiceHoursRemaining
-			completed := required - remaining
+
+			// The sheet's remaining already credits surplus open hours,
+			// so take that credit back out to get real service hours done.
+			surplus := 0.0
+			if req.OpenHoursRemaining != nil && *req.OpenHoursRemaining < 0 {
+				surplus = -*req.OpenHoursRemaining
+			}
+
+			completed := required - remaining - surplus
+			if completed < 0 {
+				completed = 0
+			}
 
 			member.WorkHoursRequired = &required
 			member.WorkHoursCompleted = &completed
@@ -1071,7 +1083,8 @@ func readMemberCSV(r io.Reader) ([]memberImportRow, error) {
 			WaitlistPosition: get(colBoxWaitingListNumber),
 			WaitlistJoinDate: waitlistJoinDate,
 
-			BoxNumber: get(colBoxNumber),
+			BoxNumber:              get(colBoxNumber),
+			BoxChangeRequestLetter: get(colBoxChangeRequestLetter),
 
 			Notes:              get(colNotes),
 			WorkHoursRequired:  workHoursRequired,
@@ -1626,6 +1639,8 @@ func buildSnapshotPayload(row memberImportRow) map[string]any {
 		requirements["serviceHoursRequired"] = *row.ServiceHoursRequired
 	}
 
+	joinDate, _ := parseCSVDate(row.JoinDate, "Join Date")
+
 	memberInfo := map[string]any{
 		"memberType":  row.MemberType,
 		"memberState": row.MemberState,
@@ -1636,6 +1651,8 @@ func buildSnapshotPayload(row memberImportRow) map[string]any {
 		"rolloverEligible": row.RolloverEligible,
 
 		"requirements": requirements,
+		"joinDate":     joinDate,
+		"notes":        row.Notes, // snapshot.notes is overwritten by approval workflow strings
 
 		"dues": map[string]any{
 			"amountPaid":  row.AmountPaid,
@@ -1679,8 +1696,9 @@ func buildSnapshotPayload(row memberImportRow) map[string]any {
 		"personal_info": personalInfo,
 		"member_info":   memberInfo,
 		"box_info": map[string]any{
-			"boxId":      nil,
-			"assignedAt": 0,
+			"boxId":               nil,
+			"assignedAt":          0,
+			"changeRequestLetter": row.BoxChangeRequestLetter,
 		},
 		"meeting_exemption": row.MeetingExemption,
 		"notes":             row.Notes,
@@ -2112,6 +2130,20 @@ func upsertSnapshot(
 		var existingInfo map[string]any
 
 		if err := person.snapshot.UnmarshalJSONField("member_info", &existingInfo); err == nil {
+			// Keep requirement data the CSV doesn't provide
+			if existingReq, ok := existingInfo["requirements"].(map[string]any); ok {
+				newReq, _ := newInfo["requirements"].(map[string]any)
+				if newReq == nil {
+					newReq = map[string]any{}
+					newInfo["requirements"] = newReq
+				}
+
+				for _, key := range []string{"volunteerInterests", "serviceRequirements"} {
+					if value, exists := existingReq[key]; exists {
+						newReq[key] = value
+					}
+				}
+			}
 			// Preserve the existing role. The CSV's "Board" status does
 			// not identify a specific application role.
 			if existingRole, ok := existingInfo["role"].(string); ok && existingRole != "" {

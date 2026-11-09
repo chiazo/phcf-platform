@@ -20,6 +20,7 @@ import {
   listMyRequirementUpdateRequests,
   listPendingRequirementUpdateRequests,
   logout,
+  listBoxes, listBoxWaitlist,
   RequirementUpdateRequestType,
   submitRequirementUpdateRequest,
   updateAcceptRequest,
@@ -952,10 +953,33 @@ export default function MembersPage() {
   const [query, setQuery] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(isLoggedIn());
   const outlinedAmountId = useId();
-  const [workFormulas, setAllFormulas] = useState<Array<Record<string, any>>>(
-    [],
-  );
+  const [workFormulas, setAllFormulas] = useState<
+    Array<Record<string, any> | null>
+  >([]);
   const [selectedView, setSelectedView] = useState<AdminView>("members");
+  const [boxNumberByMember, setBoxNumberByMember] = useState<Record<string, number>>({});
+  const [queueByMember, setQueueByMember] = useState<Record<string, number>>({});
+
+  async function refreshBoxData() {
+    try {
+      const [boxes, waitlist] = await Promise.all([listBoxes(), listBoxWaitlist()]);
+
+      const boxMap: Record<string, number> = {};
+      for (const box of boxes.items) {
+        for (const id of box.box_members ?? []) boxMap[id] = Number(box.box_number);
+      }
+
+      const queueMap: Record<string, number> = {};
+      waitlist.forEach((e: any, i: number) => {
+        queueMap[e.member_id] = i + 1;
+      });
+
+      setBoxNumberByMember(boxMap);
+      setQueueByMember(queueMap);
+    } catch (err) {
+      console.error("box data fetch error:", err);
+    }
+  }
 
   async function handleMyProgressClick() {
     try {
@@ -1017,10 +1041,8 @@ export default function MembersPage() {
   function refreshAllMembers() {
     return listMemberSnapshots()
       .then(async (res) => {
-        // const activeMembers = res.items.filter(r => r.member_info.memberState == "ACTIVE");
         setAllMembers(res.items);
-
-        await memberWorkFormulas(res.items);
+        setAllFormulas(await memberWorkFormulas(res.items)); // was discarded
       })
       .catch((err) => {
         console.error("member fetch error:", err);
@@ -1061,6 +1083,7 @@ export default function MembersPage() {
       return Promise.all([
         refreshApprovedMembers(),
         refreshAllMembers(),
+        refreshBoxData(),
         refreshRequirementUpdateRequests(),
         refreshMyRequirementUpdateRequests(),
         refreshAdminSnapshot(),
@@ -1113,7 +1136,7 @@ export default function MembersPage() {
         m.id,
         workFormulas[i] ?? null,
       ]),
-    );  
+    );
 
     return items.map((m) => ({
       ...m,
@@ -1147,12 +1170,12 @@ export default function MembersPage() {
   const currentIsAdmin = isAdmin();
   const adminSnapshotName = currentIsAdmin
     ? [
-        adminSnapshot?.personal_info?.firstName,
-        adminSnapshot?.personal_info?.lastName,
-      ]
-        .map((value) => String(value ?? "").trim())
-        .filter(Boolean)
-        .join(" ")
+      adminSnapshot?.personal_info?.firstName,
+      adminSnapshot?.personal_info?.lastName,
+    ]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .join(" ")
     : "";
   const displayName = adminSnapshotName || signedInName;
   const signedInLabel = displayName
@@ -1283,9 +1306,13 @@ export default function MembersPage() {
                   />
                 </Box>
               </Box>
-       
-              <MemberTable members={membersWithHours} work_formulas={membersWithHours.map((m) => m.work_formula)} />
-            </>
+
+              <MemberTable
+                members={membersWithHours}
+                work_formulas={membersWithHours.map((m) => m.work_formula)}
+                boxNumberByMember={boxNumberByMember}
+                queueByMember={queueByMember}
+              />            </>
           )}
 
           {selectedView === "requests" && (
@@ -1316,7 +1343,7 @@ export default function MembersPage() {
       )}
 
       <br />
-    
+
       {importKind && (
         <BulkImportModal
           kind={importKind}

@@ -20,35 +20,40 @@ import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import { visuallyHidden } from "@mui/utils";
 import * as React from "react";
-import { useState } from "react";
-import {downloadCsv} from "../lib/csv"
+import { downloadCsv } from "../lib/csv"
 import { Link } from "react-router-dom";
+import { displayNotes, summarizeRequirements } from "../lib/requirements";
 
 
 interface Data {
   id: string;
   member_id: string;
   fullName: string;
-  allMemberRequirementsMet: string;
-  dueStatus: string; //DueState
+  memberType: string;
+  joinDate: number;
+  boxNumber: number; // 0 = no box
+  queueRank: number; // 0 = not waiting
+  changeRequestLetter: string;
+  dueStatus: string;
   duesStatusMet: string;
-  amountPaid: number; //Amount Paid
-  meetingsRequired: number; //Meetings Required
+  duesPaidAt: number;
+  amountPaid: number;
+  meetingsRequired: number;
   meetingsCompleted: number;
+  meetingsRemaining: number;
   meetingsRequiredMet: string;
-  serviceHoursRequired: number; //hours completed
-  serviceHoursCompleted: number; //hours completed
-  serviceHoursMet: string;
   workHoursRequired: number;
   workHoursCompleted: number;
+  workHoursRemaining: number;
   openHoursRequired: number;
   openHoursCompleted: number;
+  openHoursRemaining: number;
+  serviceHoursMet: string; // "hours met", name kept for the filters
   workFormulaStatus: boolean;
-}
-
-function toNumber(value: unknown): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+  allMemberRequirementsMet: string;
+  rolloverEligible: string;
+  notes: string;
+  standingLabel: string;
 }
 
 function yesNo(value: boolean): string {
@@ -62,117 +67,53 @@ function formatDatePaid(unixSeconds: unknown): string {
   return new Date(seconds * 1000).toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-// Open hours can cover the work-hours requirement, but work hours can't
-// cover open hours (per the requirements notes).
-function hoursRequirementsMet(
-  workRequired: number,
-  workCompleted: number,
-  openRequired: number,
-  openCompleted: number,
-): boolean {
-  const spareOpenHours = Math.max(0, openCompleted - openRequired);
-  return (
-    openCompleted >= openRequired &&
-    workCompleted + spareOpenHours >= workRequired
-  );
-}
-
 function toRow(
   member: Record<string, any>,
   formula: Record<string, any> | null,
+  boxNumber: number,
+  queueRank: number,
 ): Data {
   const personalInfo = member.personal_info ?? {};
   const memberInfo = member.member_info ?? {};
   const dues = memberInfo.dues ?? {};
-  const requirements = memberInfo.requirements ?? {};
+  const s = summarizeRequirements(member, formula);
 
-  const fullName =
-    `${personalInfo.firstName ?? ""} ${personalInfo.lastName ?? ""}`.trim();
-  const dueStatus = dues.dueState ?? "";
-
-  const meetingsRequired = toNumber(requirements.meetingsRequired);
-  const meetingsCompleted = toNumber(requirements.meetingsCompleted);
-
-  const workHoursRequired = toNumber(formula?.work_hours_required);
-  const workHoursCompleted = toNumber(formula?.work_hours_completed);
-  const openHoursRequired = toNumber(formula?.open_hours_required);
-  const openHoursCompleted = toNumber(formula?.open_hours_completed);
-
-  const duesPaid = dueStatus === "PAID" || dueStatus === "COMPLETE";
-  const meetingsMet = meetingsCompleted >= meetingsRequired;
   // No formula row means no requirement we can check, so don't call it met
-  const hoursMet = formula
-    ? hoursRequirementsMet(
-      workHoursRequired,
-      workHoursCompleted,
-      openHoursRequired,
-      openHoursCompleted,
-    )
-    : false;
+  const hoursMet = formula ? s.hoursMet : false;
+  const meetingsMet = s.meetingsRemaining === 0;
 
-  return createData(
-    member.id,
-    member.member_id ?? "",
-    fullName,
-    yesNo(duesPaid && meetingsMet && hoursMet),
-    dueStatus,
-    yesNo(duesPaid),
-    toNumber(dues.amountPaid),
-    meetingsRequired,
-    meetingsCompleted,
-    yesNo(meetingsMet),
-    workHoursRequired + openHoursRequired,
-    workHoursCompleted + openHoursCompleted,
-    yesNo(hoursMet),
-    workHoursRequired,
-    workHoursCompleted,
-    openHoursRequired,
-    openHoursCompleted,
-    hoursMet,
-  );
-}
-
-function createData(
-  id: string,
-  member_id: string,
-  fullName: string,
-  allMemberRequirementsMet: string,
-  dueStatus: string, //DueState
-  duesStatusMet: string,
-  amountPaid: number, //Amount Paid
-  meetingsRequired: number, //Meetings Required
-  meetingsCompleted: number,
-  meetingsRequiredMet: string,
-  serviceHoursRequired: number, //hours completed
-  serviceHoursCompleted: number,
-  serviceHoursMet: string,
-  workHoursRequired: number,
-  workHoursCompleted: number,
-  openHoursRequired: number,
-  openHoursCompleted: number,
-  workFormulaStatus: boolean
-): Data {
   return {
-    id,
-    member_id,
-    fullName,
-    allMemberRequirementsMet,
-    dueStatus, //DueState
-    duesStatusMet,
-    amountPaid, //Amount Paid
-    meetingsRequired, //Meetings Required
-    meetingsCompleted,
-    meetingsRequiredMet,
-    serviceHoursRequired, //hours completed
-    serviceHoursCompleted,
-    serviceHoursMet,
-    workHoursRequired,
-    workHoursCompleted,
-    openHoursRequired,
-    openHoursCompleted,
-    workFormulaStatus
+    id: member.id,
+    member_id: member.member_id ?? "",
+    fullName: `${personalInfo.firstName ?? ""} ${personalInfo.lastName ?? ""}`.trim(),
+    memberType: memberInfo.memberType ?? "",
+    joinDate: Number(memberInfo.joinDate) || 0,
+    boxNumber,
+    queueRank,
+    changeRequestLetter: member.box_info?.changeRequestLetter ?? "",
+    dueStatus: dues.dueState ?? "",
+    duesStatusMet: yesNo(s.duesPaid),
+    duesPaidAt: Number(dues.duesPaidAt) || 0,
+    amountPaid: Number(dues.amountPaid) || 0,
+    meetingsRequired: s.meetingsRequired,
+    meetingsCompleted: s.meetingsAttended,
+    meetingsRemaining: s.meetingsRemaining,
+    meetingsRequiredMet: yesNo(meetingsMet),
+    workHoursRequired: s.workRequired,
+    workHoursCompleted: s.workDone,
+    workHoursRemaining: s.workRemaining,
+    openHoursRequired: s.openRequired,
+    openHoursCompleted: s.openDone,
+    openHoursRemaining: s.openRemaining,
+    serviceHoursMet: yesNo(hoursMet),
+    workFormulaStatus: hoursMet,
+    allMemberRequirementsMet: yesNo(s.duesPaid && meetingsMet && hoursMet),
+    rolloverEligible: memberInfo.rolloverEligible ?? "",
+    notes: displayNotes(memberInfo),
+    standingLabel: s.duesPaid && meetingsMet && hoursMet ? "Yes" : "In Progress",
   };
 }
+
 
 type Order = "asc" | "desc";
 
@@ -242,72 +183,26 @@ interface HeadCell {
 }
 
 const headCells: readonly HeadCell[] = [
-  {
-    id: "fullName",
-    numeric: false,
-    disablePadding: true,
-    label: "Full Name",
-  },
-  {
-    id: "allMemberRequirementsMet",
-    numeric: false,
-    disablePadding: false,
-    label: "All Member Requirements Met",
-  },
-  {
-    id: "dueStatus",
-    numeric: false,
-    disablePadding: false,
-    label: "Current Dues Status",
-  },
-  {
-    id: "amountPaid",
-    numeric: true,
-    disablePadding: false,
-    label: "Amount Paid",
-  },
-  {
-    id: "meetingsRequired",
-    numeric: true,
-    disablePadding: false,
-    label: "Meetings Required",
-  },
-  {
-    id: "meetingsCompleted",
-    numeric: true,
-    disablePadding: false,
-    label: "Meetings Completed",
-  },
-  {
-    id: "workHoursRequired",
-    numeric: true,
-    disablePadding: false,
-    label: "Work Hours Required",
-  },
-  {
-    id: "workHoursCompleted",
-    numeric: true,
-    disablePadding: false,
-    label: "Work Hours Completed",
-  },
-  {
-    id: "openHoursRequired",
-    numeric: true,
-    disablePadding: false,
-    label: "Open Hours Required",
-  },
-  {
-    id: "openHoursCompleted",
-    numeric: true,
-    disablePadding: false,
-    label: "Open Hours Completed",
-  },
-  {
-    id: "workFormulaStatus",
-    numeric: false,
-    disablePadding: false,
-    label: "Hour Status",
-  },
+  { id: "fullName", numeric: false, disablePadding: true, label: "Full Name" },
+  { id: "memberType", numeric: false, disablePadding: false, label: "Member Type" },
+  { id: "joinDate", numeric: false, disablePadding: false, label: "Join Date" },
+  { id: "boxNumber", numeric: true, disablePadding: false, label: "Box Number" },
+  { id: "queueRank", numeric: true, disablePadding: false, label: "Waitlist #" },
+  { id: "changeRequestLetter", numeric: false, disablePadding: false, label: "Box Change Request" },
+  { id: "dueStatus", numeric: false, disablePadding: false, label: "Dues Status" },
+  { id: "duesPaidAt", numeric: false, disablePadding: false, label: "Dues Paid: Date" },
+  { id: "amountPaid", numeric: true, disablePadding: false, label: "Amount Paid" },
+  { id: "meetingsRequired", numeric: true, disablePadding: false, label: "Meetings Required" },
+  { id: "meetingsCompleted", numeric: true, disablePadding: false, label: "Meetings Attended" },
+  { id: "meetingsRemaining", numeric: true, disablePadding: false, label: "Meetings Remaining" },
+  { id: "workHoursRequired", numeric: true, disablePadding: false, label: "Total Service Hours Required" },
+  { id: "openHoursRequired", numeric: true, disablePadding: false, label: "Total Open Hours Required" },
+  { id: "openHoursRemaining", numeric: true, disablePadding: false, label: "Total Open Hours Remaining" },
+  { id: "workHoursRemaining", numeric: true, disablePadding: false, label: "Total Service Hours Remaining" },
+  { id: "standingLabel", numeric: false, disablePadding: false, label: "Good Standing" },
+  { id: "rolloverEligible", numeric: false, disablePadding: false, label: "Rollover Eligible" },
+  { id: "workFormulaStatus", numeric: false, disablePadding: false, label: "Hour Status" },
+  { id: "notes", numeric: false, disablePadding: false, label: "Notes" },
 ];
 
 interface EnhancedTableProps {
@@ -447,9 +342,13 @@ function EnhancedTableToolbar(props: EnhancedTableToolbarProps) {
 export default function EnhancedTable({
   members,
   work_formulas,
+  boxNumberByMember = {},
+  queueByMember = {},
 }: {
   members: Array<Record<string, any>>;
   work_formulas: Array<Record<string, any> | null>;
+  boxNumberByMember?: Record<string, number>;
+  queueByMember?: Record<string, number>;
 }) {
   const [order, setOrder] = React.useState<Order>("asc");
   const [orderBy, setOrderBy] = React.useState<keyof Data>("dueStatus");
@@ -478,10 +377,15 @@ export default function EnhancedTable({
     }
 
     return members.map((member) =>
-      toRow(member, formulaByMemberId.get(member.member_id) ?? null),
+      toRow(
+        member,
+        formulaByMemberId.get(member.member_id) ?? null,
+        boxNumberByMember[member.member_id] ?? 0,
+        queueByMember[member.member_id] ?? 0,
+      ),
     );
-  }, [members, work_formulas]);
-  
+  }, [members, work_formulas, boxNumberByMember, queueByMember]);
+
 
   const filteredRows = React.useMemo(
     () =>
@@ -522,19 +426,31 @@ export default function EnhancedTable({
     const header = [
       "Full Name",
       "Email",
-      "All Requirements Met",
-      "Dues Met",
-      "Meetings Met",
-      "Hours Met",
+      "Member Type",
+      "Join Date",
+      "Box Number",
+      "Waitlist #",
+
+      "Box Change Request",
       "Dues Status",
+      "Dues Paid: Date",
       "Amount Paid",
-      ...(includePaymentType ? ["Payment Type", "Date Paid"] : []),
+
+      ...(includePaymentType ? ["Payment Type"] : []),
+
       "Meetings Required",
-      "Meetings Completed",
-      "Work Hours Required",
-      "Work Hours Completed",
-      "Open Hours Required",
-      "Open Hours Completed",
+      "Meetings Attended",
+      "Meetings Remaining",
+
+      "Total Service Hours Required",
+      "Total Open Hours Required",
+      "Total Open Hours Remaining",
+      "Total Service Hours Remaining",
+
+      "Good Standing",
+      "Rollover Eligible",
+      "Notes",
+
     ];
 
     const rows = [...filteredRows]
@@ -545,21 +461,25 @@ export default function EnhancedTable({
         return [
           row.fullName,
           details?.email ?? "",
-          row.allMemberRequirementsMet,
-          row.duesStatusMet,
-          row.meetingsRequiredMet,
-          row.serviceHoursMet,
+          row.memberType,
+          formatDatePaid(row.joinDate),
+          row.boxNumber || "",
+          row.queueRank || "",
+          row.changeRequestLetter,
           row.dueStatus,
+          formatDatePaid(row.duesPaidAt),
           row.amountPaid,
-          ...(includePaymentType
-            ? [details?.paymentType ?? "", details?.datePaid ?? ""]
-            : []),
+          ...(includePaymentType ? [details?.paymentType ?? ""] : []),
           row.meetingsRequired,
           row.meetingsCompleted,
+          row.meetingsRemaining,
           row.workHoursRequired,
-          row.workHoursCompleted,
           row.openHoursRequired,
-          row.openHoursCompleted,
+          row.openHoursRemaining,
+          row.workHoursRemaining,
+          row.standingLabel,
+          row.rolloverEligible,
+          row.notes,
         ];
       });
 
@@ -745,34 +665,35 @@ export default function EnhancedTable({
                       >
                         <Link to={`/snapshot/${row.id}`}>{row.fullName}</Link>
                       </TableCell>
-                      <TableCell align="center">
-                        {row.allMemberRequirementsMet}
-                      </TableCell>
+                      <TableCell align="center">{row.memberType || "—"}</TableCell>
+                      <TableCell align="center">{formatDatePaid(row.joinDate) || "—"}</TableCell>
+                      <TableCell align="center">{row.boxNumber || "—"}</TableCell>
+                      <TableCell align="center">{row.queueRank || "—"}</TableCell>
+                      <TableCell align="center">{row.changeRequestLetter || "—"}</TableCell>
                       <TableCell align="center">{row.dueStatus}</TableCell>
+                      <TableCell align="center">{formatDatePaid(row.duesPaidAt) || "—"}</TableCell>
                       <TableCell align="center">{row.amountPaid}</TableCell>
-                      <TableCell align="center">
-                        {row.meetingsRequired}
-                      </TableCell>
-                      <TableCell align="center">
-                        {row.meetingsCompleted}
-                      </TableCell>
+                      <TableCell align="center">{row.meetingsRequired}</TableCell>
+                      <TableCell align="center">{row.meetingsCompleted}</TableCell>
+                      <TableCell align="center">{row.meetingsRemaining}</TableCell>
                       <TableCell align="center">{row.workHoursRequired}</TableCell>
-                      <TableCell align="center">{row.workHoursCompleted}</TableCell>
                       <TableCell align="center">{row.openHoursRequired}</TableCell>
-                      <TableCell align="center">{row.openHoursCompleted}</TableCell>
+                      <TableCell align="center">{row.openHoursRemaining}</TableCell>
+                      <TableCell align="center">{row.workHoursRemaining}</TableCell>
+                      <TableCell align="center">{row.standingLabel}</TableCell>
+                      <TableCell align="center">{row.rolloverEligible || "—"}</TableCell>
                       <TableCell align="center">
                         {workFormula ? (
                           row.workFormulaStatus ? (
                             <MoodRoundedIcon sx={{ color: "green" }} />
                           ) : (
-                            <SentimentDissatisfiedRoundedIcon
-                              sx={{ color: "red" }}
-                            />
+                            <SentimentDissatisfiedRoundedIcon sx={{ color: "red" }} />
                           )
                         ) : (
                           "N/A"
                         )}
                       </TableCell>
+                      <TableCell align="center">{row.notes || "—"}</TableCell>
                     </TableRow>
                   );
                 })}
@@ -782,7 +703,7 @@ export default function EnhancedTable({
                       height: 53 * emptyRows,
                     }}
                   >
-                    <TableCell colSpan={12} />
+                    <TableCell colSpan={headCells.length + 1} />
                   </TableRow>
                 )}
               </TableBody>

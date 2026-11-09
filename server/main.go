@@ -55,8 +55,8 @@ type workFormulaCriteria struct {
 
 type bulkUpdateWorkFormulaForm struct {
 	Criteria          workFormulaCriteria `json:"criteria"`
-	WorkHoursRequired *int                `json:"workHoursRequired"`
-	OpenHoursRequired *int                `json:"openHoursRequired"`
+	WorkHoursRequired *float64            `json:"workHoursRequired"`
+	OpenHoursRequired *float64            `json:"openHoursRequired"`
 	Meetings          *int                `json:"meetings"`
 	// Preview=true returns the matching members without writing anything —
 	// lets the admin UI show "this will affect 7 members" before applying.
@@ -631,6 +631,12 @@ func bulkUpdateWorkFormula(app core.App) func(e *core.RequestEvent) error {
 			return e.BadRequestError("Could not read request data.", err)
 		}
 
+		if !form.Preview {
+			if *form.WorkHoursRequired < 0 || *form.OpenHoursRequired < 0 || *form.Meetings < 0 {
+				return e.BadRequestError("Values cannot be negative.", nil)
+			}
+		}
+
 		if !form.Preview &&
 			(form.WorkHoursRequired == nil ||
 				form.OpenHoursRequired == nil ||
@@ -650,11 +656,14 @@ func bulkUpdateWorkFormula(app core.App) func(e *core.RequestEvent) error {
 		}
 		for _, box := range boxes {
 			members := box.GetStringSlice("box_members")
+			size := len(members)
+			if box.GetInt("capacity") == 1 {
+				size = 1 // whole box, regardless of headcount
+			}
 			for _, memberId := range members {
-				boxSizeByMember[memberId] = len(members)
+				boxSizeByMember[memberId] = size
 			}
 		}
-
 		members := []*core.Record{}
 		if err := app.RecordQuery("member").All(&members); err != nil {
 			return e.InternalServerError("Could not load members.", err)
@@ -737,81 +746,129 @@ func bulkUpdateWorkFormula(app core.App) func(e *core.RequestEvent) error {
 			return e.InternalServerError("Could not load work_formula collection.", err)
 		}
 
-		updatedIds := make([]string, 0, len(matched))
+		// updatedIds := make([]string, 0, len(matched))
+		var updatedIds []string
 		now := time.Now()
 
-		for _, member := range matched {
-			wf, err := app.FindFirstRecordByFilter(
-				"work_formula",
-				"member_id = {:id}",
-				dbx.Params{"id": member.Id},
-			)
-			if err != nil {
-				if !errors.Is(err, sql.ErrNoRows) {
-					return e.InternalServerError("Could not load work formula for member "+member.Id+".", err)
+		err = app.RunInTransaction(func(txApp core.App) error {
+			for _, member := range matched {
+				wf, err := txApp.FindFirstRecordByFilter(
+					"work_formula",
+					"member_id = {:id}",
+					dbx.Params{"id": member.Id},
+				)
+				if err != nil {
+					if !errors.Is(err, sql.ErrNoRows) {
+						return e.InternalServerError("Could not load work formula for member "+member.Id+".", err)
+					}
+					wf = core.NewRecord(workFormulaCollection)
+					wf.Set("member_id", member.Id)
+					wf.Set("work_hours_completed", 0)
+					wf.Set("open_hours_completed", 0)
+					wf.Set("created_at", now)
 				}
-				wf = core.NewRecord(workFormulaCollection)
-				wf.Set("member_id", member.Id)
-				wf.Set("work_hours_completed", 0)
-				wf.Set("open_hours_completed", 0)
-				wf.Set("created_at", now)
+
+				wf.Set("work_hours_required", *form.WorkHoursRequired)
+				wf.Set("open_hours_required", *form.OpenHoursRequired)
+				wf.Set("modified_at", now)
+
+				if err := app.Save(wf); err != nil {
+					return e.InternalServerError("Could not save work formula for member "+member.Id+".", err)
+				}
+
+				// Update meetingsRequired in member_snapshot.member_info.requirements.
+				snapshotId := member.GetString("member_snapshot_id")
+				if snapshotId == "" {
+					return e.InternalServerError(
+						"Member "+member.Id+" has no member snapshot.",
+						nil,
+					)
+				}
+
+				snapshot, err := app.FindRecordById("member_snapshot", snapshotId)
+				if err != nil {
+					return e.InternalServerError(
+						"Could not load member snapshot for member "+member.Id+".",
+						err,
+					)
+				}
+
+				var memberInfo map[string]any
+				if err := snapshot.UnmarshalJSONField("member_info", &memberInfo); err != nil {
+					return e.InternalServerError(
+						"Could not read member info for member "+member.Id+".",
+						err,
+					)
+				}
+				if memberInfo == nil {
+					memberInfo = map[string]any{}
+				}
+
+				requirements, ok := memberInfo["requirements"].(map[string]any)
+				if !ok || requirements == nil {
+					requirements = map[string]any{}
+				}
+
+				// Skip members whose meetings requirement is already correct, so a
+				// re-run doesn't create a pile of identical snapshots.
+				if current, ok := requirements["meetingsRequired"].(float64); ok &&
+					int(current) == *form.Meetings {
+					updatedIds = append(updatedIds, member.Id)
+					continue
+				}
+
+				requirements["meetingsRequired"] = *form.Meetings
+				memberInfo["requirements"] = requirements
+
+				snapshotCollection, err := app.FindCollectionByNameOrId("member_snapshot")
+				if err != nil {
+					return e.InternalServerError("Could not load member_snapshot collection.", err)
+				}
+
+				reviewer := "admin"
+				if e.Auth != nil {
+					if name := e.Auth.GetString("name"); name != "" {
+						reviewer = name
+					} else if email := e.Auth.Email(); email != "" {
+						reviewer = email
+					}
+				}
+
+				newSnapshot := core.NewRecord(snapshotCollection)
+				newSnapshot.Set("user_id", snapshot.GetString("user_id"))
+				newSnapshot.Set("member_id", member.Id)
+				newSnapshot.Set("updated_by", reviewer)
+				newSnapshot.Set("notes", "Bulk update: meetings required.")
+				newSnapshot.Set("meeting_exemption", snapshot.GetFloat("meeting_exemption"))
+				newSnapshot.Set("personal_info", snapshot.Get("personal_info"))
+				newSnapshot.Set("box_info", snapshot.Get("box_info"))
+				newSnapshot.Set("member_info", memberInfo)
+				newSnapshot.Set("created_at", now)
+				newSnapshot.Set("modified_at", now)
+
+				if err := app.Save(newSnapshot); err != nil {
+					return e.InternalServerError(
+						"Could not create updated snapshot for member "+member.Id+".",
+						err,
+					)
+				}
+
+				member.Set("member_snapshot_id", newSnapshot.Id)
+				member.Set("modified_at", now)
+				if err := app.Save(member); err != nil {
+					return e.InternalServerError(
+						"Could not point member "+member.Id+" at the new snapshot.",
+						err,
+					)
+				}
+
+				updatedIds = append(updatedIds, member.Id)
 			}
+			return nil
+		})
 
-			wf.Set("work_hours_required", *form.WorkHoursRequired)
-			wf.Set("open_hours_required", *form.OpenHoursRequired)
-			wf.Set("modified_at", now)
-
-			if err := app.Save(wf); err != nil {
-				return e.InternalServerError("Could not save work formula for member "+member.Id+".", err)
-			}
-
-			// Update meetingsRequired in member_snapshot.member_info.requirements.
-			snapshotId := member.GetString("member_snapshot_id")
-			if snapshotId == "" {
-				return e.InternalServerError(
-					"Member "+member.Id+" has no member snapshot.",
-					nil,
-				)
-			}
-
-			snapshot, err := app.FindRecordById("member_snapshot", snapshotId)
-			if err != nil {
-				return e.InternalServerError(
-					"Could not load member snapshot for member "+member.Id+".",
-					err,
-				)
-			}
-
-			var memberInfo map[string]any
-			if err := snapshot.UnmarshalJSONField("member_info", &memberInfo); err != nil {
-				return e.InternalServerError(
-					"Could not read member info for member "+member.Id+".",
-					err,
-				)
-			}
-
-			if memberInfo == nil {
-				memberInfo = map[string]any{}
-			}
-
-			requirements, ok := memberInfo["requirements"].(map[string]any)
-			if !ok || requirements == nil {
-				requirements = map[string]any{}
-			}
-
-			requirements["meetingsRequired"] = *form.Meetings
-			memberInfo["requirements"] = requirements
-
-			snapshot.Set("member_info", memberInfo)
-
-			if err := app.Save(snapshot); err != nil {
-				return e.InternalServerError(
-					"Could not update meeting requirements for member "+member.Id+".",
-					err,
-				)
-			}
-
-			updatedIds = append(updatedIds, member.Id)
+		if err != nil {
+			return e.InternalServerError("Bulk update failed; no changes were saved.", err)
 		}
 
 		return e.JSON(http.StatusOK, map[string]any{
